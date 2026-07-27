@@ -3,7 +3,8 @@ import subprocess
 import tkinter as tk
 from tkinter import messagebox
 
-# Archivo para guardar el contador de commits
+# Configuración del repositorio y contador
+URL_REPOSITORIO = "https://github.com/dfcastro1997-dot/core_work.git"
 ARCHIVO_CONTADOR = "contador.txt"
 
 # Elementos sensibles que jamás deben subirse a GitHub
@@ -47,6 +48,26 @@ def desvincular_archivos_sensibles():
         )
 
 
+def asegurar_conexion_github():
+    """Verifica e inicializa Git y el enlace remoto 'origin' si no existen."""
+    # Inicializar git si no se ha hecho
+    if not os.path.exists(".git"):
+        subprocess.run(["git", "init"], capture_output=True, text=True)
+
+    # Verificar si 'origin' ya está configurado
+    check_remote = subprocess.run(
+        ["git", "remote", "get-url", "origin"], capture_output=True, text=True
+    )
+
+    if check_remote.returncode != 0:
+        # Si no existe origin, lo añade automáticamente
+        subprocess.run(
+            ["git", "remote", "add", "origin", URL_REPOSITORIO],
+            capture_output=True,
+            text=True,
+        )
+
+
 def obtener_siguiente_numero():
     """Lee el número del archivo contador.txt o lo inicia en 0."""
     if not os.path.exists(ARCHIVO_CONTADOR):
@@ -70,35 +91,38 @@ def guardar_siguiente_numero(numero):
 
 
 def ejecutar_git():
-    """Asegura la protección de datos y sube los cambios a GitHub."""
+    """Asegura la protección de datos, conecta con GitHub y sube los cambios."""
     try:
-        # 1. Proteger datos sensibles antes de ejecutar comandos de Git
+        # 1. Asegurar que Git esté inicializado y vinculado a tu GitHub
+        asegurar_conexion_github()
+
+        # 2. Proteger datos sensibles
         asegurar_gitignore()
         desvincular_archivos_sensibles()
 
-        numero_commit = obtener_siguiente_numero()
-        mensaje_commit = f"{numero_commit:02d}"
-
-        # 2. Asegurar la rama 'main'
+        # 3. Asegurar la rama 'main'
         subprocess.run(
             ["git", "branch", "-M", "main"], capture_output=True, text=True
         )
 
-        # 3. Preparar archivos (git add .)
+        # 4. Preparar archivos (git add .)
         resultado_add = subprocess.run(
             ["git", "add", "."], capture_output=True, text=True
         )
         if resultado_add.returncode != 0:
             raise Exception(f"Error en 'git add':\n{resultado_add.stderr}")
 
-        # 4. Registrar cambios (git commit -m "XX")
+        # 5. Registrar cambios (git commit -m "XX")
+        numero_commit = obtener_siguiente_numero()
+        mensaje_commit = f"{numero_commit:02d}"
+
         subprocess.run(
             ["git", "commit", "-m", mensaje_commit],
             capture_output=True,
             text=True,
         )
 
-        # 5. Enviar a GitHub (git push -u origin main)
+        # 6. Enviar a GitHub (git push -u origin main)
         resultado_push = subprocess.run(
             ["git", "push", "-u", "origin", "main"],
             capture_output=True,
