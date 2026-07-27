@@ -3,6 +3,11 @@
 // ==========================================
 const API_URL = 'https://core-work-api.onrender.com';
 let tasksCache = [];
+let eventsCache = [];
+let financesCache = [];
+let pocketsCache = [];
+let contactsCache = [];
+
 let deleteTaskId = null;
 let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
@@ -15,25 +20,52 @@ let timerInterval = null;
 let activeTaskId = null;
 let timerSeconds = 0;
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     initSettings();
     loadDynamicOptions();
     initTracker();
 
-    if (document.getElementById('dash-task-count') || document.getElementById('calendar-grid') || document.getElementById('col-todo')) {
-        fetchTasks();
-    }
-    if (document.getElementById('calendar-grid')) renderCalendar();
-    if (document.getElementById('finance-table-body')) {
-        renderFinances();
-        if (typeof renderPockets === 'function') renderPockets();
-    }
-    if (document.getElementById('crm-network')) renderTelarana();
-    if (document.getElementById('profile-list')) renderSettings();
+    // Cargar todo desde la Nube (PostgreSQL)
+    await fetchAllData();
 });
 
+async function fetchAllData() {
+    try {
+        const [resTasks, resEvents, resFinances, resPockets, resContacts] = await Promise.all([
+            fetch(`${API_URL}/tasks`).then(r => r.json()),
+            fetch(`${API_URL}/events`).then(r => r.json()),
+            fetch(`${API_URL}/finances`).then(r => r.json()),
+            fetch(`${API_URL}/pockets`).then(r => r.json()),
+            fetch(`${API_URL}/contacts`).then(r => r.json())
+        ]);
+
+        tasksCache = resTasks.map(t => {
+            let meta = { company: getProfiles()[0], subdivision: 'General', date: 'Sin Fecha' };
+            try { if (t.description) meta = JSON.parse(t.description); } catch(e) {}
+            return { ...t, company: meta.company, subdivision: meta.subdivision || 'General', dueDate: meta.date };
+        });
+        
+        eventsCache = resEvents;
+        financesCache = resFinances;
+        pocketsCache = resPockets;
+        contactsCache = resContacts;
+
+        // Renderizado Condicional
+        if (document.getElementById('dash-task-count')) updateDashboard();
+        if (document.getElementById('calendar-grid')) renderCalendar();
+        if (document.getElementById('col-todo')) renderKanban();
+        if (document.getElementById('finance-table-body')) { renderFinances(); renderPockets(); }
+        if (document.getElementById('crm-network')) renderTelarana();
+        if (document.getElementById('profile-list')) renderSettings();
+        populateTrackerSelect();
+
+    } catch (err) {
+        showCustomAlert("Error de Sincronización", "No se pudieron cargar los datos desde la nube. Revisa tu conexión.", "error");
+    }
+}
+
 // ==========================================
-// SISTEMA UNIVERSAL DE MODALES (Adiós alerts)
+// SISTEMA UNIVERSAL DE MODALES
 // ==========================================
 function showCustomAlert(title, message, type = 'info') {
     let modal = document.getElementById('global-alert-modal');
@@ -43,29 +75,17 @@ function showCustomAlert(title, message, type = 'info') {
         modal.className = 'fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center z-[100]';
         document.body.appendChild(modal);
     }
-    
     let iconHtml = '';
-    if(type === 'success') {
-        iconHtml = `<div class="mx-auto w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-4"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></div>`;
-    } else if(type === 'error') {
-        iconHtml = `<div class="mx-auto w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mb-4"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></div>`;
-    } else {
-        iconHtml = `<div class="mx-auto w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>`;
-    }
+    if(type === 'success') iconHtml = `<div class="mx-auto w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-4"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></div>`;
+    else if(type === 'error') iconHtml = `<div class="mx-auto w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mb-4"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></div>`;
+    else iconHtml = `<div class="mx-auto w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>`;
 
-    modal.innerHTML = `
-        <div class="bg-white w-full max-w-sm rounded-xl p-6 shadow-2xl border border-slate-200 text-center">
-            ${iconHtml}
-            <h3 class="text-base font-bold text-slate-900 mb-2">${title}</h3>
-            <p class="text-xs text-slate-600 mb-6">${message}</p>
-            <button onclick="document.getElementById('global-alert-modal').classList.add('hidden')" class="px-5 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-800 transition-colors w-full">Entendido</button>
-        </div>
-    `;
+    modal.innerHTML = `<div class="bg-white w-full max-w-sm rounded-xl p-6 shadow-2xl border border-slate-200 text-center">${iconHtml}<h3 class="text-base font-bold text-slate-900 mb-2">${title}</h3><p class="text-xs text-slate-600 mb-6">${message}</p><button onclick="document.getElementById('global-alert-modal').classList.add('hidden')" class="px-5 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-800 transition-colors w-full">Entendido</button></div>`;
     modal.classList.remove('hidden');
 }
 
 // ==========================================
-// MÓDULO CONFIGURACIONES
+// MÓDULO CONFIGURACIONES (Aún local para agilidad)
 // ==========================================
 function initSettings() {
     if (!localStorage.getItem('core_work_profiles')) localStorage.setItem('core_work_profiles', JSON.stringify(["Inversor Principal", "Proyecto Personal", "Soporte Técnico"]));
@@ -73,7 +93,6 @@ function initSettings() {
     if (!localStorage.getItem('core_work_fixed_items')) localStorage.setItem('core_work_fixed_items', JSON.stringify(["Arriendo Oficina", "Luz / Energía", "Internet", "Software Aiven / Render"]));
     if (!localStorage.getItem('core_work_subdivisions')) localStorage.setItem('core_work_subdivisions', JSON.stringify(["General", "Desarrollo", "Marketing", "Administrativo"]));
 }
-
 function getProfiles() { return JSON.parse(localStorage.getItem('core_work_profiles')); }
 function getExpenseTypes() { return JSON.parse(localStorage.getItem('core_work_expenses')); }
 function getFixedItems() { return JSON.parse(localStorage.getItem('core_work_fixed_items')); }
@@ -90,22 +109,15 @@ function loadDynamicOptions() {
     subSelects.forEach(sel => { sel.innerHTML = ''; getSubdivisions().forEach(s => sel.innerHTML += `<option value="${s}">${s}</option>`); });
     if (fixedDatalist) { fixedDatalist.innerHTML = ''; getFixedItems().forEach(f => fixedDatalist.innerHTML += `<option value="${f}">`); }
 }
-
 function renderSettings() {
-    const pList = document.getElementById('profile-list');
-    const eList = document.getElementById('expense-list');
-    const fList = document.getElementById('fixed-list');
-    const sList = document.getElementById('subdivision-list');
+    const pList = document.getElementById('profile-list'); const eList = document.getElementById('expense-list'); const fList = document.getElementById('fixed-list'); const sList = document.getElementById('subdivision-list');
     if(!pList) return;
-    
     pList.innerHTML = ''; eList.innerHTML = ''; fList.innerHTML = ''; sList.innerHTML = '';
-    
     getProfiles().forEach((p, idx) => pList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${p}</span><button onclick="deleteSetting('profiles', ${idx})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`);
     getExpenseTypes().forEach((e, idx) => eList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${e}</span><button onclick="deleteSetting('expenses', ${idx})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`);
     getFixedItems().forEach((f, idx) => fList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${f}</span><button onclick="deleteSetting('fixed', ${idx})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`);
     getSubdivisions().forEach((s, idx) => sList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${s}</span><button onclick="deleteSetting('subdivisions', ${idx})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`);
 }
-
 function addProfile() { const val = document.getElementById('new-profile').value; if(val) { const d = getProfiles(); d.push(val); localStorage.setItem('core_work_profiles', JSON.stringify(d)); document.getElementById('new-profile').value=''; renderSettings(); loadDynamicOptions(); } }
 function addExpenseType() { const val = document.getElementById('new-expense').value; if(val) { const d = getExpenseTypes(); d.push(val); localStorage.setItem('core_work_expenses', JSON.stringify(d)); document.getElementById('new-expense').value=''; renderSettings(); loadDynamicOptions(); } }
 function addFixedItem() { const val = document.getElementById('new-fixed').value; if(val) { const d = getFixedItems(); d.push(val); localStorage.setItem('core_work_fixed_items', JSON.stringify(d)); document.getElementById('new-fixed').value=''; renderSettings(); loadDynamicOptions(); } }
@@ -122,33 +134,13 @@ async function testTelegramAlert() {
         if(response.ok) showCustomAlert("Notificación Enviada", "El resumen de tareas ha sido enviado con éxito a tu cuenta de Telegram.", "success");
         else showCustomAlert("Error de Envío", "El servidor respondió, pero hubo un error al enviar el mensaje. Revisa los logs en Render.", "error");
     } catch (error) {
-        showCustomAlert("Fallo de Conexión", "No se pudo conectar con la API. Asegúrate de que tu backend esté en línea y sincronizado.", "error");
+        showCustomAlert("Fallo de Conexión", "No se pudo conectar con la API.", "error");
     }
 }
 
-
 // ==========================================
-// MÓDULO DE TAREAS & KANBAN
+// MÓDULO DE TAREAS & KANBAN (NUBE)
 // ==========================================
-async function fetchTasks() {
-    try {
-        const response = await fetch(`${API_URL}/tasks`);
-        const rawTasks = await response.json();
-        
-        tasksCache = rawTasks.map(t => {
-            let meta = { company: getProfiles()[0], subdivision: 'General', date: 'Sin Fecha' };
-            try { if (t.description) meta = JSON.parse(t.description); } catch(e) {}
-            return { ...t, company: meta.company, subdivision: meta.subdivision || 'General', dueDate: meta.date };
-        });
-        
-        if (document.getElementById('dash-task-count')) updateDashboard();
-        if (document.getElementById('calendar-grid')) renderCalendar();
-        if (document.getElementById('col-todo')) renderKanban();
-        
-        populateTrackerSelect();
-    } catch (error) { console.error("Error API Tareas:", error); }
-}
-
 function renderKanban() {
     const cols = { 'todo': [], 'in_progress': [], 'review': [], 'done': [] };
     tasksCache.forEach(t => {
@@ -163,16 +155,10 @@ function renderKanban() {
         colEl.innerHTML = '';
         cols[key].forEach(t => {
             let formatTime = t.time_spent > 0 ? `<span class="text-[9px] bg-indigo-100 text-indigo-700 px-1 rounded ml-1">⏱ ${Math.floor(t.time_spent/60)}m</span>` : '';
-            colEl.innerHTML += `
-                <div id="ktask-${t.id}" draggable="true" ondragstart="drag(event)" class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm cursor-move hover:border-slate-300">
-                    <div class="text-[10px] font-bold text-slate-400 uppercase mb-1">${t.company} ${formatTime}</div>
-                    <p class="text-xs font-semibold text-slate-800 leading-tight">${t.title}</p>
-                </div>
-            `;
+            colEl.innerHTML += `<div id="ktask-${t.id}" draggable="true" ondragstart="drag(event)" class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm cursor-move hover:border-slate-300"><div class="text-[10px] font-bold text-slate-400 uppercase mb-1">${t.company} ${formatTime}</div><p class="text-xs font-semibold text-slate-800 leading-tight">${t.title}</p></div>`;
         });
     }
 }
-
 function allowDrop(ev) { ev.preventDefault(); }
 function drag(ev) { ev.dataTransfer.setData("taskId", ev.target.id.replace('ktask-', '')); }
 async function drop(ev) {
@@ -183,38 +169,24 @@ async function drop(ev) {
     
     const newStatus = targetCol.id.replace('col-', '');
     const isCompleted = newStatus === 'done';
-
     targetCol.appendChild(document.getElementById(`ktask-${taskId}`));
 
-    await fetch(`${API_URL}/tasks/${taskId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus, completed: isCompleted })
-    });
-    fetchTasks();
+    await fetch(`${API_URL}/tasks/${taskId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus, completed: isCompleted }) });
+    fetchAllData();
 }
 
 async function saveTask(event) {
     event.preventDefault();
-    const payload = { 
-        title: document.getElementById('task-title').value, 
-        description: JSON.stringify({ 
-            company: document.getElementById('task-company').value, 
-            subdivision: document.getElementById('task-subdivision').value,
-            date: document.getElementById('task-date').value 
-        }), 
-        is_ops: false 
-    };
+    const payload = { title: document.getElementById('task-title').value, description: JSON.stringify({ company: document.getElementById('task-company').value, subdivision: document.getElementById('task-subdivision').value, date: document.getElementById('task-date').value }), is_ops: false };
     await fetch(`${API_URL}/tasks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    closeTaskModal(); fetchTasks();
+    closeTaskModal(); fetchAllData();
 }
 
 async function confirmDeleteTask() {
     if (!deleteTaskId) return;
     await fetch(`${API_URL}/tasks/${deleteTaskId}`, { method: 'DELETE' });
-    closeDeleteModal(); fetchTasks();
+    closeDeleteModal(); fetchAllData();
 }
-
 function openTaskModal() { document.getElementById('task-modal').classList.remove('hidden'); }
 function closeTaskModal() { document.getElementById('task-modal').classList.add('hidden'); }
 function openDeleteModal(id) { deleteTaskId = id; document.getElementById('delete-modal').classList.remove('hidden'); }
@@ -237,71 +209,45 @@ function initTracker() {
         timerInterval = setInterval(tickTimer, 1000);
     }
 }
-
 function populateTrackerSelect() {
     const sel = document.getElementById('tracker-task-select');
     if (!sel) return;
     const currentVal = sel.value || activeTaskId;
     sel.innerHTML = '<option value="">Seleccionar tarea...</option>';
-    tasksCache.filter(t => !t.completed).forEach(t => {
-        sel.innerHTML += `<option value="${t.id}">${t.title.substring(0,20)}...</option>`;
-    });
+    tasksCache.filter(t => !t.completed).forEach(t => { sel.innerHTML += `<option value="${t.id}">${t.title.substring(0,20)}...</option>`; });
     if (currentVal) sel.value = currentVal;
 }
-
 function tickTimer() {
     timerSeconds++;
     const m = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
     const s = String(timerSeconds % 60).padStart(2, '0');
     document.getElementById('tracker-display').innerText = `${m}:${s}`;
 }
-
 async function toggleTimer() {
     const btn = document.getElementById('tracker-btn');
     const sel = document.getElementById('tracker-task-select');
-    
     if (timerInterval) {
-        clearInterval(timerInterval);
-        timerInterval = null;
-        localStorage.setItem('tracker_running', 'false');
+        clearInterval(timerInterval); timerInterval = null; localStorage.setItem('tracker_running', 'false');
         btn.innerHTML = `<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4l12 6-12 6z"></path></svg>`;
         btn.classList.replace('bg-red-600', 'bg-slate-900');
-        
         if (activeTaskId) {
             const t = tasksCache.find(x => x.id == activeTaskId);
             if (t) {
                 const newTotal = (t.time_spent || 0) + timerSeconds;
-                await fetch(`${API_URL}/tasks/${activeTaskId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ time_spent: newTotal })
-                });
-                fetchTasks(); 
+                await fetch(`${API_URL}/tasks/${activeTaskId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ time_spent: newTotal }) });
+                fetchAllData(); 
             }
         }
-        timerSeconds = 0;
-        document.getElementById('tracker-display').innerText = "00:00";
-        activeTaskId = null;
-        sel.disabled = false;
-        
+        timerSeconds = 0; document.getElementById('tracker-display').innerText = "00:00"; activeTaskId = null; sel.disabled = false;
     } else {
-        if (!sel.value) { 
-            showCustomAlert("Atención", "Debes seleccionar una tarea en curso antes de iniciar el tracker.", "info"); 
-            return; 
-        }
-        activeTaskId = sel.value;
-        sel.disabled = true;
-        timerSeconds = 0;
-        localStorage.setItem('tracker_task_id', activeTaskId);
-        localStorage.setItem('tracker_start_time', Date.now());
-        localStorage.setItem('tracker_running', 'true');
-        
+        if (!sel.value) { showCustomAlert("Atención", "Debes seleccionar una tarea en curso antes de iniciar el tracker.", "info"); return; }
+        activeTaskId = sel.value; sel.disabled = true; timerSeconds = 0;
+        localStorage.setItem('tracker_task_id', activeTaskId); localStorage.setItem('tracker_start_time', Date.now()); localStorage.setItem('tracker_running', 'true');
         btn.innerHTML = `<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>`;
         btn.classList.replace('bg-slate-900', 'bg-red-600');
         timerInterval = setInterval(tickTimer, 1000);
     }
 }
-
 
 // ==========================================
 // MÓDULO DASHBOARD 
@@ -325,11 +271,10 @@ function updateDashboard() {
     const elDashCount = document.getElementById('dash-task-count');
     if(elDashCount) elDashCount.innerText = activeTasks.length;
     
-    const events = getEventsLocal();
     const elEvtCount = document.getElementById('dash-event-count');
-    if(elEvtCount) elEvtCount.innerText = events.length;
+    if(elEvtCount) elEvtCount.innerText = eventsCache.length;
 
-    const load = activeTasks.length + events.length;
+    const load = activeTasks.length + eventsCache.length;
     let workload = "Baja"; let wColor = "text-emerald-600";
     if(load > 5) { workload = "Media"; wColor = "text-indigo-600"; }
     if(load > 12) { workload = "Alta"; wColor = "text-red-600"; }
@@ -367,22 +312,15 @@ function updateDashboard() {
     const evtContainer = document.getElementById('dash-upcoming-events');
     if (evtContainer) {
         evtContainer.innerHTML = '';
-        const upcoming = events.sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 4);
+        const upcoming = eventsCache.sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 4);
         if(upcoming.length === 0) evtContainer.innerHTML = '<p class="text-xs text-slate-500">No hay eventos próximos.</p>';
         upcoming.forEach(e => {
-            evtContainer.innerHTML += `
-                <div class="flex items-center text-xs p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-                    <div class="bg-slate-900 text-white font-bold px-2 py-1 rounded mr-3 text-center min-w-[45px]">${e.date.split('-')[2]}<br><span class="text-[9px] font-normal">DIA</span></div>
-                    <div class="truncate"><p class="font-bold text-slate-800 truncate">${e.name}</p><p class="text-slate-500 truncate">${e.time} | ${e.company}</p></div>
-                </div>`;
+            evtContainer.innerHTML += `<div class="flex items-center text-xs p-2.5 bg-slate-50 rounded-lg border border-slate-100"><div class="bg-slate-900 text-white font-bold px-2 py-1 rounded mr-3 text-center min-w-[45px]">${e.date.split('-')[2]}<br><span class="text-[9px] font-normal">DIA</span></div><div class="truncate"><p class="font-bold text-slate-800 truncate">${e.name}</p><p class="text-slate-500 truncate">${e.time} | ${e.company}</p></div></div>`;
         });
     }
 
-    const fin = JSON.parse(localStorage.getItem('core_work_finances') || '[]');
     let inc = 0, exp = 0;
-    fin.forEach(f => {
-        if (f.type.includes('Ingreso')) inc += parseFloat(f.amount); else exp += parseFloat(f.amount);
-    });
+    financesCache.forEach(f => { if (f.type.includes('Ingreso')) inc += parseFloat(f.amount); else exp += parseFloat(f.amount); });
     const di = document.getElementById('dash-income-total');
     if(di) { di.setAttribute('data-value', (inc - exp).toFixed(2)); updateBalanceDisplay(); }
 }
@@ -392,16 +330,13 @@ function updateBar(idPrefix, value) {
 }
 
 // ==========================================
-// MÓDULO DE AGENDA CALENDARIO
+// MÓDULO DE AGENDA CALENDARIO (NUBE)
 // ==========================================
-function getEventsLocal() { return JSON.parse(localStorage.getItem('core_work_events') || '[]'); }
-
 function renderCalendar() {
     const grid = document.getElementById('calendar-grid');
     const title = document.getElementById('calendar-month-year');
     if (!grid || !title) return;
 
-    const events = getEventsLocal();
     const firstDay = new Date(currentYear, currentMonth, 1).getDay();
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
     const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -413,34 +348,37 @@ function renderCalendar() {
 
     for (let i = 1; i <= daysInMonth; i++) {
         const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-        const dayEvents = events.filter(e => e.date === dateStr);
-        let eventsHtml = dayEvents.map(e => `<div onclick="openActionModal('${e.id}')" class="text-[10px] bg-slate-800 text-white p-1 mb-1 rounded truncate shadow-sm cursor-pointer hover:opacity-80">${e.time} ${e.name}</div>`).join('');
+        const dayEvents = eventsCache.filter(e => e.date === dateStr);
+        let eventsHtml = dayEvents.map(e => `<div onclick="openActionModal(${e.id})" class="text-[10px] bg-slate-800 text-white p-1 mb-1 rounded truncate shadow-sm cursor-pointer hover:opacity-80">${e.time} ${e.name}</div>`).join('');
         
         const dayTasks = tasksCache.filter(t => t.dueDate === dateStr && !t.completed);
         let tasksHtml = dayTasks.map(t => `<div class="text-[10px] bg-rose-50 text-rose-700 border border-rose-200 p-1 mb-1 rounded truncate shadow-sm flex items-center cursor-pointer hover:bg-rose-100 transition" onclick="openDeleteModal(${t.id})" title="${t.title}"><svg class="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>${t.title}</div>`).join('');
 
         const isToday = new Date().toDateString() === new Date(currentYear, currentMonth, i).toDateString();
-
         grid.innerHTML += `<div class="bg-white calendar-cell p-2 border-t-2 hover:bg-slate-50 transition ${isToday ? 'border-t-slate-900' : 'border-t-transparent'}"><div class="text-xs mb-2 ${isToday ? 'bg-slate-900 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold' : 'text-slate-700 font-medium'}">${i}</div><div class="space-y-1">${eventsHtml}${tasksHtml}</div></div>`;
     }
 }
 function changeMonth(step) { currentMonth += step; if (currentMonth < 0) { currentMonth = 11; currentYear--; } if (currentMonth > 11) { currentMonth = 0; currentYear++; } renderCalendar(); }
-function saveEvent(e) {
-    e.preventDefault(); const evts = getEventsLocal();
-    evts.push({ id: Date.now().toString(), name: document.getElementById('evt-name').value, date: document.getElementById('evt-date').value, time: document.getElementById('evt-time').value, company: document.getElementById('evt-company').value, location: document.getElementById('evt-location').value });
-    localStorage.setItem('core_work_events', JSON.stringify(evts)); closeEventModal(); renderCalendar(); document.getElementById('event-form').reset();
+async function saveEvent(e) {
+    e.preventDefault();
+    const payload = { name: document.getElementById('evt-name').value, date: document.getElementById('evt-date').value, time: document.getElementById('evt-time').value, company: document.getElementById('evt-company').value, location: document.getElementById('evt-location').value };
+    await fetch(`${API_URL}/events`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    closeEventModal(); fetchAllData(); document.getElementById('event-form').reset();
 }
 function openEventModal() { document.getElementById('event-modal').classList.remove('hidden'); }
 function closeEventModal() { document.getElementById('event-modal').classList.add('hidden'); }
 function openActionModal(id) {
-    selectedContactId = id; const evt = getEventsLocal().find(e => e.id === id);
+    selectedContactId = id; const evt = eventsCache.find(e => e.id === id);
     if(evt) { document.getElementById('action-evt-name').innerText = evt.name; document.getElementById('action-evt-desc').innerText = `${evt.date} | ${evt.time} \n ${evt.company} - ${evt.location}`; document.getElementById('event-action-modal').classList.remove('hidden'); }
 }
 function closeActionModal() { selectedContactId = null; document.getElementById('event-action-modal').classList.add('hidden'); }
-function deleteSelectedEvent() { let evts = getEventsLocal().filter(e => e.id !== selectedContactId); localStorage.setItem('core_work_events', JSON.stringify(evts)); closeActionModal(); renderCalendar(); }
+async function deleteSelectedEvent() {
+    await fetch(`${API_URL}/events/${selectedContactId}`, { method: 'DELETE' });
+    closeActionModal(); fetchAllData();
+}
 
 // ==========================================
-// MÓDULO DE FINANZAS
+// MÓDULO DE FINANZAS (NUBE)
 // ==========================================
 function verifyFinances(e) {
     e.preventDefault();
@@ -448,8 +386,6 @@ function verifyFinances(e) {
         const overlay = document.getElementById('auth-overlay'); overlay.style.opacity = '0'; setTimeout(() => overlay.classList.add('hidden'), 300); document.getElementById('fin-error').classList.add('hidden');
     } else { document.getElementById('fin-error').classList.remove('hidden'); document.getElementById('fin-password').value = ''; }
 }
-function getFinancesLocal() { return JSON.parse(localStorage.getItem('core_work_finances') || '[]'); }
-function getPocketsLocal() { return JSON.parse(localStorage.getItem('core_work_pockets') || '[]'); }
 
 function filterFinancesByTime(finances, filter) {
     if (filter === 'all') return finances;
@@ -467,27 +403,28 @@ function renderFinances() {
     const tbody = document.getElementById('finance-table-body');
     const filter = document.getElementById('fin-time-filter');
     if (!tbody || !filter) return;
-    const allFinances = getFinancesLocal(); const finances = filterFinancesByTime(allFinances, filter.value);
+    const finances = filterFinancesByTime(financesCache, filter.value);
     tbody.innerHTML = ''; let inc = 0, pas = 0, horm = 0;
 
     if (finances.length === 0) document.getElementById('empty-finance-msg').classList.remove('hidden');
     else {
         document.getElementById('empty-finance-msg').classList.add('hidden');
         finances.forEach((item) => {
-            const realIdx = allFinances.indexOf(item); const amt = parseFloat(item.amount);
+            const amt = parseFloat(item.amount);
             if (item.type.includes('Ingreso')) inc += amt; else if (item.type.includes('Hormiga')) horm += amt; else pas += amt;
-            tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-50"><td class="px-6 py-3.5">${item.date}</td><td class="px-6 py-3.5 font-medium">${item.concept}</td><td class="px-6 py-3.5"><span class="px-2 py-0.5 bg-slate-100 rounded text-[10px] font-bold">${item.type}</span></td><td class="px-6 py-3.5">${item.entity}</td><td class="px-6 py-3.5 text-right font-bold">$${amt.toFixed(2)}</td><td class="px-6 py-3.5 text-center"><button onclick="deleteFinance(${realIdx})" class="text-red-500 text-xs hover:underline">Borrar</button></td></tr>`;
+            tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-50"><td class="px-6 py-3.5">${item.date}</td><td class="px-6 py-3.5 font-medium">${item.concept}</td><td class="px-6 py-3.5"><span class="px-2 py-0.5 bg-slate-100 rounded text-[10px] font-bold">${item.type}</span></td><td class="px-6 py-3.5">${item.entity}</td><td class="px-6 py-3.5 text-right font-bold">$${amt.toFixed(2)}</td><td class="px-6 py-3.5 text-center"><button onclick="deleteFinance(${item.id})" class="text-red-500 text-xs hover:underline">Borrar</button></td></tr>`;
         });
     }
     document.getElementById('fin-total-ingresos').innerText = `$${inc.toFixed(2)}`; document.getElementById('fin-total-pasivos').innerText = `$${pas.toFixed(2)}`; document.getElementById('fin-total-hormiga').innerText = `$${horm.toFixed(2)}`; document.getElementById('fin-balance-neto').innerText = `$${(inc - (pas + horm)).toFixed(2)}`;
 }
 
-function saveFinance(e) {
-    e.preventDefault(); const f = getFinancesLocal();
-    f.push({ concept: document.getElementById('fin-concept').value, type: document.getElementById('fin-type').value, amount: document.getElementById('fin-amount').value, entity: document.getElementById('fin-entity').value, date: document.getElementById('fin-date').value });
-    localStorage.setItem('core_work_finances', JSON.stringify(f)); closeFinanceModal(); renderFinances(); document.getElementById('finance-form').reset();
+async function saveFinance(e) {
+    e.preventDefault();
+    const payload = { concept: document.getElementById('fin-concept').value, type: document.getElementById('fin-type').value, amount: parseFloat(document.getElementById('fin-amount').value), entity: document.getElementById('fin-entity').value, date: document.getElementById('fin-date').value };
+    await fetch(`${API_URL}/finances`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    closeFinanceModal(); fetchAllData(); document.getElementById('finance-form').reset();
 }
-function deleteFinance(idx) { const f = getFinancesLocal(); f.splice(idx, 1); localStorage.setItem('core_work_finances', JSON.stringify(f)); renderFinances(); }
+async function deleteFinance(id) { await fetch(`${API_URL}/finances/${id}`, { method: 'DELETE' }); fetchAllData(); }
 function openFinanceModal() { document.getElementById('finance-modal').classList.remove('hidden'); }
 function closeFinanceModal() { document.getElementById('finance-modal').classList.add('hidden'); }
 
@@ -496,122 +433,88 @@ function openInvoiceModal() { document.getElementById('invoice-modal').classList
 function closeInvoiceModal() { document.getElementById('invoice-modal').classList.add('hidden'); }
 function generateInvoicePDF(e) {
     e.preventDefault();
-    const client = document.getElementById('inv-client').value;
-    const concept = document.getElementById('inv-concept').value;
-    const amount = document.getElementById('inv-amount').value;
-    const date = new Date().toLocaleDateString('es-ES');
-    const invoiceNumber = "INV-" + Math.floor(Math.random() * 10000);
-
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(22);
-    doc.text("CORE-WORK", 14, 22);
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text("Servicios Ops & Consultoría SaaS", 14, 28);
-
-    doc.setFontSize(16);
-    doc.setTextColor(0);
-    doc.text("FACTURA", 150, 22);
-    doc.setFontSize(10);
-    doc.text(`Número: ${invoiceNumber}`, 150, 28);
-    doc.text(`Fecha: ${date}`, 150, 33);
-
-    doc.setFontSize(12);
-    doc.text(`Facturar a:`, 14, 45);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(client, 14, 52);
-
-    doc.autoTable({
-        startY: 65,
-        head: [['Descripción del Servicio', 'Total']],
-        body: [ [concept, `$${parseFloat(amount).toFixed(2)}`] ],
-        theme: 'striped',
-        headStyles: { fillColor: [15, 23, 42] } 
-    });
-
-    const finalY = doc.lastAutoTable.finalY || 65;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text(`Total a Pagar: $${parseFloat(amount).toFixed(2)}`, 140, finalY + 10);
-
-    doc.save(`${invoiceNumber}_${client}.pdf`);
-    closeInvoiceModal();
+    const client = document.getElementById('inv-client').value; const concept = document.getElementById('inv-concept').value; const amount = document.getElementById('inv-amount').value; const date = new Date().toLocaleDateString('es-ES'); const invoiceNumber = "INV-" + Math.floor(Math.random() * 10000);
+    const { jsPDF } = window.jspdf; const doc = new jsPDF();
+    doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.text("CORE-WORK", 14, 22); doc.setFontSize(10); doc.setTextColor(100); doc.text("Servicios Ops & Consultoría SaaS", 14, 28);
+    doc.setFontSize(16); doc.setTextColor(0); doc.text("FACTURA", 150, 22); doc.setFontSize(10); doc.text(`Número: ${invoiceNumber}`, 150, 28); doc.text(`Fecha: ${date}`, 150, 33);
+    doc.setFontSize(12); doc.text(`Facturar a:`, 14, 45); doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.text(client, 14, 52);
+    doc.autoTable({ startY: 65, head: [['Descripción del Servicio', 'Total']], body: [ [concept, `$${parseFloat(amount).toFixed(2)}`] ], theme: 'striped', headStyles: { fillColor: [15, 23, 42] } });
+    const finalY = doc.lastAutoTable.finalY || 65; doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text(`Total a Pagar: $${parseFloat(amount).toFixed(2)}`, 140, finalY + 10);
+    doc.save(`${invoiceNumber}_${client}.pdf`); closeInvoiceModal();
 }
 
 // ==========================================
-// MÓDULO BOLSILLOS DE AHORRO
+// MÓDULO BOLSILLOS DE AHORRO (NUBE)
 // ==========================================
 function renderPockets() {
     const grid = document.getElementById('pockets-grid');
     if (!grid) return;
-    grid.innerHTML = ''; const pockets = getPocketsLocal();
-    if(pockets.length === 0) { grid.innerHTML = '<p class="text-xs text-slate-500 col-span-3">No hay bolsillos de ahorro creados.</p>'; return; }
-    pockets.forEach((p, idx) => {
+    grid.innerHTML = '';
+    if(pocketsCache.length === 0) { grid.innerHTML = '<p class="text-xs text-slate-500 col-span-3">No hay bolsillos de ahorro creados.</p>'; return; }
+    pocketsCache.forEach(p => {
         const prog = Math.min(Math.round((p.current / p.target) * 100), 100);
-        grid.innerHTML += `<div class="border border-slate-200 rounded-xl p-4 bg-slate-50 flex flex-col justify-between"><div class="flex justify-between items-start mb-2"><h4 class="font-bold text-slate-900 text-sm truncate pr-2">${p.name}</h4><span class="px-2 py-0.5 bg-slate-200 text-slate-700 text-[10px] font-bold rounded flex-shrink-0">${p.bank} - **${p.account}</span></div><div class="mb-3"><div class="flex justify-between text-xs mb-1"><span class="text-slate-500 font-medium">$${parseFloat(p.current).toFixed(2)}</span><span class="text-slate-800 font-bold">$${parseFloat(p.target).toFixed(2)}</span></div><div class="w-full bg-slate-200 rounded-full h-1.5"><div class="bg-emerald-500 h-1.5 rounded-full" style="width: ${prog}%"></div></div></div><div class="flex justify-between items-center border-t border-slate-200 pt-3"><button onclick="openPocketTxModal(${idx})" class="text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 px-2 py-1 rounded">Transacción</button><button onclick="deletePocket(${idx})" class="text-red-500 hover:text-red-700 text-xs font-medium">Borrar</button></div></div>`;
+        grid.innerHTML += `<div class="border border-slate-200 rounded-xl p-4 bg-slate-50 flex flex-col justify-between"><div class="flex justify-between items-start mb-2"><h4 class="font-bold text-slate-900 text-sm truncate pr-2">${p.name}</h4><span class="px-2 py-0.5 bg-slate-200 text-slate-700 text-[10px] font-bold rounded flex-shrink-0">${p.bank} - **${p.account}</span></div><div class="mb-3"><div class="flex justify-between text-xs mb-1"><span class="text-slate-500 font-medium">$${parseFloat(p.current).toFixed(2)}</span><span class="text-slate-800 font-bold">$${parseFloat(p.target).toFixed(2)}</span></div><div class="w-full bg-slate-200 rounded-full h-1.5"><div class="bg-emerald-500 h-1.5 rounded-full" style="width: ${prog}%"></div></div></div><div class="flex justify-between items-center border-t border-slate-200 pt-3"><button onclick="openPocketTxModal(${p.id})" class="text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 px-2 py-1 rounded">Transacción</button><button onclick="deletePocket(${p.id})" class="text-red-500 hover:text-red-700 text-xs font-medium">Borrar</button></div></div>`;
     });
 }
-function savePocket(e) {
-    e.preventDefault(); const pkts = getPocketsLocal();
-    pkts.push({ name: document.getElementById('pkt-name').value, bank: document.getElementById('pkt-bank').value, account: document.getElementById('pkt-account').value, target: parseFloat(document.getElementById('pkt-target').value), current: parseFloat(document.getElementById('pkt-current').value) });
-    localStorage.setItem('core_work_pockets', JSON.stringify(pkts)); closePocketModal(); renderPockets(); document.getElementById('pocket-form').reset();
+async function savePocket(e) {
+    e.preventDefault();
+    const payload = { name: document.getElementById('pkt-name').value, bank: document.getElementById('pkt-bank').value, account: document.getElementById('pkt-account').value, target: parseFloat(document.getElementById('pkt-target').value), current: parseFloat(document.getElementById('pkt-current').value) };
+    await fetch(`${API_URL}/pockets`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    closePocketModal(); fetchAllData(); document.getElementById('pocket-form').reset();
 }
-function deletePocket(idx) { const p = getPocketsLocal(); p.splice(idx, 1); localStorage.setItem('core_work_pockets', JSON.stringify(p)); renderPockets(); }
+async function deletePocket(id) { await fetch(`${API_URL}/pockets/${id}`, { method: 'DELETE' }); fetchAllData(); }
 function openPocketModal() { document.getElementById('pocket-modal').classList.remove('hidden'); }
 function closePocketModal() { document.getElementById('pocket-modal').classList.add('hidden'); }
-function openPocketTxModal(idx) { const p = getPocketsLocal()[idx]; document.getElementById('tx-pocket-id').value = idx; document.getElementById('tx-pocket-name').innerText = p.name; document.getElementById('pocket-tx-modal').classList.remove('hidden'); setTxType('add'); }
+function openPocketTxModal(id) { const p = pocketsCache.find(x => x.id === id); document.getElementById('tx-pocket-id').value = id; document.getElementById('tx-pocket-name').innerText = p.name; document.getElementById('pocket-tx-modal').classList.remove('hidden'); setTxType('add'); }
 function closePocketTxModal() { document.getElementById('pocket-tx-modal').classList.add('hidden'); }
 function setTxType(type) {
     document.getElementById('tx-type').value = type; const bAdd = document.getElementById('btn-tx-add'); const bSub = document.getElementById('btn-tx-sub');
     if(type === 'add') { bAdd.className = "py-1.5 border-2 border-emerald-500 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg transition-colors"; bSub.className = "py-1.5 border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors"; } 
     else { bSub.className = "py-1.5 border-2 border-rose-500 bg-rose-50 text-rose-700 text-xs font-bold rounded-lg transition-colors"; bAdd.className = "py-1.5 border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors"; }
 }
-function executePocketTx(e) {
-    e.preventDefault(); const idx = parseInt(document.getElementById('tx-pocket-id').value); const type = document.getElementById('tx-type').value; const amount = parseFloat(document.getElementById('tx-amount').value); const pkts = getPocketsLocal();
-    if (type === 'add') pkts[idx].current += amount; else { if(amount > pkts[idx].current) { showCustomAlert("Fondos Insuficientes", "El monto ingresado supera el saldo actual de este bolsillo.", "error"); return; } pkts[idx].current -= amount; }
-    localStorage.setItem('core_work_pockets', JSON.stringify(pkts)); closePocketTxModal(); renderPockets(); document.getElementById('pocket-tx-form').reset();
+async function executePocketTx(e) {
+    e.preventDefault(); const id = parseInt(document.getElementById('tx-pocket-id').value); const type = document.getElementById('tx-type').value; const amount = parseFloat(document.getElementById('tx-amount').value); const pkt = pocketsCache.find(x => x.id === id);
+    let newCurrent = pkt.current;
+    if (type === 'add') newCurrent += amount; else { if(amount > pkt.current) { showCustomAlert("Fondos Insuficientes", "El monto ingresado supera el saldo actual.", "error"); return; } newCurrent -= amount; }
+    await fetch(`${API_URL}/pockets/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current: newCurrent }) });
+    closePocketTxModal(); fetchAllData(); document.getElementById('pocket-tx-form').reset();
 }
 
 // ==========================================
-// MÓDULO TELARAÑA (CRM RELACIONAL)
+// MÓDULO TELARAÑA (CRM RELACIONAL NUBE)
 // ==========================================
-function getContactsLocal() { return JSON.parse(localStorage.getItem('core_work_crm') || '[]'); }
 function renderTelarana() {
     const container = document.getElementById('crm-network'); const tbody = document.getElementById('contacts-table-body');
     if (!container || !tbody) return;
-    const contacts = getContactsLocal(); tbody.innerHTML = '';
-    const nodes = [{ id: 1, label: 'YO', shape: 'circle', color: { background: '#0F172A', border: '#0F172A' }, font: { color: 'white', face: 'Inter' } }];
+    tbody.innerHTML = '';
+    const nodes = [{ id: 'yo_1', label: 'YO', shape: 'circle', color: { background: '#0F172A', border: '#0F172A' }, font: { color: 'white', face: 'Inter' } }];
     const edges = []; const today = new Date();
 
-    contacts.forEach(c => {
+    contactsCache.forEach(c => {
         const lastDate = new Date(c.lastContact); const diffTime = Math.abs(today - lastDate); const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         let status = 'Al día'; let bColor = '#10B981'; 
         if(diffDays >= 3 && diffDays < 5) { status = 'Requiere Seguimiento'; bColor = '#F59E0B'; } 
         if(diffDays >= 5) { status = 'Alerta Inactividad'; bColor = '#EF4444'; } 
 
-        tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-50"><td class="px-6 py-3.5 font-medium">${c.name}</td><td class="px-6 py-3.5">${c.type}</td><td class="px-6 py-3.5">Hace ${diffDays} días (${c.lastContact})</td><td class="px-6 py-3.5 text-center"><span class="px-2 py-0.5 rounded text-[10px] font-bold text-white" style="background-color: ${bColor}">${status}</span></td><td class="px-6 py-3.5 text-right"><button onclick="openInteractionModal('${c.id}', '${c.name}')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 px-2 py-1 rounded border border-slate-300">Programar Acción</button><button onclick="deleteContact('${c.id}')" class="ml-2 text-xs text-red-500 hover:underline">Borrar</button></td></tr>`;
+        tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-50"><td class="px-6 py-3.5 font-medium">${c.name}</td><td class="px-6 py-3.5">${c.type}</td><td class="px-6 py-3.5">Hace ${diffDays} días (${c.lastContact})</td><td class="px-6 py-3.5 text-center"><span class="px-2 py-0.5 rounded text-[10px] font-bold text-white" style="background-color: ${bColor}">${status}</span></td><td class="px-6 py-3.5 text-right"><button onclick="openInteractionModal(${c.id}, '${c.name}')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 px-2 py-1 rounded border border-slate-300">Programar Acción</button><button onclick="deleteContact(${c.id})" class="ml-2 text-xs text-red-500 hover:underline">Borrar</button></td></tr>`;
         nodes.push({ id: c.id, label: c.name, shape: 'dot', size: 14, color: { background: bColor, border: '#0F172A' }, font: { color: '#334155', face: 'Inter', size: 11 } });
-        edges.push({ from: 1, to: c.id, color: { color: '#CBD5E1' } });
+        edges.push({ from: 'yo_1', to: c.id, color: { color: '#CBD5E1' } });
     });
     const options = { physics: { stabilization: false, barnesHut: { gravitationalConstant: -2000 } } };
     if (networkInstance) networkInstance.destroy();
     networkInstance = new vis.Network(container, { nodes, edges }, options);
 }
-function saveContact(e) { e.preventDefault(); const c = getContactsLocal(); c.push({ id: 'c_' + Date.now(), name: document.getElementById('contact-name').value, type: document.getElementById('contact-type').value, lastContact: document.getElementById('contact-last-date').value }); localStorage.setItem('core_work_crm', JSON.stringify(c)); closeContactModal(); renderTelarana(); document.getElementById('contact-form').reset(); }
-function saveInteraction(e) {
-    e.preventDefault(); const contactId = document.getElementById('interaction-contact-id').value; const dateInput = document.getElementById('interaction-date').value; let contacts = getContactsLocal(); const contactIndex = contacts.findIndex(c => c.id === contactId);
-    if (contactIndex > -1) {
-        contacts[contactIndex].lastContact = dateInput; localStorage.setItem('core_work_crm', JSON.stringify(contacts));
-        const events = getEventsLocal(); events.push({ id: Date.now().toString(), name: `Llamada/Reunión con: ${contacts[contactIndex].name}`, date: dateInput, time: document.getElementById('interaction-type').value, company: contacts[contactIndex].type, location: document.getElementById('interaction-notes').value }); localStorage.setItem('core_work_events', JSON.stringify(events));
+async function saveContact(e) { e.preventDefault(); const payload = { name: document.getElementById('contact-name').value, type: document.getElementById('contact-type').value, lastContact: document.getElementById('contact-last-date').value }; await fetch(`${API_URL}/contacts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); closeContactModal(); fetchAllData(); document.getElementById('contact-form').reset(); }
+async function saveInteraction(e) {
+    e.preventDefault(); const contactId = document.getElementById('interaction-contact-id').value; const dateInput = document.getElementById('interaction-date').value; const contact = contactsCache.find(c => c.id == contactId);
+    if (contact) {
+        await fetch(`${API_URL}/contacts/${contactId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lastContact: dateInput }) });
+        const evtPayload = { name: `Seguimiento: ${contact.name}`, date: dateInput, time: document.getElementById('interaction-type').value, company: contact.type, location: document.getElementById('interaction-notes').value };
+        await fetch(`${API_URL}/events`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(evtPayload) });
     }
-    closeInteractionModal(); renderTelarana(); document.getElementById('interaction-form').reset();
-    showCustomAlert("Interacción Programada", "El seguimiento se ha actualizado en la Red Neuronal CRM y la actividad fue añadida al Calendario de la Agenda.", "success");
+    closeInteractionModal(); fetchAllData(); document.getElementById('interaction-form').reset(); showCustomAlert("Interacción Programada", "El seguimiento se ha actualizado en el CRM y en la Agenda.", "success");
 }
-function deleteContact(id) { const c = getContactsLocal().filter(x => x.id !== id); localStorage.setItem('core_work_crm', JSON.stringify(c)); renderTelarana(); }
+async function deleteContact(id) { await fetch(`${API_URL}/contacts/${id}`, { method: 'DELETE' }); fetchAllData(); }
 function openContactModal() { document.getElementById('contact-modal').classList.remove('hidden'); }
 function closeContactModal() { document.getElementById('contact-modal').classList.add('hidden'); }
 function openInteractionModal(id, name) { document.getElementById('interaction-contact-id').value = id; document.getElementById('interaction-contact-name').innerText = name; document.getElementById('interaction-modal').classList.remove('hidden'); }
