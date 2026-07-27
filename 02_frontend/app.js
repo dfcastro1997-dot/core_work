@@ -137,7 +137,6 @@ function updateDashboard() {
     updateBar('prog-week', Math.min(Math.round((load / 15) * 100), 100));
     updateBar('prog-month', Math.min(Math.round((load / 40) * 100), 100));
 
-    // AGRUPACIÓN POR ENTIDAD Y SUBDIVISIÓN
     const grid = document.getElementById('critical-tasks-grid');
     if (grid) {
         grid.innerHTML = '';
@@ -236,7 +235,6 @@ function closeDeleteModal() { deleteTaskId = null; document.getElementById('dele
 // ==========================================
 // MÓDULO DE AGENDA CALENDARIO
 // ==========================================
-// Permanece intacto según la solicitud previa
 function getEventsLocal() { return JSON.parse(localStorage.getItem('core_work_events') || '[]'); }
 
 function renderCalendar() {
@@ -262,7 +260,7 @@ function renderCalendar() {
         
         const dayTasks = tasksCache.filter(t => t.dueDate === dateStr && !t.completed);
         let tasksHtml = dayTasks.map(t => `
-            <div class="text-[10px] bg-rose-50 text-rose-700 border border-rose-200 p-1 mb-1 rounded truncate shadow-sm flex items-center cursor-pointer" onclick="openDeleteModal(${t.id})" title="${t.title}">
+            <div class="text-[10px] bg-rose-50 text-rose-700 border border-rose-200 p-1 mb-1 rounded truncate shadow-sm flex items-center cursor-pointer hover:bg-rose-100 transition" onclick="openDeleteModal(${t.id})" title="${t.title}">
                 <svg class="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 ${t.title}
             </div>`).join('');
@@ -316,6 +314,7 @@ function deleteSelectedEvent() {
     closeActionModal(); renderCalendar();
 }
 
+
 // ==========================================
 // MÓDULO DE FINANZAS
 // ==========================================
@@ -360,6 +359,7 @@ function renderFinances() {
     const finances = filterFinancesByTime(allFinances, filter.value);
     
     tbody.innerHTML = '';
+    
     let inc = 0, pas = 0, horm = 0;
 
     if (finances.length === 0) document.getElementById('empty-finance-msg').classList.remove('hidden');
@@ -408,7 +408,7 @@ function openFinanceModal() { document.getElementById('finance-modal').classList
 function closeFinanceModal() { document.getElementById('finance-modal').classList.add('hidden'); }
 
 // ==========================================
-// MÓDULO BOLSILLOS
+// MÓDULO BOLSILLOS DE AHORRO
 // ==========================================
 function renderPockets() {
     const grid = document.getElementById('pockets-grid');
@@ -497,7 +497,7 @@ function executePocketTx(e) {
 }
 
 // ==========================================
-// MÓDULO TELARAÑA (CRM RELACIONAL) - PERMANECE INTACTO
+// MÓDULO TELARAÑA (CRM RELACIONAL)
 // ==========================================
 function getContactsLocal() { return JSON.parse(localStorage.getItem('core_work_crm') || '[]'); }
 
@@ -519,8 +519,8 @@ function renderTelarana() {
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         
         let status = 'Al día'; let bColor = '#10B981'; 
-        if(diffDays > 15) { status = 'Requiere Seguimiento'; bColor = '#F59E0B'; } 
-        if(diffDays > 30) { status = 'Alerta Inactividad'; bColor = '#EF4444'; } 
+        if(diffDays >= 3 && diffDays < 5) { status = 'Requiere Seguimiento'; bColor = '#F59E0B'; } 
+        if(diffDays >= 5) { status = 'Alerta Inactividad'; bColor = '#EF4444'; } 
 
         tbody.innerHTML += `
             <tr class="hover:bg-slate-50 border-b border-slate-50">
