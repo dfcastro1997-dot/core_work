@@ -8,7 +8,13 @@ let networkInstance = null, selectedContactId = null, balanceVisible = false;
 let timerInterval = null, activeTaskId = null, timerSeconds = 0;
 
 document.addEventListener('DOMContentLoaded', async () => {
-    initSettings(); loadDynamicOptions(); initTracker();
+    // 1. Inicializar UI Local Inmediatamente (No espera a la Nube)
+    initSettings();
+    loadDynamicOptions();
+    if (document.getElementById('profile-list')) renderSettings();
+    initTracker();
+
+    // 2. Traer datos de la Nube (De fondo)
     await fetchAllData();
 });
 
@@ -25,74 +31,100 @@ function showCustomAlert(title, message, type = 'info') {
     modal.classList.remove('hidden');
 }
 
-// CARGA DE DATOS TOLERANTE A FALLOS
+// FETCH BLINDADO (Si falla una tabla, no colapsa el sistema)
+const safeFetch = (url) => fetch(url).then(r => r.ok ? r.json() : []).catch(() => []);
+
 async function fetchAllData() {
     try {
         const [resTasks, resEvents, resFinances, resPockets, resContacts] = await Promise.all([
-            fetch(`${API_URL}/tasks`).then(r => r.ok ? r.json() : []),
-            fetch(`${API_URL}/events`).then(r => r.ok ? r.json() : []),
-            fetch(`${API_URL}/finances`).then(r => r.ok ? r.json() : []),
-            fetch(`${API_URL}/pockets`).then(r => r.ok ? r.json() : []),
-            fetch(`${API_URL}/contacts`).then(r => r.ok ? r.json() : [])
+            safeFetch(`${API_URL}/tasks`),
+            safeFetch(`${API_URL}/events`),
+            safeFetch(`${API_URL}/finances`),
+            safeFetch(`${API_URL}/pockets`),
+            safeFetch(`${API_URL}/contacts`)
         ]);
 
         tasksCache = Array.isArray(resTasks) ? resTasks.map(t => {
-            let meta = { company: getProfiles()[0], subdivision: 'General', date: 'Sin Fecha' };
+            let meta = { company: getProfiles()[0] || 'General', subdivision: 'General', date: 'Sin Fecha' };
             try { if (t.description) meta = JSON.parse(t.description); } catch(e) {}
-            return { ...t, company: meta.company, subdivision: meta.subdivision || 'General', dueDate: meta.date };
+            return { ...t, company: meta.company || 'General', subdivision: meta.subdivision || 'General', dueDate: meta.date || 'Sin Fecha' };
         }) : [];
         eventsCache = Array.isArray(resEvents) ? resEvents : [];
         financesCache = Array.isArray(resFinances) ? resFinances : [];
         pocketsCache = Array.isArray(resPockets) ? resPockets : [];
         contactsCache = Array.isArray(resContacts) ? resContacts : [];
 
+    } catch (err) {
+        console.error("Error en sincronización general", err);
+    } finally {
+        // Renderizar sin importar si la API respondió a tiempo
         if (document.getElementById('dash-task-count')) updateDashboard();
         if (document.getElementById('calendar-grid')) renderCalendar();
         if (document.getElementById('col-todo')) renderKanban();
-        if (document.getElementById('finance-table-body')) { renderFinances(); renderPockets(); }
+        if (document.getElementById('finance-table-body')) { renderFinances(); if (typeof renderPockets === 'function') renderPockets(); }
         if (document.getElementById('crm-network')) renderTelarana();
-        if (document.getElementById('profile-list')) renderSettings();
         if (document.getElementById('tracker-task-select')) populateTrackerSelect();
-    } catch (err) {
-        showCustomAlert("Conexión Fallida", "El backend en Render no está respondiendo. Verifica los logs de despliegue.", "error");
     }
 }
 
-// CONFIGURACIONES LOCALES
-function initSettings() {
-    if (!localStorage.getItem('core_work_profiles')) localStorage.setItem('core_work_profiles', JSON.stringify(["Inversor Principal", "Proyecto Personal", "Soporte Técnico"]));
-    if (!localStorage.getItem('core_work_expenses')) localStorage.setItem('core_work_expenses', JSON.stringify(["Ingreso", "Pasivo Fijo", "Gasto Hormiga", "Suscripciones"]));
-    if (!localStorage.getItem('core_work_fixed_items')) localStorage.setItem('core_work_fixed_items', JSON.stringify(["Arriendo Oficina", "Luz / Energía", "Internet", "Software Aiven / Render"]));
-    if (!localStorage.getItem('core_work_subdivisions')) localStorage.setItem('core_work_subdivisions', JSON.stringify(["General", "Desarrollo", "Marketing", "Administrativo"]));
+// ==========================================
+// MÓDULO CONFIGURACIONES (RECUPERACIÓN SEGURA)[cite: 31]
+// ==========================================
+function getLocalData(key, defaultVal) {
+    try {
+        const data = localStorage.getItem(key);
+        if (!data) { localStorage.setItem(key, JSON.stringify(defaultVal)); return defaultVal; }
+        const parsed = JSON.parse(data);
+        if (!Array.isArray(parsed)) { localStorage.setItem(key, JSON.stringify(defaultVal)); return defaultVal; }
+        return parsed;
+    } catch(e) {
+        localStorage.setItem(key, JSON.stringify(defaultVal)); return defaultVal;
+    }
 }
-function getProfiles() { return JSON.parse(localStorage.getItem('core_work_profiles')); }
-function getExpenseTypes() { return JSON.parse(localStorage.getItem('core_work_expenses')); }
-function getFixedItems() { return JSON.parse(localStorage.getItem('core_work_fixed_items')); }
-function getSubdivisions() { return JSON.parse(localStorage.getItem('core_work_subdivisions')); }
+
+function getProfiles() { return getLocalData('core_work_profiles', ["Inversor Principal", "Proyecto Personal", "Soporte Técnico"]); }
+function getExpenseTypes() { return getLocalData('core_work_expenses', ["Ingreso", "Pasivo Fijo", "Gasto Hormiga", "Suscripciones"]); }
+function getFixedItems() { return getLocalData('core_work_fixed_items', ["Arriendo Oficina", "Luz / Energía", "Internet", "Software Aiven / Render"]); }
+function getSubdivisions() { return getLocalData('core_work_subdivisions', ["General", "Desarrollo", "Marketing", "Administrativo"]); }
+
+function initSettings() {
+    getProfiles(); getExpenseTypes(); getFixedItems(); getSubdivisions();
+}
 
 function loadDynamicOptions() {
-    document.querySelectorAll('.dynamic-profiles').forEach(sel => { sel.innerHTML = ''; getProfiles().forEach(p => sel.innerHTML += `<option value="${p}">${p}</option>`); });
-    document.querySelectorAll('.dynamic-expenses').forEach(sel => { sel.innerHTML = ''; getExpenseTypes().forEach(e => sel.innerHTML += `<option value="${e}">${e}</option>`); });
-    document.querySelectorAll('.dynamic-subdivisions').forEach(sel => { sel.innerHTML = ''; getSubdivisions().forEach(s => sel.innerHTML += `<option value="${s}">${s}</option>`); });
+    const profiles = getProfiles(), expenses = getExpenseTypes(), subdivisions = getSubdivisions(), fixedItems = getFixedItems();
+    
+    document.querySelectorAll('.dynamic-profiles').forEach(sel => { sel.innerHTML = ''; profiles.forEach(p => sel.innerHTML += `<option value="${p}">${p}</option>`); });
+    document.querySelectorAll('.dynamic-expenses').forEach(sel => { sel.innerHTML = ''; expenses.forEach(e => sel.innerHTML += `<option value="${e}">${e}</option>`); });
+    document.querySelectorAll('.dynamic-subdivisions').forEach(sel => { sel.innerHTML = ''; subdivisions.forEach(s => sel.innerHTML += `<option value="${s}">${s}</option>`); });
+    
     const fixedDatalist = document.getElementById('fixed-expenses-list');
-    if (fixedDatalist) { fixedDatalist.innerHTML = ''; getFixedItems().forEach(f => fixedDatalist.innerHTML += `<option value="${f}">`); }
+    if (fixedDatalist) { fixedDatalist.innerHTML = ''; fixedItems.forEach(f => fixedDatalist.innerHTML += `<option value="${f}"></option>`); }
 }
+
 function renderSettings() {
     const pList = document.getElementById('profile-list'), eList = document.getElementById('expense-list'), fList = document.getElementById('fixed-list'), sList = document.getElementById('subdivision-list');
     if(!pList) return;
+    
     pList.innerHTML = ''; eList.innerHTML = ''; fList.innerHTML = ''; sList.innerHTML = '';
+    
     getProfiles().forEach((p, idx) => pList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${p}</span><button onclick="deleteSetting('profiles', ${idx})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`);
     getExpenseTypes().forEach((e, idx) => eList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${e}</span><button onclick="deleteSetting('expenses', ${idx})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`);
     getFixedItems().forEach((f, idx) => fList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${f}</span><button onclick="deleteSetting('fixed', ${idx})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`);
     getSubdivisions().forEach((s, idx) => sList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${s}</span><button onclick="deleteSetting('subdivisions', ${idx})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`);
 }
+
 function addProfile() { const val = document.getElementById('new-profile').value; if(val) { const d = getProfiles(); d.push(val); localStorage.setItem('core_work_profiles', JSON.stringify(d)); document.getElementById('new-profile').value=''; renderSettings(); loadDynamicOptions(); } }
 function addExpenseType() { const val = document.getElementById('new-expense').value; if(val) { const d = getExpenseTypes(); d.push(val); localStorage.setItem('core_work_expenses', JSON.stringify(d)); document.getElementById('new-expense').value=''; renderSettings(); loadDynamicOptions(); } }
 function addFixedItem() { const val = document.getElementById('new-fixed').value; if(val) { const d = getFixedItems(); d.push(val); localStorage.setItem('core_work_fixed_items', JSON.stringify(d)); document.getElementById('new-fixed').value=''; renderSettings(); loadDynamicOptions(); } }
 function addSubdivision() { const val = document.getElementById('new-subdivision').value; if(val) { const d = getSubdivisions(); d.push(val); localStorage.setItem('core_work_subdivisions', JSON.stringify(d)); document.getElementById('new-subdivision').value=''; renderSettings(); loadDynamicOptions(); } }
+
 function deleteSetting(type, idx) {
     let key = type === 'profiles' ? 'core_work_profiles' : (type === 'expenses' ? 'core_work_expenses' : (type === 'fixed' ? 'core_work_fixed_items' : 'core_work_subdivisions'));
-    const d = JSON.parse(localStorage.getItem(key)); d.splice(idx, 1); localStorage.setItem(key, JSON.stringify(d)); renderSettings(); loadDynamicOptions();
+    try {
+        const d = JSON.parse(localStorage.getItem(key)); d.splice(idx, 1); localStorage.setItem(key, JSON.stringify(d));
+    } catch(e) {}
+    renderSettings(); loadDynamicOptions();
 }
 
 async function testTelegramAlert() {
@@ -103,7 +135,9 @@ async function testTelegramAlert() {
     } catch (e) { showCustomAlert("Error de Conexión", "El backend no responde.", "error"); }
 }
 
-// TAREAS & KANBAN
+// ==========================================
+// MÓDULO DE TAREAS & KANBAN (NUBE)[cite: 31]
+// ==========================================
 function renderKanban() {
     const cols = { 'todo': [], 'in_progress': [], 'review': [], 'done': [] };
     tasksCache.forEach(t => { let st = t.status || 'todo'; if (t.completed) st = 'done'; if(cols[st]) cols[st].push(t); });
@@ -124,6 +158,7 @@ async function drop(ev) {
     if (!targetCol) return;
     const newStatus = targetCol.id.replace('col-', ''); const isCompleted = newStatus === 'done';
     targetCol.appendChild(document.getElementById(`ktask-${taskId}`));
+
     await fetch(`${API_URL}/tasks/${taskId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus, completed: isCompleted }) });
     fetchAllData();
 }
@@ -151,7 +186,7 @@ function initTracker() {
     if (!document.getElementById('tracker-display')) return;
     activeTaskId = localStorage.getItem('tracker_task_id'); const isRunning = localStorage.getItem('tracker_running') === 'true';
     if (isRunning && activeTaskId) {
-        timerSeconds = Math.floor((Date.now() - parseInt(localStorage.getItem('tracker_start_time'))) / 1000);
+        timerSeconds = Math.floor((Date.now() - parseInt(localStorage.getItem('tracker_start_time') || Date.now())) / 1000);
         document.getElementById('tracker-task-select').value = activeTaskId;
         document.getElementById('tracker-btn').innerHTML = `<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>`;
         document.getElementById('tracker-btn').classList.replace('bg-slate-900', 'bg-red-600');
@@ -241,7 +276,7 @@ function updateDashboard() {
 }
 function updateBar(idPrefix, value) { const t = document.getElementById(`${idPrefix}-text`), b = document.getElementById(`${idPrefix}-bar`); if (t && b) { t.innerText = `${value}%`; b.style.width = `${value}%`; } }
 
-// AGENDA
+// AGENDA NUBE
 function renderCalendar() {
     const grid = document.getElementById('calendar-grid'), title = document.getElementById('calendar-month-year');
     if (!grid || !title) return;
@@ -275,7 +310,7 @@ function openActionModal(id) {
 function closeActionModal() { selectedContactId = null; document.getElementById('event-action-modal').classList.add('hidden'); }
 async function deleteSelectedEvent() { await fetch(`${API_URL}/events/${selectedContactId}`, { method: 'DELETE' }); closeActionModal(); showCustomAlert("Eliminado", "Evento borrado.", "success"); fetchAllData(); }
 
-// FINANZAS
+// FINANZAS (NUBE)[cite: 31]
 function verifyFinances(e) {
     e.preventDefault();
     if (document.getElementById('fin-password').value === '12345') {
@@ -315,8 +350,8 @@ async function saveFinance(e) {
     const payload = { concept: document.getElementById('fin-concept').value, type: document.getElementById('fin-type').value, amount: parseFloat(document.getElementById('fin-amount').value), entity: document.getElementById('fin-entity').value, date: document.getElementById('fin-date').value };
     try {
         await fetch(`${API_URL}/finances`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        closeFinanceModal(); document.getElementById('finance-form').reset(); showCustomAlert("Registrado", "Movimiento financiero agregado.", "success"); fetchAllData();
-    } catch(err) { showCustomAlert("Error", "No se pudo registrar.", "error"); }
+        closeFinanceModal(); document.getElementById('finance-form').reset(); showCustomAlert("Registrado", "Movimiento financiero agregado a la base de datos.", "success"); fetchAllData();
+    } catch(err) { showCustomAlert("Error", "No se pudo registrar en la nube.", "error"); }
 }
 async function deleteFinance(id) { await fetch(`${API_URL}/finances/${id}`, { method: 'DELETE' }); showCustomAlert("Eliminado", "Registro borrado de la nube.", "success"); fetchAllData(); }
 function openFinanceModal() { document.getElementById('finance-modal').classList.remove('hidden'); }
@@ -337,7 +372,7 @@ function generateInvoicePDF(e) {
     doc.save(`${invoiceNumber}_${client}.pdf`); closeInvoiceModal(); showCustomAlert("Factura Generada", "El PDF ha sido descargado en tu equipo.", "success");
 }
 
-// BOLSILLOS
+// BOLSILLOS (NUBE)
 function renderPockets() {
     const grid = document.getElementById('pockets-grid'); if (!grid) return; grid.innerHTML = '';
     if(pocketsCache.length === 0) { grid.innerHTML = '<p class="text-xs text-slate-500 col-span-3">No hay bolsillos de ahorro creados.</p>'; return; }
@@ -349,7 +384,7 @@ function renderPockets() {
 async function savePocket(e) {
     e.preventDefault();
     const payload = { name: document.getElementById('pkt-name').value, bank: document.getElementById('pkt-bank').value, account: document.getElementById('pkt-account').value, target: parseFloat(document.getElementById('pkt-target').value), current: parseFloat(document.getElementById('pkt-current').value) };
-    try { await fetch(`${API_URL}/pockets`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); closePocketModal(); document.getElementById('pocket-form').reset(); showCustomAlert("Bolsillo Creado", "Ahorro registrado.", "success"); fetchAllData(); } 
+    try { await fetch(`${API_URL}/pockets`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); closePocketModal(); document.getElementById('pocket-form').reset(); showCustomAlert("Bolsillo Creado", "Ahorro registrado en la nube.", "success"); fetchAllData(); } 
     catch(err) { showCustomAlert("Error", "Falló la creación.", "error"); }
 }
 async function deletePocket(id) { await fetch(`${API_URL}/pockets/${id}`, { method: 'DELETE' }); showCustomAlert("Bolsillo Borrado", "Eliminado correctamente.", "success"); fetchAllData(); }
@@ -365,12 +400,12 @@ function setTxType(type) {
 async function executePocketTx(e) {
     e.preventDefault(); const id = parseInt(document.getElementById('tx-pocket-id').value), type = document.getElementById('tx-type').value, amount = parseFloat(document.getElementById('tx-amount').value), pkt = pocketsCache.find(x => x.id === id);
     let newCurrent = pkt.current;
-    if (type === 'add') newCurrent += amount; else { if(amount > pkt.current) { showCustomAlert("Fondos Insuficientes", "Supera el saldo actual.", "error"); return; } newCurrent -= amount; }
+    if (type === 'add') newCurrent += amount; else { if(amount > pkt.current) { showCustomAlert("Fondos Insuficientes", "El monto supera el saldo actual.", "error"); return; } newCurrent -= amount; }
     try { await fetch(`${API_URL}/pockets/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current: newCurrent }) }); closePocketTxModal(); document.getElementById('pocket-tx-form').reset(); showCustomAlert("Transacción Exitosa", "Saldo actualizado.", "success"); fetchAllData(); }
     catch(err) { showCustomAlert("Error", "No se guardó el saldo.", "error"); }
 }
 
-// TELARAÑA CRM
+// TELARAÑA CRM (NUBE)[cite: 31]
 function renderTelarana() {
     const container = document.getElementById('crm-network'), tbody = document.getElementById('contacts-table-body');
     if (!container || !tbody) return;
@@ -402,11 +437,11 @@ async function saveInteraction(e) {
         try {
             await fetch(`${API_URL}/contacts/${contactId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lastContact: dateInput }) });
             await fetch(`${API_URL}/events`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `Seguimiento: ${contact.name}`, date: dateInput, time: document.getElementById('interaction-type').value, company: contact.type, location: document.getElementById('interaction-notes').value }) });
-            closeInteractionModal(); document.getElementById('interaction-form').reset(); showCustomAlert("Interacción Programada", "El seguimiento se ha actualizado en el CRM y en la Agenda.", "success"); fetchAllData();
+            closeInteractionModal(); document.getElementById('interaction-form').reset(); showCustomAlert("Interacción Programada", "El seguimiento se actualizó en la Red y en la Agenda.", "success"); fetchAllData();
         } catch (err) { showCustomAlert("Error", "Fallo al sincronizar interacción.", "error"); }
     }
 }
-async function deleteContact(id) { await fetch(`${API_URL}/contacts/${id}`, { method: 'DELETE' }); showCustomAlert("Contacto Borrado", "El contacto ha sido eliminado de la red.", "success"); fetchAllData(); }
+async function deleteContact(id) { await fetch(`${API_URL}/contacts/${id}`, { method: 'DELETE' }); showCustomAlert("Contacto Borrado", "El contacto ha sido eliminado de la base de datos.", "success"); fetchAllData(); }
 function openContactModal() { document.getElementById('contact-modal').classList.remove('hidden'); }
 function closeContactModal() { document.getElementById('contact-modal').classList.add('hidden'); }
 function openInteractionModal(id, name) { document.getElementById('interaction-contact-id').value = id; document.getElementById('interaction-contact-name').innerText = name; document.getElementById('interaction-modal').classList.remove('hidden'); }
