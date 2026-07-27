@@ -1,6 +1,12 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean
 from database import Base
 
+class Setting(Base):
+    __tablename__ = "settings"
+    id = Column(Integer, primary_key=True, index=True)
+    type = Column(String, index=True) # profiles, subdivisions, expenses, fixed
+    value = Column(String)
+
 class Task(Base):
     __tablename__ = "tasks"
     id = Column(Integer, primary_key=True, index=True)
