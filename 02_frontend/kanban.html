@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CORE-WORK | Kanban & Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #F8FAFC; color: #0F172A; }
+        .kanban-col { min-height: 500px; }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+
+    <aside class="w-64 bg-white border-r border-slate-200 flex flex-col z-10">
+        <div class="h-16 flex items-center px-6 border-b border-slate-200">
+            <h1 class="text-2xl font-bold tracking-tighter text-slate-900">CORE<span class="text-red-600">-WORK</span></h1>
+        </div>
+        <nav class="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
+            <a href="index.html" class="flex items-center px-4 py-2.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-lg font-medium transition-all">Dashboard</a>
+            <a href="kanban.html" class="flex items-center px-4 py-2.5 bg-slate-900 text-white rounded-lg font-semibold transition-all shadow-sm ml-4 border-l-2 border-slate-900">Tablero Kanban</a>
+            <a href="agenda.html" class="flex items-center px-4 py-2.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-lg font-medium transition-all">Agenda</a>
+            <a href="finanzas.html" class="flex items-center px-4 py-2.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-lg font-medium transition-all">Finanzas</a>
+            <a href="telarana.html" class="flex items-center px-4 py-2.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-lg font-medium transition-all">Telaraña</a>
+            <a href="configuraciones.html" class="flex items-center px-4 py-2.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-lg font-medium transition-all">Configuraciones</a>
+        </nav>
+    </aside>
+
+    <main class="flex-1 flex flex-col overflow-y-auto bg-slate-100/50">
+        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 sticky top-0 z-20">
+            <h2 class="text-lg font-semibold text-slate-800">Flujo de Trabajo (Kanban)</h2>
+            
+            <!-- TIME TRACKER GLOBAL -->
+            <div class="flex items-center space-x-3 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5">
+                <select id="tracker-task-select" class="text-xs bg-transparent focus:outline-none w-48 font-medium text-slate-700">
+                    <option value="">Seleccionar tarea...</option>
+                </select>
+                <div class="font-mono text-sm font-bold text-indigo-600 w-16 text-center" id="tracker-display">00:00</div>
+                <button onclick="toggleTimer()" id="tracker-btn" class="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center hover:bg-slate-800 transition">
+                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4l12 6-12 6z"></path></svg>
+                </button>
+            </div>
+        </header>
+
+        <div class="p-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <!-- COLUMNA 1: To Do -->
+                <div class="flex flex-col bg-slate-100/80 rounded-xl border border-slate-200">
+                    <div class="p-3 border-b border-slate-200 bg-slate-200/50 rounded-t-xl"><h3 class="font-bold text-xs text-slate-700 uppercase">Por Hacer</h3></div>
+                    <div id="col-todo" class="kanban-col p-3 space-y-3" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+                </div>
+
+                <!-- COLUMNA 2: In Progress -->
+                <div class="flex flex-col bg-slate-100/80 rounded-xl border border-slate-200">
+                    <div class="p-3 border-b border-slate-200 bg-indigo-100/50 rounded-t-xl"><h3 class="font-bold text-xs text-indigo-700 uppercase">En Progreso</h3></div>
+                    <div id="col-in_progress" class="kanban-col p-3 space-y-3" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+                </div>
+
+                <!-- COLUMNA 3: Review -->
+                <div class="flex flex-col bg-slate-100/80 rounded-xl border border-slate-200">
+                    <div class="p-3 border-b border-slate-200 bg-amber-100/50 rounded-t-xl"><h3 class="font-bold text-xs text-amber-700 uppercase">En Revisión</h3></div>
+                    <div id="col-review" class="kanban-col p-3 space-y-3" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+                </div>
+
+                <!-- COLUMNA 4: Done -->
+                <div class="flex flex-col bg-slate-100/80 rounded-xl border border-slate-200">
+                    <div class="p-3 border-b border-slate-200 bg-emerald-100/50 rounded-t-xl"><h3 class="font-bold text-xs text-emerald-700 uppercase">Completado</h3></div>
+                    <div id="col-done" class="kanban-col p-3 space-y-3" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>

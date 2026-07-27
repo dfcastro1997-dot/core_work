@@ -7,8 +7,10 @@ class Task(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, index=True)
     description = Column(String, nullable=True)
-    is_ops = Column(Boolean, default=False) # Para saber si es tarea técnica
+    is_ops = Column(Boolean, default=False)
     completed = Column(Boolean, default=False)
+    status = Column(String, default="todo") # todo, in_progress, review, done
+    time_spent = Column(Integer, default=0) # Tiempo en segundos
 
 class Finance(Base):
     __tablename__ = "finances"
@@ -16,4 +18,4 @@ class Finance(Base):
     id = Column(Integer, primary_key=True, index=True)
     concept = Column(String)
     amount = Column(Float)
-    type = Column(String) # 'Ingreso' o 'Egreso'
+    type = Column(String)
