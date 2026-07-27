@@ -4,12 +4,27 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import text # <- Librería necesaria para el parche SQL
 
 import database
 import models
 
-# Crear tablas en PostgreSQL
+# 1. Crear tablas en PostgreSQL (Si no existen)
 models.Base.metadata.create_all(bind=database.engine)
+
+# 2. Parche Automático: Añadir columnas nuevas si la tabla ya existía
+with database.SessionLocal() as session:
+    try:
+        session.execute(text("ALTER TABLE tasks ADD COLUMN status VARCHAR DEFAULT 'todo';"))
+        session.commit()
+    except Exception:
+        session.rollback() # Ya existía, ignorar
+    
+    try:
+        session.execute(text("ALTER TABLE tasks ADD COLUMN time_spent INTEGER DEFAULT 0;"))
+        session.commit()
+    except Exception:
+        session.rollback() # Ya existía, ignorar
 
 app = FastAPI(title="CORE-WORK API")
 
