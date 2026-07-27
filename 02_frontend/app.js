@@ -18,13 +18,11 @@ let timerSeconds = 0;
 document.addEventListener('DOMContentLoaded', () => {
     initSettings();
     loadDynamicOptions();
-
     initTracker();
 
     if (document.getElementById('dash-task-count') || document.getElementById('calendar-grid') || document.getElementById('col-todo')) {
         fetchTasks();
     }
-    
     if (document.getElementById('calendar-grid')) renderCalendar();
     if (document.getElementById('finance-table-body')) {
         renderFinances();
@@ -33,6 +31,38 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('crm-network')) renderTelarana();
     if (document.getElementById('profile-list')) renderSettings();
 });
+
+// ==========================================
+// SISTEMA UNIVERSAL DE MODALES (Adiós alerts)
+// ==========================================
+function showCustomAlert(title, message, type = 'info') {
+    let modal = document.getElementById('global-alert-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'global-alert-modal';
+        modal.className = 'fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center z-[100]';
+        document.body.appendChild(modal);
+    }
+    
+    let iconHtml = '';
+    if(type === 'success') {
+        iconHtml = `<div class="mx-auto w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-4"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></div>`;
+    } else if(type === 'error') {
+        iconHtml = `<div class="mx-auto w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mb-4"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></div>`;
+    } else {
+        iconHtml = `<div class="mx-auto w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>`;
+    }
+
+    modal.innerHTML = `
+        <div class="bg-white w-full max-w-sm rounded-xl p-6 shadow-2xl border border-slate-200 text-center">
+            ${iconHtml}
+            <h3 class="text-base font-bold text-slate-900 mb-2">${title}</h3>
+            <p class="text-xs text-slate-600 mb-6">${message}</p>
+            <button onclick="document.getElementById('global-alert-modal').classList.add('hidden')" class="px-5 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-800 transition-colors w-full">Entendido</button>
+        </div>
+    `;
+    modal.classList.remove('hidden');
+}
 
 // ==========================================
 // MÓDULO CONFIGURACIONES
@@ -89,12 +119,13 @@ function deleteSetting(type, idx) {
 async function testTelegramAlert() {
     try {
         const response = await fetch(`${API_URL}/test-telegram`, { method: 'POST' });
-        if(response.ok) alert("✅ Resumen enviado con éxito a tu Telegram.");
-        else alert("⚠️ Error al enviar. Revisa los logs en Render.");
+        if(response.ok) showCustomAlert("Notificación Enviada", "El resumen de tareas ha sido enviado con éxito a tu cuenta de Telegram.", "success");
+        else showCustomAlert("Error de Envío", "El servidor respondió, pero hubo un error al enviar el mensaje. Revisa los logs en Render.", "error");
     } catch (error) {
-        alert("⚠️ Error de conexión. Revisa que el backend esté en línea.");
+        showCustomAlert("Fallo de Conexión", "No se pudo conectar con la API. Asegúrate de que tu backend esté en línea y sincronizado.", "error");
     }
 }
+
 
 // ==========================================
 // MÓDULO DE TAREAS & KANBAN
@@ -254,7 +285,10 @@ async function toggleTimer() {
         sel.disabled = false;
         
     } else {
-        if (!sel.value) { alert("Selecciona una tarea primero."); return; }
+        if (!sel.value) { 
+            showCustomAlert("Atención", "Debes seleccionar una tarea en curso antes de iniciar el tracker.", "info"); 
+            return; 
+        }
         activeTaskId = sel.value;
         sel.disabled = true;
         timerSeconds = 0;
@@ -267,6 +301,7 @@ async function toggleTimer() {
         timerInterval = setInterval(tickTimer, 1000);
     }
 }
+
 
 // ==========================================
 // MÓDULO DASHBOARD 
@@ -495,7 +530,7 @@ function generateInvoicePDF(e) {
         head: [['Descripción del Servicio', 'Total']],
         body: [ [concept, `$${parseFloat(amount).toFixed(2)}`] ],
         theme: 'striped',
-        headStyles: { fillColor: [15, 23, 42] } // slate-900
+        headStyles: { fillColor: [15, 23, 42] } 
     });
 
     const finalY = doc.lastAutoTable.finalY || 65;
@@ -537,7 +572,7 @@ function setTxType(type) {
 }
 function executePocketTx(e) {
     e.preventDefault(); const idx = parseInt(document.getElementById('tx-pocket-id').value); const type = document.getElementById('tx-type').value; const amount = parseFloat(document.getElementById('tx-amount').value); const pkts = getPocketsLocal();
-    if (type === 'add') pkts[idx].current += amount; else { if(amount > pkts[idx].current) { alert("Saldo insuficiente en el bolsillo."); return; } pkts[idx].current -= amount; }
+    if (type === 'add') pkts[idx].current += amount; else { if(amount > pkts[idx].current) { showCustomAlert("Fondos Insuficientes", "El monto ingresado supera el saldo actual de este bolsillo.", "error"); return; } pkts[idx].current -= amount; }
     localStorage.setItem('core_work_pockets', JSON.stringify(pkts)); closePocketTxModal(); renderPockets(); document.getElementById('pocket-tx-form').reset();
 }
 
@@ -574,7 +609,7 @@ function saveInteraction(e) {
         const events = getEventsLocal(); events.push({ id: Date.now().toString(), name: `Llamada/Reunión con: ${contacts[contactIndex].name}`, date: dateInput, time: document.getElementById('interaction-type').value, company: contacts[contactIndex].type, location: document.getElementById('interaction-notes').value }); localStorage.setItem('core_work_events', JSON.stringify(events));
     }
     closeInteractionModal(); renderTelarana(); document.getElementById('interaction-form').reset();
-    alert("Interacción programada en la Red y en tu Calendario.");
+    showCustomAlert("Interacción Programada", "El seguimiento se ha actualizado en la Red Neuronal CRM y la actividad fue añadida al Calendario de la Agenda.", "success");
 }
 function deleteContact(id) { const c = getContactsLocal().filter(x => x.id !== id); localStorage.setItem('core_work_crm', JSON.stringify(c)); renderTelarana(); }
 function openContactModal() { document.getElementById('contact-modal').classList.remove('hidden'); }
