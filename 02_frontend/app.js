@@ -8,13 +8,17 @@ let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
 let networkInstance = null;
 let selectedContactId = null;
+let balanceVisible = false; // Estado del Ojito de Dashboard
 
-// Inicializador Automático según la página
 document.addEventListener('DOMContentLoaded', () => {
-    initSettings(); // Cargar configuraciones globales a localStorage si no existen
-    loadDynamicOptions(); // Llenar selects dinámicamente
+    initSettings();
+    loadDynamicOptions();
 
-    if (document.getElementById('dash-task-count')) fetchTasks();
+    // Las tareas se cargan si estamos en el Dashboard o en la Agenda (para el calendario)
+    if (document.getElementById('dash-task-count') || document.getElementById('calendar-grid')) {
+        fetchTasks();
+    }
+    // Inicializar vistas previas
     if (document.getElementById('calendar-grid')) renderCalendar();
     if (document.getElementById('finance-table-body')) renderFinances();
     if (document.getElementById('crm-network')) renderTelarana();
@@ -54,57 +58,39 @@ function loadDynamicOptions() {
 function renderSettings() {
     const pList = document.getElementById('profile-list');
     const eList = document.getElementById('expense-list');
+    if(!pList || !eList) return;
     
     pList.innerHTML = ''; eList.innerHTML = '';
     
     getProfiles().forEach((p, idx) => {
-        pList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100">
-            <span class="font-medium text-slate-800">${p}</span>
-            <button onclick="deleteProfile(${idx})" class="text-red-500 hover:text-red-700">Eliminar</button>
-        </li>`;
+        pList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${p}</span><button onclick="deleteProfile(${idx})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`;
     });
-
     getExpenseTypes().forEach((e, idx) => {
-        eList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100">
-            <span class="font-medium text-slate-800">${e}</span>
-            <button onclick="deleteExpenseType(${idx})" class="text-red-500 hover:text-red-700">Eliminar</button>
-        </li>`;
+        eList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${e}</span><button onclick="deleteExpenseType(${idx})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`;
     });
 }
 
 function addProfile() {
     const val = document.getElementById('new-profile').value;
     if(!val) return;
-    const p = getProfiles(); p.push(val);
-    localStorage.setItem('core_work_profiles', JSON.stringify(p));
-    document.getElementById('new-profile').value = '';
-    renderSettings();
+    const p = getProfiles(); p.push(val); localStorage.setItem('core_work_profiles', JSON.stringify(p));
+    document.getElementById('new-profile').value = ''; renderSettings();
 }
-
 function deleteProfile(idx) {
-    const p = getProfiles(); p.splice(idx, 1);
-    localStorage.setItem('core_work_profiles', JSON.stringify(p));
-    renderSettings();
+    const p = getProfiles(); p.splice(idx, 1); localStorage.setItem('core_work_profiles', JSON.stringify(p)); renderSettings();
 }
-
 function addExpenseType() {
     const val = document.getElementById('new-expense').value;
     if(!val) return;
-    const e = getExpenseTypes(); e.push(val);
-    localStorage.setItem('core_work_expenses', JSON.stringify(e));
-    document.getElementById('new-expense').value = '';
-    renderSettings();
+    const e = getExpenseTypes(); e.push(val); localStorage.setItem('core_work_expenses', JSON.stringify(e));
+    document.getElementById('new-expense').value = ''; renderSettings();
 }
-
 function deleteExpenseType(idx) {
-    const e = getExpenseTypes(); e.splice(idx, 1);
-    localStorage.setItem('core_work_expenses', JSON.stringify(e));
-    renderSettings();
+    const e = getExpenseTypes(); e.splice(idx, 1); localStorage.setItem('core_work_expenses', JSON.stringify(e)); renderSettings();
 }
-
 
 // ==========================================
-// MÓDULO DE TAREAS (DASHBOARD & FASTAPI)
+// MÓDULO DE TAREAS (DASHBOARD & API)
 // ==========================================
 async function fetchTasks() {
     try {
@@ -116,14 +102,35 @@ async function fetchTasks() {
             try { if (t.description) meta = JSON.parse(t.description); } catch(e) {}
             return { ...t, company: meta.company, dueDate: meta.date };
         });
-        updateDashboard();
+        
+        if (document.getElementById('dash-task-count')) updateDashboard();
+        if (document.getElementById('calendar-grid')) renderCalendar(); // Renderizar calendario con las tareas incluidas
     } catch (error) { console.error("Error API Tareas:", error); }
+}
+
+function toggleBalance() {
+    balanceVisible = !balanceVisible;
+    updateBalanceDisplay();
+}
+
+function updateBalanceDisplay() {
+    const el = document.getElementById('dash-income-total');
+    const btn = document.getElementById('eye-icon-btn');
+    if (!el || !btn) return;
+
+    const val = el.getAttribute('data-value') || "0.00";
+    if (balanceVisible) {
+        el.innerText = `$${val}`;
+        btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>`;
+    } else {
+        el.innerText = '••••••';
+        btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg>`;
+    }
 }
 
 function updateDashboard() {
     const activeTasks = tasksCache.filter(t => !t.completed);
     document.getElementById('dash-task-count').innerText = activeTasks.length;
-    
     const events = getEventsLocal();
     document.getElementById('dash-event-count').innerText = events.length;
 
@@ -145,7 +152,6 @@ function updateDashboard() {
         getProfiles().slice(0,3).forEach(comp => {
             const compTasks = activeTasks.filter(t => t.company === comp).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)).slice(0, 4);
             let html = `<div class="bg-slate-50 border border-slate-200 rounded-xl p-4"><h4 class="font-bold text-slate-800 text-sm mb-3 border-b border-slate-200 pb-2 truncate">${comp}</h4><ul class="space-y-2">`;
-            
             if (compTasks.length === 0) html += `<li class="text-xs text-slate-500">Sin tareas pendientes.</li>`;
             else {
                 compTasks.forEach(t => {
@@ -164,7 +170,6 @@ function updateDashboard() {
         evtContainer.innerHTML = '';
         const upcoming = events.sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 4);
         if(upcoming.length === 0) evtContainer.innerHTML = '<p class="text-xs text-slate-500">No hay eventos próximos.</p>';
-        
         upcoming.forEach(e => {
             evtContainer.innerHTML += `
                 <div class="flex items-center text-xs p-2.5 bg-slate-50 rounded-lg border border-slate-100">
@@ -172,6 +177,19 @@ function updateDashboard() {
                     <div class="truncate"><p class="font-bold text-slate-800 truncate">${e.name}</p><p class="text-slate-500 truncate">${e.time} | ${e.company}</p></div>
                 </div>`;
         });
+    }
+
+    // Finanzas Ocultas en Dashboard
+    const fin = JSON.parse(localStorage.getItem('core_work_finances') || '[]');
+    let inc = 0, exp = 0;
+    fin.forEach(f => {
+        const amt = parseFloat(f.amount);
+        if (f.type.includes('Ingreso')) inc += amt; else exp += amt;
+    });
+    const di = document.getElementById('dash-income-total');
+    if(di) {
+        di.setAttribute('data-value', (inc - exp).toFixed(2));
+        updateBalanceDisplay(); // Renderizado en base a `balanceVisible`
     }
 }
 
@@ -203,9 +221,8 @@ function closeTaskModal() { document.getElementById('task-modal').classList.add(
 function openDeleteModal(id) { deleteTaskId = id; document.getElementById('delete-modal').classList.remove('hidden'); }
 function closeDeleteModal() { deleteTaskId = null; document.getElementById('delete-modal').classList.add('hidden'); }
 
-
 // ==========================================
-// MÓDULO DE AGENDA CALENDARIO
+// MÓDULO DE AGENDA CALENDARIO (CON TAREAS)
 // ==========================================
 function getEventsLocal() { return JSON.parse(localStorage.getItem('core_work_events') || '[]'); }
 
@@ -226,15 +243,25 @@ function renderCalendar() {
 
     for (let i = 1; i <= daysInMonth; i++) {
         const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-        const dayEvents = events.filter(e => e.date === dateStr);
         
-        let eventsHtml = dayEvents.map(e => `<div class="text-[10px] bg-slate-800 text-white p-1 mb-1 rounded truncate shadow-sm">${e.time} ${e.name}</div>`).join('');
+        // Cargar Eventos
+        const dayEvents = events.filter(e => e.date === dateStr);
+        let eventsHtml = dayEvents.map(e => `<div onclick="openActionModal('${e.id}')" class="text-[10px] bg-slate-800 text-white p-1 mb-1 rounded truncate shadow-sm cursor-pointer hover:opacity-80">${e.time} ${e.name}</div>`).join('');
+        
+        // Cargar Tareas Pendientes en la grilla del calendario (Estilo Rosa/Rojo con icono de Check)
+        const dayTasks = tasksCache.filter(t => t.dueDate === dateStr && !t.completed);
+        let tasksHtml = dayTasks.map(t => `
+            <div class="text-[10px] bg-rose-50 text-rose-700 border border-rose-200 p-1 mb-1 rounded truncate shadow-sm flex items-center" title="${t.title}">
+                <svg class="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                ${t.title}
+            </div>`).join('');
+
         const isToday = new Date().toDateString() === new Date(currentYear, currentMonth, i).toDateString();
 
         grid.innerHTML += `
-            <div class="bg-white calendar-cell p-2 border-t-2 ${isToday ? 'border-t-slate-900' : 'border-t-transparent'}">
+            <div class="bg-white calendar-cell p-2 border-t-2 hover:bg-slate-50 transition ${isToday ? 'border-t-slate-900' : 'border-t-transparent'}">
                 <div class="text-xs mb-2 ${isToday ? 'bg-slate-900 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold' : 'text-slate-700 font-medium'}">${i}</div>
-                <div class="space-y-1">${eventsHtml}</div>
+                <div class="space-y-1">${eventsHtml}${tasksHtml}</div>
             </div>`;
     }
 }
@@ -261,10 +288,40 @@ function saveEvent(e) {
 function openEventModal() { document.getElementById('event-modal').classList.remove('hidden'); }
 function closeEventModal() { document.getElementById('event-modal').classList.add('hidden'); }
 
+function openActionModal(id) {
+    selectedContactId = id;
+    const evt = getEventsLocal().find(e => e.id === id);
+    if(evt) {
+        document.getElementById('action-evt-name').innerText = evt.name;
+        document.getElementById('action-evt-desc').innerText = `${evt.date} | ${evt.time} \n ${evt.company} - ${evt.location}`;
+        document.getElementById('event-action-modal').classList.remove('hidden');
+    }
+}
+function closeActionModal() { selectedContactId = null; document.getElementById('event-action-modal').classList.add('hidden'); }
+
+function deleteSelectedEvent() {
+    let evts = getEventsLocal().filter(e => e.id !== selectedContactId);
+    localStorage.setItem('core_work_events', JSON.stringify(evts));
+    closeActionModal(); renderCalendar();
+}
 
 // ==========================================
-// MÓDULO DE FINANZAS
+// MÓDULO DE FINANZAS (CON AUTH)
 // ==========================================
+function verifyFinances(e) {
+    e.preventDefault();
+    const pass = document.getElementById('fin-password').value;
+    if (pass === '12345') {
+        const overlay = document.getElementById('auth-overlay');
+        overlay.style.opacity = '0';
+        setTimeout(() => overlay.classList.add('hidden'), 300);
+        document.getElementById('fin-error').classList.add('hidden');
+    } else {
+        document.getElementById('fin-error').classList.remove('hidden');
+        document.getElementById('fin-password').value = '';
+    }
+}
+
 function getFinancesLocal() { return JSON.parse(localStorage.getItem('core_work_finances') || '[]'); }
 
 function renderFinances() {
@@ -316,7 +373,6 @@ function deleteFinance(idx) { const f = getFinancesLocal(); f.splice(idx, 1); lo
 function openFinanceModal() { document.getElementById('finance-modal').classList.remove('hidden'); }
 function closeFinanceModal() { document.getElementById('finance-modal').classList.add('hidden'); }
 
-
 // ==========================================
 // MÓDULO TELARAÑA (CRM RELACIONAL)
 // ==========================================
@@ -339,11 +395,10 @@ function renderTelarana() {
         const diffTime = Math.abs(today - lastDate);
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         
-        let status = 'Al día'; let bColor = '#10B981'; // Green
-        if(diffDays > 15) { status = 'Requiere Seguimiento'; bColor = '#F59E0B'; } // Yellow
-        if(diffDays > 30) { status = 'Alerta Inactividad'; bColor = '#EF4444'; } // Red
+        let status = 'Al día'; let bColor = '#10B981'; 
+        if(diffDays > 15) { status = 'Requiere Seguimiento'; bColor = '#F59E0B'; } 
+        if(diffDays > 30) { status = 'Alerta Inactividad'; bColor = '#EF4444'; } 
 
-        // Añadir a la tabla
         tbody.innerHTML += `
             <tr class="hover:bg-slate-50 border-b border-slate-50">
                 <td class="px-6 py-3.5 font-medium">${c.name}</td>
@@ -356,7 +411,6 @@ function renderTelarana() {
                 </td>
             </tr>`;
 
-        // Añadir al grafo
         nodes.push({
             id: c.id, label: c.name, shape: 'dot', size: 14,
             color: { background: bColor, border: '#0F172A' },
@@ -384,8 +438,6 @@ function saveContact(e) {
 function saveInteraction(e) {
     e.preventDefault();
     const contactId = document.getElementById('interaction-contact-id').value;
-    
-    // Al agendar, actualizamos la fecha de último contacto al día programado o al día de hoy.
     const dateInput = document.getElementById('interaction-date').value;
     let contacts = getContactsLocal();
     const contactIndex = contacts.findIndex(c => c.id === contactId);
@@ -393,8 +445,6 @@ function saveInteraction(e) {
     if (contactIndex > -1) {
         contacts[contactIndex].lastContact = dateInput;
         localStorage.setItem('core_work_crm', JSON.stringify(contacts));
-        
-        // También lo mandamos al calendario (Agenda) automáticamente
         const events = getEventsLocal();
         events.push({
             id: Date.now().toString(), name: `Llamada/Reunión con: ${contacts[contactIndex].name}`,
@@ -405,15 +455,10 @@ function saveInteraction(e) {
     }
     
     closeInteractionModal(); renderTelarana(); document.getElementById('interaction-form').reset();
-    alert("Interacción programada. Se ha actualizado el nodo en la red y se ha añadido al calendario de tu Agenda.");
+    alert("Interacción programada. Se ha actualizado el nodo y el Calendario.");
 }
 
-function deleteContact(id) {
-    const c = getContactsLocal().filter(x => x.id !== id);
-    localStorage.setItem('core_work_crm', JSON.stringify(c));
-    renderTelarana();
-}
-
+function deleteContact(id) { const c = getContactsLocal().filter(x => x.id !== id); localStorage.setItem('core_work_crm', JSON.stringify(c)); renderTelarana(); }
 function openContactModal() { document.getElementById('contact-modal').classList.remove('hidden'); }
 function closeContactModal() { document.getElementById('contact-modal').classList.add('hidden'); }
 function openInteractionModal(id, name) {
