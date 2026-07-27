@@ -19,7 +19,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initSettings();
     loadDynamicOptions();
 
-    // Tracker Init
     initTracker();
 
     if (document.getElementById('dash-task-count') || document.getElementById('calendar-grid') || document.getElementById('col-todo')) {
@@ -87,6 +86,15 @@ function deleteSetting(type, idx) {
     renderSettings(); loadDynamicOptions();
 }
 
+async function testTelegramAlert() {
+    try {
+        const response = await fetch(`${API_URL}/test-telegram`, { method: 'POST' });
+        if(response.ok) alert("✅ Resumen enviado con éxito a tu Telegram.");
+        else alert("⚠️ Error al enviar. Revisa los logs en Render.");
+    } catch (error) {
+        alert("⚠️ Error de conexión. Revisa que el backend esté en línea.");
+    }
+}
 
 // ==========================================
 // MÓDULO DE TAREAS & KANBAN
@@ -134,7 +142,6 @@ function renderKanban() {
     }
 }
 
-// Drag & Drop HTML5 APIs
 function allowDrop(ev) { ev.preventDefault(); }
 function drag(ev) { ev.dataTransfer.setData("taskId", ev.target.id.replace('ktask-', '')); }
 async function drop(ev) {
@@ -146,10 +153,8 @@ async function drop(ev) {
     const newStatus = targetCol.id.replace('col-', '');
     const isCompleted = newStatus === 'done';
 
-    // Optimistic UI Update
     targetCol.appendChild(document.getElementById(`ktask-${taskId}`));
 
-    // API Update
     await fetch(`${API_URL}/tasks/${taskId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -225,14 +230,12 @@ async function toggleTimer() {
     const sel = document.getElementById('tracker-task-select');
     
     if (timerInterval) {
-        // DETENER
         clearInterval(timerInterval);
         timerInterval = null;
         localStorage.setItem('tracker_running', 'false');
         btn.innerHTML = `<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4l12 6-12 6z"></path></svg>`;
         btn.classList.replace('bg-red-600', 'bg-slate-900');
         
-        // Guardar tiempo en BD
         if (activeTaskId) {
             const t = tasksCache.find(x => x.id == activeTaskId);
             if (t) {
@@ -242,7 +245,7 @@ async function toggleTimer() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ time_spent: newTotal })
                 });
-                fetchTasks(); // refresh kanban
+                fetchTasks(); 
             }
         }
         timerSeconds = 0;
@@ -251,7 +254,6 @@ async function toggleTimer() {
         sel.disabled = false;
         
     } else {
-        // INICIAR
         if (!sel.value) { alert("Selecciona una tarea primero."); return; }
         activeTaskId = sel.value;
         sel.disabled = true;
@@ -266,11 +268,9 @@ async function toggleTimer() {
     }
 }
 
-
 // ==========================================
 // MÓDULO DASHBOARD 
 // ==========================================
-// (updateDashboard(), updateBar() se mantienen idénticos como lo exigiste)
 function toggleBalance() { balanceVisible = !balanceVisible; updateBalanceDisplay(); }
 function updateBalanceDisplay() {
     const el = document.getElementById('dash-income-total'); const btn = document.getElementById('eye-icon-btn');
@@ -326,6 +326,20 @@ function updateDashboard() {
                 }
             }
             grid.innerHTML += html + `</div>`;
+        });
+    }
+
+    const evtContainer = document.getElementById('dash-upcoming-events');
+    if (evtContainer) {
+        evtContainer.innerHTML = '';
+        const upcoming = events.sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 4);
+        if(upcoming.length === 0) evtContainer.innerHTML = '<p class="text-xs text-slate-500">No hay eventos próximos.</p>';
+        upcoming.forEach(e => {
+            evtContainer.innerHTML += `
+                <div class="flex items-center text-xs p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                    <div class="bg-slate-900 text-white font-bold px-2 py-1 rounded mr-3 text-center min-w-[45px]">${e.date.split('-')[2]}<br><span class="text-[9px] font-normal">DIA</span></div>
+                    <div class="truncate"><p class="font-bold text-slate-800 truncate">${e.name}</p><p class="text-slate-500 truncate">${e.time} | ${e.company}</p></div>
+                </div>`;
         });
     }
 
@@ -391,7 +405,7 @@ function closeActionModal() { selectedContactId = null; document.getElementById(
 function deleteSelectedEvent() { let evts = getEventsLocal().filter(e => e.id !== selectedContactId); localStorage.setItem('core_work_events', JSON.stringify(evts)); closeActionModal(); renderCalendar(); }
 
 // ==========================================
-// MÓDULO DE FINANZAS & GENERADOR DE FACTURAS
+// MÓDULO DE FINANZAS
 // ==========================================
 function verifyFinances(e) {
     e.preventDefault();
