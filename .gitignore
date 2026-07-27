@@ -1,0 +1,5 @@
+03_Cuenta/
+.env
+01_backend/.env
+venv/
+__pycache__/

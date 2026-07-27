@@ -1,0 +1,10 @@
+# Ignorar la carpeta de cuenta y cosas privadas
+03_Cuenta/
+
+# Ignorar variables de entorno del backend
+01_backend/.env
+
+# Ignorar archivos generados por Python y entornos virtuales
+01_backend/__pycache__/
+01_backend/venv/
+*.pyc
