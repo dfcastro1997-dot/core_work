@@ -46,35 +46,38 @@
         </header>
 
         <div class="p-8 space-y-6">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <!-- Perfiles / Entidades -->
                 <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                    <h3 class="font-bold text-base text-slate-900 mb-2">Perfiles / Entidades / Empresas</h3>
-                    <p class="text-xs text-slate-500 mb-4">Define los proyectos o inversores con los que trabajas. Estos nombres aparecerán en los formularios del sistema.</p>
-                    
+                    <h3 class="font-bold text-base text-slate-900 mb-2">Entidades / Empresas</h3>
+                    <p class="text-xs text-slate-500 mb-4">Define los proyectos o inversores con los que trabajas.</p>
                     <div class="flex space-x-2 mb-4">
-                        <input type="text" id="new-profile" placeholder="Ej: Proyecto Alpha, Inversor XY..." class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-900">
+                        <input type="text" id="new-profile" placeholder="Ej: Proyecto Alpha..." class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-900">
                         <button onclick="addProfile()" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-slate-800">Añadir</button>
                     </div>
-                    
-                    <ul id="profile-list" class="space-y-2 border-t border-slate-100 pt-4">
-                        <!-- JS -->
-                    </ul>
+                    <ul id="profile-list" class="space-y-2 border-t border-slate-100 pt-4"></ul>
                 </div>
 
                 <!-- Tipos de Gastos -->
                 <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                     <h3 class="font-bold text-base text-slate-900 mb-2">Categorías Financieras</h3>
-                    <p class="text-xs text-slate-500 mb-4">Configura las etiquetas para tus ingresos y gastos (Ej: Ingreso, Pago de Salud, Suscripciones).</p>
-                    
+                    <p class="text-xs text-slate-500 mb-4">Clasificación general de los movimientos.</p>
                     <div class="flex space-x-2 mb-4">
-                        <input type="text" id="new-expense" placeholder="Ej: Pago Seguridad Social..." class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-900">
+                        <input type="text" id="new-expense" placeholder="Ej: Pago de Nómina..." class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-900">
                         <button onclick="addExpenseType()" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-slate-800">Añadir</button>
                     </div>
-                    
-                    <ul id="expense-list" class="space-y-2 border-t border-slate-100 pt-4">
-                        <!-- JS -->
-                    </ul>
+                    <ul id="expense-list" class="space-y-2 border-t border-slate-100 pt-4"></ul>
+                </div>
+
+                <!-- Deducciones / Gastos Fijos (NUEVO) -->
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                    <h3 class="font-bold text-base text-slate-900 mb-2">Deducciones Fijas Mensuales</h3>
+                    <p class="text-xs text-slate-500 mb-4">Arriendos, Luz, Internet. Aparecerán como opciones rápidas en Finanzas.</p>
+                    <div class="flex space-x-2 mb-4">
+                        <input type="text" id="new-fixed" placeholder="Ej: Arriendo Oficina..." class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-900">
+                        <button onclick="addFixedItem()" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-slate-800">Añadir</button>
+                    </div>
+                    <ul id="fixed-list" class="space-y-2 border-t border-slate-100 pt-4"></ul>
                 </div>
             </div>
         </div>
