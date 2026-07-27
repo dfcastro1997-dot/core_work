@@ -20,72 +20,65 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (document.getElementById('calendar-grid')) renderCalendar();
     if (document.getElementById('finance-table-body')) {
-        // En finanzas, iniciar ocultando el overlay si ya validó antes (Opcional, pero para esta sesión exigimos Auth)
         renderFinances();
-        renderPockets();
+        if (typeof renderPockets === 'function') renderPockets();
     }
     if (document.getElementById('crm-network')) renderTelarana();
     if (document.getElementById('profile-list')) renderSettings();
 });
 
 // ==========================================
-// MÓDULO CONFIGURACIONES (ENTIDADES & FIJOS)
+// MÓDULO CONFIGURACIONES
 // ==========================================
 function initSettings() {
-    if (!localStorage.getItem('core_work_profiles')) {
-        localStorage.setItem('core_work_profiles', JSON.stringify(["Inversor Principal", "Proyecto Personal", "Soporte Técnico"]));
-    }
-    if (!localStorage.getItem('core_work_expenses')) {
-        localStorage.setItem('core_work_expenses', JSON.stringify(["Ingreso", "Pasivo Fijo", "Gasto Hormiga", "Suscripciones"]));
-    }
-    if (!localStorage.getItem('core_work_fixed_items')) {
-        localStorage.setItem('core_work_fixed_items', JSON.stringify(["Arriendo Oficina", "Luz / Energía", "Internet", "Software Aiven / Render"]));
-    }
+    if (!localStorage.getItem('core_work_profiles')) localStorage.setItem('core_work_profiles', JSON.stringify(["Inversor Principal", "Proyecto Personal", "Soporte Técnico"]));
+    if (!localStorage.getItem('core_work_expenses')) localStorage.setItem('core_work_expenses', JSON.stringify(["Ingreso", "Pasivo Fijo", "Gasto Hormiga", "Suscripciones"]));
+    if (!localStorage.getItem('core_work_fixed_items')) localStorage.setItem('core_work_fixed_items', JSON.stringify(["Arriendo Oficina", "Luz / Energía", "Internet", "Software Aiven / Render"]));
+    if (!localStorage.getItem('core_work_subdivisions')) localStorage.setItem('core_work_subdivisions', JSON.stringify(["General", "Desarrollo", "Marketing", "Administrativo"]));
 }
 
 function getProfiles() { return JSON.parse(localStorage.getItem('core_work_profiles')); }
 function getExpenseTypes() { return JSON.parse(localStorage.getItem('core_work_expenses')); }
 function getFixedItems() { return JSON.parse(localStorage.getItem('core_work_fixed_items')); }
+function getSubdivisions() { return JSON.parse(localStorage.getItem('core_work_subdivisions')); }
 
 function loadDynamicOptions() {
     const profileSelects = document.querySelectorAll('.dynamic-profiles');
     const expenseSelects = document.querySelectorAll('.dynamic-expenses');
+    const subSelects = document.querySelectorAll('.dynamic-subdivisions');
     const fixedDatalist = document.getElementById('fixed-expenses-list');
     
-    profileSelects.forEach(sel => {
-        sel.innerHTML = ''; getProfiles().forEach(p => sel.innerHTML += `<option value="${p}">${p}</option>`);
-    });
-    expenseSelects.forEach(sel => {
-        sel.innerHTML = ''; getExpenseTypes().forEach(e => sel.innerHTML += `<option value="${e}">${e}</option>`);
-    });
-    if (fixedDatalist) {
-        fixedDatalist.innerHTML = ''; getFixedItems().forEach(f => fixedDatalist.innerHTML += `<option value="${f}">`);
-    }
+    profileSelects.forEach(sel => { sel.innerHTML = ''; getProfiles().forEach(p => sel.innerHTML += `<option value="${p}">${p}</option>`); });
+    expenseSelects.forEach(sel => { sel.innerHTML = ''; getExpenseTypes().forEach(e => sel.innerHTML += `<option value="${e}">${e}</option>`); });
+    subSelects.forEach(sel => { sel.innerHTML = ''; getSubdivisions().forEach(s => sel.innerHTML += `<option value="${s}">${s}</option>`); });
+    if (fixedDatalist) { fixedDatalist.innerHTML = ''; getFixedItems().forEach(f => fixedDatalist.innerHTML += `<option value="${f}">`); }
 }
 
 function renderSettings() {
     const pList = document.getElementById('profile-list');
     const eList = document.getElementById('expense-list');
     const fList = document.getElementById('fixed-list');
-    if(!pList || !eList || !fList) return;
+    const sList = document.getElementById('subdivision-list');
+    if(!pList) return;
     
-    pList.innerHTML = ''; eList.innerHTML = ''; fList.innerHTML = '';
+    pList.innerHTML = ''; eList.innerHTML = ''; fList.innerHTML = ''; sList.innerHTML = '';
     
     getProfiles().forEach((p, idx) => pList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${p}</span><button onclick="deleteSetting('profiles', ${idx})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`);
     getExpenseTypes().forEach((e, idx) => eList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${e}</span><button onclick="deleteSetting('expenses', ${idx})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`);
     getFixedItems().forEach((f, idx) => fList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${f}</span><button onclick="deleteSetting('fixed', ${idx})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`);
+    getSubdivisions().forEach((s, idx) => sList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${s}</span><button onclick="deleteSetting('subdivisions', ${idx})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`);
 }
 
 function addProfile() { const val = document.getElementById('new-profile').value; if(val) { const d = getProfiles(); d.push(val); localStorage.setItem('core_work_profiles', JSON.stringify(d)); document.getElementById('new-profile').value=''; renderSettings(); loadDynamicOptions(); } }
 function addExpenseType() { const val = document.getElementById('new-expense').value; if(val) { const d = getExpenseTypes(); d.push(val); localStorage.setItem('core_work_expenses', JSON.stringify(d)); document.getElementById('new-expense').value=''; renderSettings(); loadDynamicOptions(); } }
 function addFixedItem() { const val = document.getElementById('new-fixed').value; if(val) { const d = getFixedItems(); d.push(val); localStorage.setItem('core_work_fixed_items', JSON.stringify(d)); document.getElementById('new-fixed').value=''; renderSettings(); loadDynamicOptions(); } }
+function addSubdivision() { const val = document.getElementById('new-subdivision').value; if(val) { const d = getSubdivisions(); d.push(val); localStorage.setItem('core_work_subdivisions', JSON.stringify(d)); document.getElementById('new-subdivision').value=''; renderSettings(); loadDynamicOptions(); } }
 
 function deleteSetting(type, idx) {
-    let key = type === 'profiles' ? 'core_work_profiles' : (type === 'expenses' ? 'core_work_expenses' : 'core_work_fixed_items');
+    let key = type === 'profiles' ? 'core_work_profiles' : (type === 'expenses' ? 'core_work_expenses' : (type === 'fixed' ? 'core_work_fixed_items' : 'core_work_subdivisions'));
     const d = JSON.parse(localStorage.getItem(key)); d.splice(idx, 1); localStorage.setItem(key, JSON.stringify(d));
     renderSettings(); loadDynamicOptions();
 }
-
 
 // ==========================================
 // MÓDULO DE TAREAS (DASHBOARD & API)
@@ -96,9 +89,9 @@ async function fetchTasks() {
         const rawTasks = await response.json();
         
         tasksCache = rawTasks.map(t => {
-            let meta = { company: getProfiles()[0], date: 'Sin Fecha' };
+            let meta = { company: getProfiles()[0], subdivision: 'General', date: 'Sin Fecha' };
             try { if (t.description) meta = JSON.parse(t.description); } catch(e) {}
-            return { ...t, company: meta.company, dueDate: meta.date };
+            return { ...t, company: meta.company, subdivision: meta.subdivision || 'General', dueDate: meta.date };
         });
         
         if (document.getElementById('dash-task-count')) updateDashboard();
@@ -144,22 +137,40 @@ function updateDashboard() {
     updateBar('prog-week', Math.min(Math.round((load / 15) * 100), 100));
     updateBar('prog-month', Math.min(Math.round((load / 40) * 100), 100));
 
+    // AGRUPACIÓN POR ENTIDAD Y SUBDIVISIÓN
     const grid = document.getElementById('critical-tasks-grid');
     if (grid) {
         grid.innerHTML = '';
         getProfiles().slice(0,3).forEach(comp => {
-            const compTasks = activeTasks.filter(t => t.company === comp).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)).slice(0, 4);
-            let html = `<div class="bg-slate-50 border border-slate-200 rounded-xl p-4"><h4 class="font-bold text-slate-800 text-sm mb-3 border-b border-slate-200 pb-2 truncate">${comp}</h4><ul class="space-y-2">`;
-            if (compTasks.length === 0) html += `<li class="text-xs text-slate-500">Sin tareas pendientes.</li>`;
-            else {
+            const compTasks = activeTasks.filter(t => t.company === comp).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+            let html = `<div class="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col max-h-96 overflow-y-auto custom-scroll"><h4 class="font-bold text-slate-800 text-sm mb-3 border-b border-slate-200 pb-2 sticky top-0 bg-slate-50 z-10">${comp}</h4>`;
+            
+            if (compTasks.length === 0) {
+                html += `<p class="text-xs text-slate-500">Sin tareas pendientes.</p>`;
+            } else {
+                const tasksBySub = {};
                 compTasks.forEach(t => {
-                    const dateColor = new Date(t.dueDate) < new Date() ? 'text-red-600 font-bold' : 'text-slate-500';
-                    html += `<li class="flex items-start justify-between text-xs bg-white p-2 rounded border border-slate-100 shadow-sm cursor-pointer hover:border-slate-300 transition" onclick="openDeleteModal(${t.id})">
-                                <span class="font-medium text-slate-700 pr-2 truncate">${t.title}</span><span class="${dateColor} whitespace-nowrap">${t.dueDate}</span>
-                            </li>`;
+                    const sub = t.subdivision || 'General';
+                    if (!tasksBySub[sub]) tasksBySub[sub] = [];
+                    tasksBySub[sub].push(t);
                 });
+
+                for (const sub in tasksBySub) {
+                    html += `<div class="mb-4 last:mb-0">
+                                <h5 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center"><span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-1.5"></span>${sub}</h5>
+                                <ul class="space-y-2">`;
+                    tasksBySub[sub].forEach(t => {
+                        const isOverdue = new Date(t.dueDate) < new Date();
+                        const dateColor = isOverdue ? 'text-red-600 font-bold' : 'text-slate-500';
+                        html += `<li class="flex items-start justify-between text-xs bg-white p-2.5 rounded border border-slate-200 shadow-sm cursor-pointer hover:border-slate-400 transition" onclick="openDeleteModal(${t.id})">
+                                    <span class="font-medium text-slate-700 pr-2 leading-relaxed">${t.title}</span>
+                                    <span class="${dateColor} whitespace-nowrap mt-0.5">${t.dueDate}</span>
+                                </li>`;
+                    });
+                    html += `</ul></div>`;
+                }
             }
-            grid.innerHTML += html + `</ul></div>`;
+            grid.innerHTML += html + `</div>`;
         });
     }
 
@@ -200,7 +211,11 @@ async function saveTask(event) {
     event.preventDefault();
     const payload = { 
         title: document.getElementById('task-title').value, 
-        description: JSON.stringify({ company: document.getElementById('task-company').value, date: document.getElementById('task-date').value }), 
+        description: JSON.stringify({ 
+            company: document.getElementById('task-company').value, 
+            subdivision: document.getElementById('task-subdivision').value,
+            date: document.getElementById('task-date').value 
+        }), 
         is_ops: false 
     };
     await fetch(`${API_URL}/tasks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -218,10 +233,10 @@ function closeTaskModal() { document.getElementById('task-modal').classList.add(
 function openDeleteModal(id) { deleteTaskId = id; document.getElementById('delete-modal').classList.remove('hidden'); }
 function closeDeleteModal() { deleteTaskId = null; document.getElementById('delete-modal').classList.add('hidden'); }
 
-
 // ==========================================
-// MÓDULO DE AGENDA CALENDARIO (CON TAREAS API)
+// MÓDULO DE AGENDA CALENDARIO
 // ==========================================
+// Permanece intacto según la solicitud previa
 function getEventsLocal() { return JSON.parse(localStorage.getItem('core_work_events') || '[]'); }
 
 function renderCalendar() {
@@ -242,11 +257,9 @@ function renderCalendar() {
     for (let i = 1; i <= daysInMonth; i++) {
         const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
         
-        // Eventos Locales
         const dayEvents = events.filter(e => e.date === dateStr);
         let eventsHtml = dayEvents.map(e => `<div onclick="openActionModal('${e.id}')" class="text-[10px] bg-slate-800 text-white p-1 mb-1 rounded truncate shadow-sm cursor-pointer hover:opacity-80">${e.time} ${e.name}</div>`).join('');
         
-        // Tareas API Pendientes
         const dayTasks = tasksCache.filter(t => t.dueDate === dateStr && !t.completed);
         let tasksHtml = dayTasks.map(t => `
             <div class="text-[10px] bg-rose-50 text-rose-700 border border-rose-200 p-1 mb-1 rounded truncate shadow-sm flex items-center cursor-pointer" onclick="openDeleteModal(${t.id})" title="${t.title}">
@@ -303,9 +316,8 @@ function deleteSelectedEvent() {
     closeActionModal(); renderCalendar();
 }
 
-
 // ==========================================
-// MÓDULO DE FINANZAS & BOLSILLOS (CON FILTROS)
+// MÓDULO DE FINANZAS
 // ==========================================
 function verifyFinances(e) {
     e.preventDefault();
@@ -348,14 +360,12 @@ function renderFinances() {
     const finances = filterFinancesByTime(allFinances, filter.value);
     
     tbody.innerHTML = '';
-    
     let inc = 0, pas = 0, horm = 0;
 
     if (finances.length === 0) document.getElementById('empty-finance-msg').classList.remove('hidden');
     else {
         document.getElementById('empty-finance-msg').classList.add('hidden');
-        finances.forEach((item, idx) => {
-            // idx is tricky with filter, so pass the real original object ID for safe deletion, but we'll use simple array indexOf for now
+        finances.forEach((item) => {
             const realIdx = allFinances.indexOf(item);
             const amt = parseFloat(item.amount);
             if (item.type.includes('Ingreso')) inc += amt;
@@ -377,7 +387,6 @@ function renderFinances() {
     document.getElementById('fin-total-hormiga').innerText = `$${horm.toFixed(2)}`;
     document.getElementById('fin-balance-neto').innerText = `$${(inc - (pas + horm)).toFixed(2)}`;
     
-    // Label for table
     const lbl = { 'month': 'Mes Actual', 'week': 'Semana Actual', 'year': 'Año Actual', 'all': 'Todo el Historial' };
     document.getElementById('fin-period-label').innerText = lbl[filter.value];
 }
@@ -399,7 +408,7 @@ function openFinanceModal() { document.getElementById('finance-modal').classList
 function closeFinanceModal() { document.getElementById('finance-modal').classList.add('hidden'); }
 
 // ==========================================
-// MÓDULO BOLSILLOS DE AHORRO
+// MÓDULO BOLSILLOS
 // ==========================================
 function renderPockets() {
     const grid = document.getElementById('pockets-grid');
@@ -425,9 +434,7 @@ function renderPockets() {
                     <div class="w-full bg-slate-200 rounded-full h-1.5"><div class="bg-emerald-500 h-1.5 rounded-full" style="width: ${prog}%"></div></div>
                 </div>
                 <div class="flex justify-between items-center border-t border-slate-200 pt-3">
-                    <div class="space-x-1">
-                        <button onclick="openPocketTxModal(${idx})" class="text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 px-2 py-1 rounded">Transacción</button>
-                    </div>
+                    <button onclick="openPocketTxModal(${idx})" class="text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 px-2 py-1 rounded">Transacción</button>
                     <button onclick="deletePocket(${idx})" class="text-red-500 hover:text-red-700 text-xs font-medium">Borrar</button>
                 </div>
             </div>`;
@@ -455,7 +462,7 @@ function openPocketTxModal(idx) {
     document.getElementById('tx-pocket-id').value = idx;
     document.getElementById('tx-pocket-name').innerText = p.name;
     document.getElementById('pocket-tx-modal').classList.remove('hidden');
-    setTxType('add'); // Default
+    setTxType('add');
 }
 function closePocketTxModal() { document.getElementById('pocket-tx-modal').classList.add('hidden'); }
 
@@ -489,9 +496,8 @@ function executePocketTx(e) {
     closePocketTxModal(); renderPockets(); document.getElementById('pocket-tx-form').reset();
 }
 
-
 // ==========================================
-// MÓDULO TELARAÑA (CRM RELACIONAL)
+// MÓDULO TELARAÑA (CRM RELACIONAL) - PERMANECE INTACTO
 // ==========================================
 function getContactsLocal() { return JSON.parse(localStorage.getItem('core_work_crm') || '[]'); }
 
@@ -528,11 +534,7 @@ function renderTelarana() {
                 </td>
             </tr>`;
 
-        nodes.push({
-            id: c.id, label: c.name, shape: 'dot', size: 14,
-            color: { background: bColor, border: '#0F172A' },
-            font: { color: '#334155', face: 'Inter', size: 11 }
-        });
+        nodes.push({ id: c.id, label: c.name, shape: 'dot', size: 14, color: { background: bColor, border: '#0F172A' }, font: { color: '#334155', face: 'Inter', size: 11 } });
         edges.push({ from: 1, to: c.id, color: { color: '#CBD5E1' } });
     });
 
@@ -544,10 +546,7 @@ function renderTelarana() {
 function saveContact(e) {
     e.preventDefault();
     const c = getContactsLocal();
-    c.push({
-        id: 'c_' + Date.now(), name: document.getElementById('contact-name').value,
-        type: document.getElementById('contact-type').value, lastContact: document.getElementById('contact-last-date').value
-    });
+    c.push({ id: 'c_' + Date.now(), name: document.getElementById('contact-name').value, type: document.getElementById('contact-type').value, lastContact: document.getElementById('contact-last-date').value });
     localStorage.setItem('core_work_crm', JSON.stringify(c));
     closeContactModal(); renderTelarana(); document.getElementById('contact-form').reset();
 }
@@ -563,24 +562,15 @@ function saveInteraction(e) {
         contacts[contactIndex].lastContact = dateInput;
         localStorage.setItem('core_work_crm', JSON.stringify(contacts));
         const events = getEventsLocal();
-        events.push({
-            id: Date.now().toString(), name: `Llamada/Reunión con: ${contacts[contactIndex].name}`,
-            date: dateInput, time: document.getElementById('interaction-type').value,
-            company: contacts[contactIndex].type, location: document.getElementById('interaction-notes').value
-        });
+        events.push({ id: Date.now().toString(), name: `Llamada/Reunión con: ${contacts[contactIndex].name}`, date: dateInput, time: document.getElementById('interaction-type').value, company: contacts[contactIndex].type, location: document.getElementById('interaction-notes').value });
         localStorage.setItem('core_work_events', JSON.stringify(events));
     }
-    
     closeInteractionModal(); renderTelarana(); document.getElementById('interaction-form').reset();
-    alert("Interacción programada. Se ha actualizado el nodo y el Calendario.");
+    alert("Interacción programada en la Red y en tu Calendario.");
 }
 
 function deleteContact(id) { const c = getContactsLocal().filter(x => x.id !== id); localStorage.setItem('core_work_crm', JSON.stringify(c)); renderTelarana(); }
 function openContactModal() { document.getElementById('contact-modal').classList.remove('hidden'); }
 function closeContactModal() { document.getElementById('contact-modal').classList.add('hidden'); }
-function openInteractionModal(id, name) {
-    document.getElementById('interaction-contact-id').value = id;
-    document.getElementById('interaction-contact-name').innerText = name;
-    document.getElementById('interaction-modal').classList.remove('hidden');
-}
+function openInteractionModal(id, name) { document.getElementById('interaction-contact-id').value = id; document.getElementById('interaction-contact-name').innerText = name; document.getElementById('interaction-modal').classList.remove('hidden'); }
 function closeInteractionModal() { document.getElementById('interaction-modal').classList.add('hidden'); }

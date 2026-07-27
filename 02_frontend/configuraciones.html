@@ -46,7 +46,7 @@
         </header>
 
         <div class="p-8 space-y-6">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- Perfiles / Entidades -->
                 <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                     <h3 class="font-bold text-base text-slate-900 mb-2">Entidades / Empresas</h3>
@@ -56,6 +56,17 @@
                         <button onclick="addProfile()" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-slate-800">Añadir</button>
                     </div>
                     <ul id="profile-list" class="space-y-2 border-t border-slate-100 pt-4"></ul>
+                </div>
+
+                <!-- Ramas / Subdivisiones de Tareas (NUEVO) -->
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                    <h3 class="font-bold text-base text-slate-900 mb-2">Ramas / Subdivisiones (Tareas)</h3>
+                    <p class="text-xs text-slate-500 mb-4">Departamentos o áreas para clasificar y organizar las tareas dentro del Dashboard.</p>
+                    <div class="flex space-x-2 mb-4">
+                        <input type="text" id="new-subdivision" placeholder="Ej: Frontend, Legal, DevOps..." class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-900">
+                        <button onclick="addSubdivision()" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-slate-800">Añadir</button>
+                    </div>
+                    <ul id="subdivision-list" class="space-y-2 border-t border-slate-100 pt-4"></ul>
                 </div>
 
                 <!-- Tipos de Gastos -->
@@ -69,10 +80,10 @@
                     <ul id="expense-list" class="space-y-2 border-t border-slate-100 pt-4"></ul>
                 </div>
 
-                <!-- Deducciones / Gastos Fijos (NUEVO) -->
+                <!-- Deducciones / Gastos Fijos -->
                 <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                     <h3 class="font-bold text-base text-slate-900 mb-2">Deducciones Fijas Mensuales</h3>
-                    <p class="text-xs text-slate-500 mb-4">Arriendos, Luz, Internet. Aparecerán como opciones rápidas en Finanzas.</p>
+                    <p class="text-xs text-slate-500 mb-4">Arriendos, Luz, Internet. Opciones rápidas en Finanzas.</p>
                     <div class="flex space-x-2 mb-4">
                         <input type="text" id="new-fixed" placeholder="Ej: Arriendo Oficina..." class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-900">
                         <button onclick="addFixedItem()" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-slate-800">Añadir</button>
