@@ -1,4 +1,6 @@
-import os, json, requests
+import os
+import json
+import requests
 from datetime import datetime, timedelta
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,8 +13,10 @@ from apscheduler.triggers.cron import CronTrigger
 import database
 import models
 
+# 1. Crear tablas en PostgreSQL
 models.Base.metadata.create_all(bind=database.engine)
 
+# 2. Parche Automático
 with database.SessionLocal() as session:
     try: session.execute(text("ALTER TABLE tasks ADD COLUMN status VARCHAR DEFAULT 'todo';")); session.commit()
     except Exception: session.rollback()
@@ -47,7 +51,13 @@ def send_telegram_alert(message: str):
     if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID: send_telegram_message(TELEGRAM_CHAT_ID, message)
 
 def get_main_menu():
-    return {"inline_keyboard": [[{"text": "📊 Dashboard", "callback_data": "menu_dashboard"}], [{"text": "📋 Kanban", "callback_data": "menu_kanban"}], [{"text": "📅 Agenda", "callback_data": "menu_agenda"}, {"text": "💰 Finanzas", "callback_data": "menu_finanzas"}]]}
+    return {
+        "inline_keyboard": [
+            [{"text": "📊 Dashboard", "callback_data": "menu_dashboard"}, {"text": "📋 Kanban", "callback_data": "menu_kanban"}], 
+            [{"text": "📅 Agenda", "callback_data": "menu_agenda"}, {"text": "💰 Finanzas", "callback_data": "menu_finanzas"}],
+            [{"text": "➕ Cómo Añadir Datos", "callback_data": "menu_add"}]
+        ]
+    }
 
 def get_kanban_menu(task_id, current_status):
     buttons = []
@@ -60,23 +70,92 @@ def get_kanban_menu(task_id, current_status):
 @app.post("/webhook/telegram")
 async def telegram_webhook(request: Request, db: Session = Depends(database.get_db)):
     data = await request.json()
+    
+    # --- 1. PROCESAMIENTO DE MENSAJES DE TEXTO (AÑADIR REGISTROS) ---
     if "message" in data and "text" in data["message"]:
         chat_id = data["message"]["chat"]["id"]
-        if data["message"]["text"].startswith(("/start", "/menu")):
+        text_msg = data["message"]["text"].strip()
+
+        if text_msg.startswith(("/start", "/menu")):
             send_telegram_message(chat_id, "👋 <b>CORE-WORK OS</b>\nSelecciona el módulo:", get_main_menu())
             return {"status": "ok"}
+            
+        elif text_msg.lower().startswith("+tarea "):
+            title = text_msg[7:].strip()
+            # Se guarda con descripción default para que no rompa el frontend
+            db_task = models.Task(title=title, status="todo", description='{"company": "General", "subdivision": "Telegram", "date": "Sin Fecha"}')
+            db.add(db_task)
+            db.commit()
+            send_telegram_message(chat_id, f"✅ <b>Tarea creada con éxito:</b>\n{title}", get_main_menu())
+            return {"status": "ok"}
+
+        elif text_msg.lower().startswith("+ingreso "):
+            parts = text_msg[9:].strip().split(" ", 1)
+            if len(parts) == 2:
+                try:
+                    amount = float(parts[0])
+                    concept = parts[1]
+                    db_fin = models.Finance(concept=concept, amount=amount, type="Ingreso", entity="General", date=datetime.now().strftime("%Y-%m-%d"))
+                    db.add(db_fin)
+                    db.commit()
+                    send_telegram_message(chat_id, f"✅ <b>Ingreso registrado:</b>\n${amount:.2f} - {concept}", get_main_menu())
+                except ValueError:
+                    send_telegram_message(chat_id, "⚠️ Error: El monto debe ser un número. Ej: <code>+ingreso 1500 Venta</code>", get_main_menu())
+            return {"status": "ok"}
+
+        elif text_msg.lower().startswith("+gasto "):
+            parts = text_msg[7:].strip().split(" ", 1)
+            if len(parts) == 2:
+                try:
+                    amount = float(parts[0])
+                    concept = parts[1]
+                    db_fin = models.Finance(concept=concept, amount=amount, type="Gasto Extra", entity="General", date=datetime.now().strftime("%Y-%m-%d"))
+                    db.add(db_fin)
+                    db.commit()
+                    send_telegram_message(chat_id, f"✅ <b>Gasto registrado:</b>\n${amount:.2f} - {concept}", get_main_menu())
+                except ValueError:
+                    send_telegram_message(chat_id, "⚠️ Error: El monto debe ser un número. Ej: <code>+gasto 50 Internet</code>", get_main_menu())
+            return {"status": "ok"}
+
+        elif text_msg.lower().startswith("+evento "):
+            parts = text_msg[8:].strip().split(" ", 2)
+            if len(parts) >= 3:
+                date_str, time_str, name_str = parts[0], parts[1], parts[2]
+                db_evt = models.Event(name=name_str, date=date_str, time=time_str, company="General", location="Telegram")
+                db.add(db_evt)
+                db.commit()
+                send_telegram_message(chat_id, f"✅ <b>Evento agendado:</b>\n{date_str} {time_str} - {name_str}", get_main_menu())
+            else:
+                send_telegram_message(chat_id, "⚠️ Error de formato. Usa:\n<code>+evento YYYY-MM-DD HH:MM Nombre</code>", get_main_menu())
+            return {"status": "ok"}
+
+    # --- 2. PROCESAMIENTO DE BOTONES (MENÚS) ---
     if "callback_query" in data:
         callback_id = data["callback_query"]["id"]
         chat_id = data["callback_query"]["message"]["chat"]["id"]
         message_id = data["callback_query"]["message"]["message_id"]
         call_data = data["callback_query"]["data"]
 
-        if call_data == "menu_dashboard":
+        if call_data == "menu_add":
+            msg = "📝 <b>CÓMO AÑADIR DATOS RÁPIDOS</b>\n\n"
+            msg += "Escribe un mensaje normal aquí en el chat usando estas fórmulas:\n\n"
+            msg += "📌 <b>Tarea:</b>\n<code>+tarea [Nombre de tarea]</code>\n"
+            msg += "<i>Ej: +tarea Revisar servidores</i>\n\n"
+            msg += "💰 <b>Ingreso:</b>\n<code>+ingreso [Monto] [Concepto]</code>\n"
+            msg += "<i>Ej: +ingreso 1200 Consultoría</i>\n\n"
+            msg += "💸 <b>Gasto:</b>\n<code>+gasto [Monto] [Concepto]</code>\n"
+            msg += "<i>Ej: +gasto 45 Pago Dominio</i>\n\n"
+            msg += "📅 <b>Evento:</b>\n<code>+evento [YYYY-MM-DD] [HH:MM] [Nombre]</code>\n"
+            msg += "<i>Ej: +evento 2026-08-15 10:00 Reunión CEO</i>\n"
+            send_telegram_message(chat_id, msg, get_main_menu())
+
+        elif call_data == "menu_dashboard":
             tasks = db.query(models.Task).filter(models.Task.completed == False).all()
             todo = len([t for t in tasks if t.status == 'todo' or not t.status])
             prog = len([t for t in tasks if t.status == 'in_progress'])
             rev = len([t for t in tasks if t.status == 'review'])
             send_telegram_message(chat_id, f"📊 <b>DASHBOARD</b>\n\n🔹 Total Activas: {len(tasks)}\n⚪️ Por Hacer: {todo}\n🔵 Progreso: {prog}\n🟠 Revisión: {rev}", get_main_menu())
+        
         elif call_data == "menu_kanban":
             tasks = db.query(models.Task).filter(models.Task.completed == False).all()
             if not tasks: send_telegram_message(chat_id, "Sin tareas pendientes.", get_main_menu())
@@ -85,6 +164,7 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
                 for t in tasks:
                     em = "⚪️" if t.status in ["todo", None] else ("🔵" if t.status == "in_progress" else "🟠")
                     send_telegram_message(chat_id, f"{em} <b>{t.title}</b>", get_kanban_menu(t.id, t.status))
+        
         elif call_data == "menu_agenda":
             events = db.query(models.Event).order_by(models.Event.date.asc()).limit(5).all()
             if not events: send_telegram_message(chat_id, "Agenda libre.", get_main_menu())
@@ -92,11 +172,13 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
                 msg = "📅 <b>Próximos Eventos:</b>\n\n"
                 for e in events: msg += f"• <b>{e.date} {e.time}</b>: {e.name} <i>({e.company})</i>\n"
                 send_telegram_message(chat_id, msg, get_main_menu())
+        
         elif call_data == "menu_finanzas":
             finances = db.query(models.Finance).all()
             inc = sum([f.amount for f in finances if "Ingreso" in f.type])
             exp = sum([f.amount for f in finances if "Ingreso" not in f.type])
             send_telegram_message(chat_id, f"💰 <b>Balance Global:</b>\n\n📈 Ingresos: ${inc:.2f}\n📉 Egresos: ${exp:.2f}\n⚖️ <b>Neto: ${(inc - exp):.2f}</b>", get_main_menu())
+        
         elif call_data.startswith("status_"):
             parts = call_data.split("_")
             task_id = int(parts[1])
@@ -108,6 +190,7 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
                 db.commit()
                 em = "✅" if new_status == "done" else ("🔵" if new_status == "in_progress" else ("🟠" if new_status == "review" else "⚪️"))
                 edit_telegram_message(chat_id, message_id, f"{em} <b>{db_task.title}</b>", None if new_status == "done" else get_kanban_menu(task_id, new_status))
+        
         requests.post(f"{TELEGRAM_API_URL}/answerCallbackQuery", json={"callback_query_id": callback_id})
     return {"status": "ok"}
 
@@ -169,7 +252,6 @@ def create_task(task: TaskCreate, db: Session = Depends(database.get_db)):
     db_task = models.Task(title=task.title, description=task.description, is_ops=task.is_ops, status="todo")
     db.add(db_task)
     db.commit(); db.refresh(db_task)
-    send_telegram_alert(f"🚀 <b>Nueva Tarea</b>\n👉 {task.title}")
     return db_task
 @app.put("/tasks/{item_id}")
 def update_task(item_id: int, task: TaskUpdate, db: Session = Depends(database.get_db)):
