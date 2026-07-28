@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+import tempfile
 from datetime import datetime, timedelta
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from fpdf import FPDF
 
 import database
 import models
@@ -37,6 +39,86 @@ app = FastAPI(title="CORE-FINANCE API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 # ==========================================
+# GENERADOR PDF MODERNO Y ELEGANTE
+# ==========================================
+class FinancialPDF(FPDF):
+    def header(self):
+        self.set_font('Arial', 'B', 18)
+        self.set_text_color(15, 23, 42) # Slate-900
+        self.cell(0, 10, 'CORE-FINANCE', 0, 1, 'L')
+        self.set_font('Arial', '', 10)
+        self.set_text_color(100, 100, 100)
+        self.cell(0, 5, 'Extracto Financiero Profesional', 0, 1, 'L')
+        self.set_draw_color(200, 200, 200)
+        self.line(10, 28, 200, 28)
+        self.ln(10)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.set_text_color(150, 150, 150)
+        self.cell(0, 10, f'Pagina {self.page_no()}', 0, 0, 'C')
+
+def create_pdf_extract(finances, period_label):
+    pdf = FinancialPDF()
+    pdf.add_page()
+    
+    # Resumen
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(0, 10, f"Periodo: {period_label}", 0, 1)
+    
+    # Tabla Cabecera
+    pdf.set_fill_color(241, 245, 249) # Slate-100
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(30, 10, "Fecha", border=1, fill=True)
+    pdf.cell(65, 10, "Concepto", border=1, fill=True)
+    pdf.cell(50, 10, "Categoria", border=1, fill=True)
+    pdf.cell(45, 10, "Monto ($)", border=1, fill=True, align='R')
+    pdf.ln()
+    
+    # Tabla Cuerpo
+    pdf.set_font("Arial", size=9)
+    total_inc = 0.0
+    total_exp = 0.0
+    
+    for f in finances:
+        pdf.set_text_color(15, 23, 42)
+        pdf.cell(30, 8, str(f.date), border=1)
+        pdf.cell(65, 8, str(f.concept)[:35], border=1)
+        pdf.cell(50, 8, str(f.type)[:25], border=1)
+        
+        amt_str = f"${f.amount:,.2f}"
+        if "Ingreso" in f.type:
+            pdf.set_text_color(16, 185, 129) # Emerald-500
+            total_inc += f.amount
+        else:
+            pdf.set_text_color(225, 29, 72) # Rose-600
+            total_exp += f.amount
+            
+        pdf.cell(45, 8, amt_str, border=1, align='R')
+        pdf.ln()
+    
+    # Totales
+    pdf.ln(10)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_text_color(15, 23, 42)
+    
+    neto = total_inc - total_exp
+    pdf.cell(100, 8, f"Total Ingresos: ${total_inc:,.2f}", 0, 1)
+    pdf.cell(100, 8, f"Total Egresos: ${total_exp:,.2f}", 0, 1)
+    
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_text_color(16, 185, 129) if neto >= 0 else pdf.set_text_color(225, 29, 72)
+    pdf.cell(100, 12, f"BALANCE NETO: ${neto:,.2f}", 0, 1)
+    
+    # Guardar Temporalmente
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    pdf.output(temp_file.name)
+    return temp_file.name
+
+
+# ==========================================
 # MOTOR TELEGRAM: FINANZAS PROFESIONALES
 # ==========================================
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -55,6 +137,13 @@ def edit_telegram_message(chat_id, message_id, text, reply_markup=None):
     if reply_markup: payload["reply_markup"] = reply_markup
     requests.post(url, json=payload)
 
+def send_telegram_document(chat_id, doc_path, caption=""):
+    url = f"{TELEGRAM_API_URL}/sendDocument"
+    with open(doc_path, "rb") as doc:
+        files = {"document": doc}
+        data = {"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}
+        requests.post(url, data=data, files=files)
+
 def send_telegram_alert(message: str):
     if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID: send_telegram_message(TELEGRAM_CHAT_ID, message)
 
@@ -72,9 +161,19 @@ def get_setting_keyboard(setting_type: str, prefix: str, db: Session):
 def get_main_menu():
     return {
         "inline_keyboard": [
-            [{"text": "📊 Dashboard Financiero", "callback_data": "menu_dashboard"}],
-            [{"text": "💰 Registrar Ingreso", "callback_data": "add_income"}, {"text": "💸 Registrar Gasto", "callback_data": "add_expense"}],
+            [{"text": "💰 + Ingreso Rápido", "callback_data": "add_income"}, {"text": "💸 - Gasto Rápido", "callback_data": "add_expense"}],
+            [{"text": "📊 Resumen General", "callback_data": "menu_dashboard"}, {"text": "🏦 Mis Cuentas", "callback_data": "menu_pockets"}],
+            [{"text": "📄 Generar Extracto PDF", "callback_data": "menu_pdf"}],
             [{"text": "⚙️ Configuraciones", "callback_data": "menu_config"}]
+        ]
+    }
+
+def get_pdf_menu():
+    return {
+        "inline_keyboard": [
+            [{"text": "📅 Hoy", "callback_data": "pdf_day"}, {"text": "📆 Esta Semana", "callback_data": "pdf_week"}],
+            [{"text": "🗓 Este Mes", "callback_data": "pdf_month"}, {"text": "🌍 Este Año", "callback_data": "pdf_year"}],
+            [{"text": "🔙 Menú Principal", "callback_data": "menu_main"}]
         ]
     }
 
@@ -100,7 +199,7 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
                         db_fin = models.Finance(concept=concept, amount=amount, type=t_val, entity="General", date=datetime.now().strftime("%Y-%m-%d"))
                         db.add(db_fin); db.commit(); db.refresh(db_fin)
                         kb = get_setting_keyboard("categories", f"fin_cat_{db_fin.id}_", db)
-                        send_telegram_message(chat_id, f"✅ Transacción Guardada: ${amount:.2f}\n\n<b>1. Selecciona la Categoría:</b>", kb)
+                        send_telegram_message(chat_id, f"✅ Registro Exitoso: <b>${amount:,.2f}</b>\n\n<b>1. Selecciona la Categoría Financiera:</b>", kb)
                     except ValueError: send_telegram_message(chat_id, "⚠️ El monto debe ser numérico.", get_main_menu())
                 else: send_telegram_message(chat_id, "⚠️ Formato incorrecto. Ejemplo: 1500 Consultoría", get_main_menu())
                 return {"status": "ok"}
@@ -120,7 +219,7 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
                 return {"status": "ok"}
 
         if text_msg.startswith(("/start", "/menu")):
-            send_telegram_message(chat_id, "💼 <b>CORE-FINANCE OS</b>\nSistema de Gestión Financiera", get_main_menu())
+            send_telegram_message(chat_id, "💼 <b>CORE-FINANCE OS</b>\nCentro de Control Financiero", get_main_menu())
             return {"status": "ok"}
 
     if "callback_query" in data:
@@ -130,15 +229,64 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
         call_data = data["callback_query"]["data"]
 
         if call_data == "menu_main": edit_telegram_message(chat_id, message_id, "💼 <b>CORE-FINANCE OS</b>", get_main_menu())
-        elif call_data == "add_income": send_telegram_message(chat_id, "💰 <b>NUEVO INGRESO</b>\nEscribe Monto y Concepto (Ej: 1500 Venta):", {"force_reply": True})
-        elif call_data == "add_expense": send_telegram_message(chat_id, "💸 <b>NUEVO GASTO</b>\nEscribe Monto y Concepto (Ej: 45 Internet):", {"force_reply": True})
+        elif call_data == "add_income": send_telegram_message(chat_id, "💰 <b>NUEVO INGRESO</b>\nDigita Monto y Concepto (Ej: 1500 Venta Local):", {"force_reply": True})
+        elif call_data == "add_expense": send_telegram_message(chat_id, "💸 <b>NUEVO GASTO</b>\nDigita Monto y Concepto (Ej: 45 Internet):", {"force_reply": True})
 
+        # RESUMEN GENERAL
         elif call_data == "menu_dashboard":
             finances = db.query(models.Finance).all()
             inc = sum([f.amount for f in finances if "Ingreso" in f.type])
             exp = sum([f.amount for f in finances if "Ingreso" not in f.type])
-            msg = f"📊 <b>DASHBOARD FINANCIERO:</b>\n\n📈 Ingresos Totales: ${inc:.2f}\n📉 Egresos Totales: ${exp:.2f}\n⚖️ <b>Flujo de Caja Neto: ${(inc - exp):.2f}</b>"
+            msg = f"📊 <b>ESTADO PATRIMONIAL GLOBAL:</b>\n\n📈 Ingresos: ${inc:,.2f}\n📉 Egresos: ${exp:,.2f}\n⚖️ <b>Flujo de Caja: ${(inc - exp):,.2f}</b>"
             send_telegram_message(chat_id, msg, get_main_menu())
+            
+        # CUENTAS / BOLSILLOS
+        elif call_data == "menu_pockets":
+            pockets = db.query(models.Pocket).all()
+            if not pockets: 
+                send_telegram_message(chat_id, "⚠️ No tienes cuentas bancarias ni bolsillos registrados.", get_main_menu())
+            else:
+                msg = "🏦 <b>ESTADO DE CUENTAS (BOLSILLOS):</b>\n\n"
+                total_liq = 0
+                for p in pockets:
+                    prog = min(int((p.current / p.target) * 100) if p.target > 0 else 0, 100)
+                    msg += f"🔹 <b>{p.name}</b> ({p.bank})\n💰 Saldo: ${p.current:,.2f} <i>(Meta: {prog}%)</i>\n\n"
+                    total_liq += p.current
+                msg += f"💵 <b>Líquidez Total: ${total_liq:,.2f}</b>"
+                send_telegram_message(chat_id, msg, get_main_menu())
+
+        # MENÚ GENERAR PDF
+        elif call_data == "menu_pdf":
+            edit_telegram_message(chat_id, message_id, "📄 <b>GENERAR EXTRACTO PDF</b>\nSelecciona el periodo del reporte:", get_pdf_menu())
+            
+        elif call_data.startswith("pdf_"):
+            period = call_data.replace("pdf_", "")
+            today = datetime.now()
+            
+            if period == "day": 
+                start_date = today.strftime("%Y-%m-%d")
+                label = f"Diario ({start_date})"
+            elif period == "week": 
+                start_date = (today - timedelta(days=today.weekday())).strftime("%Y-%m-%d")
+                label = f"Semanal (Desde {start_date})"
+            elif period == "month": 
+                start_date = today.replace(day=1).strftime("%Y-%m-%d")
+                label = f"Mensual (Desde {start_date})"
+            elif period == "year": 
+                start_date = today.replace(month=1, day=1).strftime("%Y-%m-%d")
+                label = f"Anual (Desde {start_date})"
+                
+            finances = db.query(models.Finance).filter(models.Finance.date >= start_date).order_by(models.Finance.date.desc()).all()
+            
+            if not finances:
+                send_telegram_message(chat_id, f"⚠️ No hay transacciones en el periodo: {label}", get_main_menu())
+            else:
+                send_telegram_message(chat_id, "⏳ Generando tu reporte elegante. Por favor espera...")
+                pdf_path = create_pdf_extract(finances, label)
+                send_telegram_document(chat_id, pdf_path, caption=f"📄 <b>Extracto {label} generado.</b>")
+                os.remove(pdf_path) # Limpiar archivo temporal
+                send_telegram_message(chat_id, "¿Deseas hacer algo más?", get_main_menu())
+
         
         # WIZARD: Actualizar Finanzas
         elif call_data.startswith("fin_cat_"):
@@ -149,7 +297,7 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
             if fin and setting:
                 fin.type = setting.value
                 db.commit()
-                edit_telegram_message(chat_id, message_id, f"✅ Categoría asignada: {setting.value}")
+                edit_telegram_message(chat_id, message_id, f"✅ Categoría: {setting.value}")
                 kb = get_setting_keyboard("entities", f"fin_ent_{fin.id}_", db)
                 send_telegram_message(chat_id, "<b>2. Selecciona la Entidad/Cliente:</b>", kb)
                 
@@ -161,7 +309,7 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
             if fin and setting:
                 fin.entity = setting.value
                 db.commit()
-                edit_telegram_message(chat_id, message_id, f"✅ Entidad asignada: {setting.value}\n🎉 ¡Transacción registrada con éxito!", get_main_menu())
+                edit_telegram_message(chat_id, message_id, f"✅ Entidad asignada: {setting.value}\n🎉 ¡Transacción lista y en la nube!", get_main_menu())
 
         # CONFIGURACIONES
         elif call_data == "menu_config":
@@ -215,16 +363,16 @@ def send_daily_finance_summary():
     exp = sum([f.amount for f in finances if "Ingreso" not in f.type])
     
     msg = f"📊 <b>CORTE FINANCIERO DIARIO ({today_str})</b>\n\n"
-    msg += f"📈 <b>Ingresos Hoy:</b> ${inc:.2f}\n"
-    msg += f"📉 <b>Egresos Hoy:</b> ${exp:.2f}\n"
-    msg += f"⚖️ <b>Flujo Diario:</b> ${(inc - exp):.2f}\n"
+    msg += f"📈 <b>Ingresos Hoy:</b> ${inc:,.2f}\n"
+    msg += f"📉 <b>Egresos Hoy:</b> ${exp:,.2f}\n"
+    msg += f"⚖️ <b>Flujo Diario:</b> ${(inc - exp):,.2f}\n"
     
     send_telegram_alert(msg)
 
 @app.on_event("startup")
 def start_scheduler():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(send_daily_finance_summary, CronTrigger(hour=19, minute=0)) # Ajustado al final del día operativo
+    scheduler.add_job(send_daily_finance_summary, CronTrigger(hour=19, minute=0)) 
     scheduler.start()
 
 
