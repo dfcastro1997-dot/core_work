@@ -199,7 +199,7 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
                         db_fin = models.Finance(concept=concept, amount=amount, type=t_val, entity="General", date=datetime.now().strftime("%Y-%m-%d"))
                         db.add(db_fin); db.commit(); db.refresh(db_fin)
                         kb = get_setting_keyboard("categories", f"fin_cat_{db_fin.id}_", db)
-                        send_telegram_message(chat_id, f"✅ Registro Exitoso: <b>${amount:,.2f}</b>\n\n<b>1. Selecciona la Categoría Financiera:</b>", kb)
+                        send_telegram_message(chat_id, f"✅ Registro Exitoso: <b>${amount:,.2f}</b>\n\n<b>Selecciona la Categoría Financiera:</b>", kb)
                     except ValueError: send_telegram_message(chat_id, "⚠️ El monto debe ser numérico.", get_main_menu())
                 else: send_telegram_message(chat_id, "⚠️ Formato incorrecto. Ejemplo: 1500 Consultoría", get_main_menu())
                 return {"status": "ok"}
@@ -297,19 +297,8 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
             if fin and setting:
                 fin.type = setting.value
                 db.commit()
-                edit_telegram_message(chat_id, message_id, f"✅ Categoría: {setting.value}")
-                kb = get_setting_keyboard("entities", f"fin_ent_{fin.id}_", db)
-                send_telegram_message(chat_id, "<b>2. Selecciona la Entidad/Cliente:</b>", kb)
-                
-        elif call_data.startswith("fin_ent_"):
-            parts = call_data.split("_")
-            fin_id, setting_id = int(parts[2]), int(parts[3])
-            setting = db.query(models.Setting).filter(models.Setting.id == setting_id).first()
-            fin = db.query(models.Finance).filter(models.Finance.id == fin_id).first()
-            if fin and setting:
-                fin.entity = setting.value
-                db.commit()
-                edit_telegram_message(chat_id, message_id, f"✅ Entidad asignada: {setting.value}\n🎉 ¡Transacción lista y en la nube!", get_main_menu())
+                edit_telegram_message(chat_id, message_id, f"✅ Categoría asignada: {setting.value}\n🎉 ¡Transacción lista y guardada en la nube!", get_main_menu())
+
 
         # CONFIGURACIONES
         elif call_data == "menu_config":
