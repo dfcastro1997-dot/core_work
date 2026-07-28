@@ -1,312 +1,100 @@
 import os
-import json
-import requests
 import tempfile
-from datetime import datetime, timedelta
-from fastapi import Depends, FastAPI, HTTPException, Request
+from datetime import datetime
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import text
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
 from fpdf import FPDF
 
 import database
 import models
 
+# Inicializar Base de Datos
 models.Base.metadata.create_all(bind=database.engine)
 
+# Crear Admin por defecto si no existe
 with database.SessionLocal() as session:
-    try: session.execute(text("ALTER TABLE finances ADD COLUMN date VARCHAR;")); session.commit()
-    except Exception: session.rollback()
-    
-    if session.query(models.Setting).count() == 0:
-        defaults = [
-            ("categories", "Ingreso Operativo"), ("categories", "Gasto Variable")
-        ]
-        for t, v in defaults: session.add(models.Setting(type=t, value=v))
+    if session.query(models.User).filter_by(username="admin").count() == 0:
+        admin = models.User(username="admin", password="123", role="admin")
+        session.add(admin)
         session.commit()
 
-app = FastAPI(title="CORE-FINANCE API")
+app = FastAPI(title="DETAIM CLOUD API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-# ==========================================
-# GENERADOR PDF MODERNO
-# ==========================================
-class FinancialPDF(FPDF):
+# Esquemas Pydantic
+class LoginData(BaseModel): username: str; password: str
+class SchoolCreate(BaseModel): name: str; subscription_type: str
+class UserCreate(BaseModel): username: str; password: str; role: str; school_id: int = None
+class ResultCreate(BaseModel): user_id: int; simulator_type: str; score: float; details: str
+
+@app.post("/login")
+def login(data: LoginData, db: Session = Depends(database.get_db)):
+    user = db.query(models.User).filter_by(username=data.username, password=data.password).first()
+    if not user: raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+    return {"id": user.id, "role": user.role, "school_id": user.school_id, "username": user.username}
+
+@app.get("/schools")
+def get_schools(db: Session = Depends(database.get_db)): return db.query(models.School).all()
+
+@app.post("/schools")
+def create_school(s: SchoolCreate, db: Session = Depends(database.get_db)):
+    db_s = models.School(**s.dict()); db.add(db_s); db.commit(); db.refresh(db_s); return db_s
+
+@app.get("/users")
+def get_users(db: Session = Depends(database.get_db)): return db.query(models.User).all()
+
+@app.post("/users")
+def create_user(u: UserCreate, db: Session = Depends(database.get_db)):
+    if db.query(models.User).filter_by(username=u.username).first():
+        raise HTTPException(status_code=400, detail="El usuario ya existe")
+    db_u = models.User(**u.dict()); db.add(db_u); db.commit(); db.refresh(db_u); return db_u
+
+@app.get("/results/{user_id}")
+def get_results(user_id: int, db: Session = Depends(database.get_db)):
+    return db.query(models.SimulationResult).filter_by(user_id=user_id).all()
+
+@app.post("/results")
+def save_result(r: ResultCreate, db: Session = Depends(database.get_db)):
+    db_r = models.SimulationResult(**r.dict(), date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    db.add(db_r); db.commit(); return db_r
+
+# Motor Generador de Certificados PDF
+class CertPDF(FPDF):
     def header(self):
-        self.set_font('Arial', 'B', 18)
+        self.set_font('Arial', 'B', 20)
         self.set_text_color(15, 23, 42)
-        self.cell(0, 10, 'CORE-FINANCE', 0, 1, 'L')
-        self.set_font('Arial', '', 10)
+        self.cell(0, 10, 'DETAIM TRAINING SIMULATORS', 0, 1, 'C')
+        self.set_font('Arial', '', 12)
         self.set_text_color(100, 100, 100)
-        self.cell(0, 5, 'Extracto Financiero Profesional', 0, 1, 'L')
+        self.cell(0, 10, 'Certificado Oficial de Competencia Operativa', 0, 1, 'C')
         self.set_draw_color(200, 200, 200)
-        self.line(10, 28, 200, 28)
+        self.line(10, 30, 200, 30)
         self.ln(10)
 
-    def footer(self):
-        self.set_y(-15)
-        self.set_font('Arial', 'I', 8)
-        self.set_text_color(150, 150, 150)
-        self.cell(0, 10, f'Pagina {self.page_no()}', 0, 0, 'C')
-
-def create_pdf_extract(finances, period_label):
-    pdf = FinancialPDF()
+@app.get("/generate_pdf/{result_id}")
+def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
+    res = db.query(models.SimulationResult).filter_by(id=result_id).first()
+    if not res: raise HTTPException(404, "Resultado no encontrado")
+    user = db.query(models.User).filter_by(id=res.user_id).first()
+    
+    pdf = CertPDF()
     pdf.add_page()
-    
-    pdf.set_font("Arial", 'B', 12)
-    pdf.set_text_color(15, 23, 42)
-    pdf.cell(0, 10, f"Periodo: {period_label}", 0, 1)
-    
-    pdf.set_fill_color(241, 245, 249)
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(30, 10, "Fecha", border=1, fill=True)
-    pdf.cell(65, 10, "Concepto", border=1, fill=True)
-    pdf.cell(50, 10, "Categoria", border=1, fill=True)
-    pdf.cell(45, 10, "Monto ($)", border=1, fill=True, align='R')
-    pdf.ln()
-    
-    pdf.set_font("Arial", size=9)
-    total_inc, total_exp = 0.0, 0.0
-    
-    for f in finances:
-        pdf.set_text_color(15, 23, 42)
-        pdf.cell(30, 8, str(f.date), border=1)
-        pdf.cell(65, 8, str(f.concept)[:35], border=1)
-        pdf.cell(50, 8, str(f.type)[:25], border=1)
-        
-        amt_str = f"${abs(f.amount):,.2f}"
-        if f.amount >= 0:
-            pdf.set_text_color(16, 185, 129)
-            total_inc += f.amount
-        else:
-            pdf.set_text_color(225, 29, 72)
-            total_exp += abs(f.amount)
-            
-        pdf.cell(45, 8, amt_str, border=1, align='R')
-        pdf.ln()
-    
-    pdf.ln(10)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.set_text_color(15, 23, 42)
-    
-    neto = total_inc - total_exp
-    pdf.cell(100, 8, f"Total Ingresos: ${total_inc:,.2f}", 0, 1)
-    pdf.cell(100, 8, f"Total Egresos: ${total_exp:,.2f}", 0, 1)
-    
     pdf.set_font("Arial", 'B', 14)
-    pdf.set_text_color(16, 185, 129) if neto >= 0 else pdf.set_text_color(225, 29, 72)
-    pdf.cell(100, 12, f"BALANCE NETO: ${neto:,.2f}", 0, 1)
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(0, 10, f"Operador Evaluado: {user.username.upper()}", 0, 1)
+    
+    pdf.set_font("Arial", '', 12)
+    pdf.cell(0, 10, f"Plataforma: {res.simulator_type} WEB", 0, 1)
+    pdf.cell(0, 10, f"Efectividad Táctica (Score): {res.score}%", 0, 1)
+    pdf.cell(0, 10, f"Fecha de Certificación: {res.date}", 0, 1)
+    
+    pdf.ln(5)
+    pdf.set_fill_color(241, 245, 249)
+    pdf.multi_cell(0, 10, f"Auditoria Forense:\n{res.details}", fill=True)
     
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     pdf.output(temp_file.name)
-    return temp_file.name
-
-
-# ==========================================
-# MOTOR TELEGRAM: FINANZAS PROFESIONALES
-# ==========================================
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
-
-def send_telegram_message(chat_id, text, reply_markup=None):
-    requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={"chat_id": chat_id, "text": text, "parse_mode": "HTML", **({"reply_markup": reply_markup} if reply_markup else {})})
-
-def edit_telegram_message(chat_id, message_id, text, reply_markup=None):
-    requests.post(f"{TELEGRAM_API_URL}/editMessageText", json={"chat_id": chat_id, "message_id": message_id, "text": text, "parse_mode": "HTML", **({"reply_markup": reply_markup} if reply_markup else {})})
-
-def send_telegram_document(chat_id, doc_path, caption=""):
-    with open(doc_path, "rb") as doc:
-        requests.post(f"{TELEGRAM_API_URL}/sendDocument", data={"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}, files={"document": doc})
-
-def send_telegram_alert(message: str):
-    if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID: send_telegram_message(TELEGRAM_CHAT_ID, message)
-
-def get_setting_keyboard(setting_type: str, prefix: str, db: Session):
-    settings = db.query(models.Setting).filter(models.Setting.type == setting_type).all()
-    buttons, row = [], []
-    for s in settings:
-        row.append({"text": s.value, "callback_data": f"{prefix}{s.id}"})
-        if len(row) == 2:
-            buttons.append(row)
-            row = []
-    if row: buttons.append(row)
-    return {"inline_keyboard": buttons}
-
-def get_main_menu():
-    return {
-        "inline_keyboard": [
-            [{"text": "💰 + Ingreso", "callback_data": "add_income"}, {"text": "💸 - Gasto", "callback_data": "add_expense"}],
-            [{"text": "📊 Resumen General", "callback_data": "menu_dashboard"}, {"text": "📄 Extracto PDF", "callback_data": "menu_pdf"}],
-            [{"text": "⚙️ Configuraciones", "callback_data": "menu_config"}]
-        ]
-    }
-
-@app.post("/webhook/telegram")
-async def telegram_webhook(request: Request, db: Session = Depends(database.get_db)):
-    data = await request.json()
-    
-    if "message" in data and "text" in data["message"]:
-        chat_id = data["message"]["chat"]["id"]
-        text_msg = data["message"]["text"].strip()
-        reply_text = data["message"].get("reply_to_message", {}).get("text", "")
-
-        if "NUEVO INGRESO" in reply_text or "NUEVO GASTO" in reply_text:
-            is_income = "INGRESO" in reply_text
-            
-            parts = text_msg.split(" ", 1)
-            if len(parts) == 2:
-                try:
-                    amount = abs(float(parts[0]))
-                    if not is_income: amount = -amount # Gasto es negativo
-                    db_fin = models.Finance(concept=parts[1], amount=amount, type="Pendiente", date=datetime.now().strftime("%Y-%m-%d"))
-                    db.add(db_fin); db.commit(); db.refresh(db_fin)
-                    
-                    kb = get_setting_keyboard("categories", f"fin_cat_{db_fin.id}_", db)
-                    # Agregamos el botón para crear una nueva categoría dinámicamente
-                    kb["inline_keyboard"].append([{"text": "➕ Crear Nueva Categoría", "callback_data": f"new_cat_{db_fin.id}"}])
-                    
-                    send_telegram_message(chat_id, f"✅ Registro Exitoso: <b>${abs(amount):,.2f}</b>\n\n<b>Selecciona la Categoría Financiera:</b>", kb)
-                except ValueError: send_telegram_message(chat_id, "⚠️ El monto debe ser numérico.", get_main_menu())
-            else: send_telegram_message(chat_id, "⚠️ Formato incorrecto. Ejemplo: 1500 Concepto", get_main_menu())
-            return {"status": "ok"}
-            
-        elif "CATEGORIA PARA REGISTRO" in reply_text:
-            try:
-                # Extraemos el ID del registro desde el mensaje original del bot
-                fin_id = int(reply_text.split("\n")[0].split()[-1])
-                
-                # 1. Crear y guardar la nueva categoría
-                db.add(models.Setting(type="categories", value=text_msg))
-                
-                # 2. Asignarla a la transacción pendiente
-                fin = db.query(models.Finance).filter(models.Finance.id == fin_id).first()
-                if fin:
-                    fin.type = text_msg
-                db.commit()
-                
-                send_telegram_message(chat_id, f"✅ Categoría '{text_msg}' creada y asignada a la transacción.", get_main_menu())
-            except Exception as e:
-                send_telegram_message(chat_id, "⚠️ Error al procesar la nueva categoría.", get_main_menu())
-            return {"status": "ok"}
-                
-        elif "NUEVA CATEGORIA" in reply_text:
-            db.add(models.Setting(type="categories", value=text_msg)); db.commit()
-            send_telegram_message(chat_id, f"✅ Categoría añadida: {text_msg}", get_main_menu())
-            return {"status": "ok"}
-
-        if text_msg.startswith(("/start", "/menu")):
-            send_telegram_message(chat_id, "💼 <b>CORE-FINANCE OS</b>", get_main_menu())
-            return {"status": "ok"}
-
-    if "callback_query" in data:
-        callback_id, chat_id = data["callback_query"]["id"], data["callback_query"]["message"]["chat"]["id"]
-        message_id, call_data = data["callback_query"]["message"]["message_id"], data["callback_query"]["data"]
-
-        if call_data == "menu_main": edit_telegram_message(chat_id, message_id, "💼 <b>CORE-FINANCE OS</b>", get_main_menu())
-        elif call_data == "add_income": send_telegram_message(chat_id, "💰 <b>NUEVO INGRESO</b>\nDigita Monto y Concepto (Ej: 1500 Venta):", {"force_reply": True})
-        elif call_data == "add_expense": send_telegram_message(chat_id, "💸 <b>NUEVO GASTO</b>\nDigita Monto y Concepto (Ej: 45 Internet):", {"force_reply": True})
-
-        elif call_data == "menu_dashboard":
-            finances = db.query(models.Finance).all()
-            inc = sum([f.amount for f in finances if f.amount > 0])
-            exp = sum([abs(f.amount) for f in finances if f.amount < 0])
-            msg = f"📊 <b>ESTADO PATRIMONIAL GLOBAL:</b>\n\n📈 Ingresos: ${inc:,.2f}\n📉 Egresos: ${exp:,.2f}\n⚖️ <b>Flujo de Caja: ${(inc - exp):,.2f}</b>"
-            send_telegram_message(chat_id, msg, get_main_menu())
-
-        elif call_data == "menu_pdf":
-            kb = {"inline_keyboard": [[{"text": "📅 Hoy", "callback_data": "pdf_day"}, {"text": "📆 Esta Semana", "callback_data": "pdf_week"}], [{"text": "🗓 Este Mes", "callback_data": "pdf_month"}, {"text": "🌍 Este Año", "callback_data": "pdf_year"}], [{"text": "🔙 Volver", "callback_data": "menu_main"}]]}
-            edit_telegram_message(chat_id, message_id, "📄 <b>GENERAR EXTRACTO PDF</b>\nSelecciona el periodo:", kb)
-            
-        elif call_data.startswith("pdf_"):
-            period, today = call_data.replace("pdf_", ""), datetime.now()
-            if period == "day": start_date, label = today.strftime("%Y-%m-%d"), f"Diario ({today.strftime('%Y-%m-%d')})"
-            elif period == "week": start_date, label = (today - timedelta(days=today.weekday())).strftime("%Y-%m-%d"), f"Semanal (Desde {(today - timedelta(days=today.weekday())).strftime('%Y-%m-%d')})"
-            elif period == "month": start_date, label = today.replace(day=1).strftime("%Y-%m-%d"), f"Mensual (Desde {today.replace(day=1).strftime('%Y-%m-%d')})"
-            elif period == "year": start_date, label = today.replace(month=1, day=1).strftime("%Y-%m-%d"), f"Anual (Desde {today.replace(month=1, day=1).strftime('%Y-%m-%d')})"
-                
-            finances = db.query(models.Finance).filter(models.Finance.date >= start_date).order_by(models.Finance.date.desc()).all()
-            if not finances: send_telegram_message(chat_id, f"⚠️ No hay transacciones en el periodo: {label}", get_main_menu())
-            else:
-                send_telegram_message(chat_id, "⏳ Generando tu reporte elegante...")
-                pdf_path = create_pdf_extract(finances, label)
-                send_telegram_document(chat_id, pdf_path, caption=f"📄 <b>Extracto {label} generado.</b>")
-                os.remove(pdf_path)
-                send_telegram_message(chat_id, "¿Deseas hacer algo más?", get_main_menu())
-
-        # WIZARDS FINALIZACIÓN
-        elif call_data.startswith("new_cat_"):
-            fin_id = call_data.replace("new_cat_", "")
-            send_telegram_message(chat_id, f"➕ CATEGORIA PARA REGISTRO {fin_id}\nEscribe el nombre de la nueva categoría:", {"force_reply": True})
-
-        elif call_data.startswith("fin_cat_"):
-            parts = call_data.split("_")
-            fin, setting = db.query(models.Finance).filter(models.Finance.id == int(parts[2])).first(), db.query(models.Setting).filter(models.Setting.id == int(parts[3])).first()
-            if fin and setting:
-                fin.type = setting.value; db.commit()
-                edit_telegram_message(chat_id, message_id, f"✅ ¡Transacción guardada en Categoría: {setting.value}!", get_main_menu())
-
-        elif call_data == "menu_config":
-            kb = {"inline_keyboard": [[{"text": "💳 Categorías", "callback_data": "conf_list_categories"}], [{"text": "🔙 Volver", "callback_data": "menu_main"}]]}
-            edit_telegram_message(chat_id, message_id, "⚙️ <b>CONFIGURACIONES FINANCIERAS</b>", kb)
-            
-        elif call_data.startswith("conf_list_"):
-            setting_type = call_data.replace("conf_list_", "")
-            settings = db.query(models.Setting).filter(models.Setting.type == setting_type).all()
-            kb = {"inline_keyboard": [[{"text": f"❌ Borrar: {s.value}", "callback_data": f"conf_del_{s.id}"}] for s in settings]}
-            kb["inline_keyboard"].extend([[{"text": "➕ Añadir Nuevo", "callback_data": f"conf_add_{setting_type}"}], [{"text": "🔙 Volver", "callback_data": "menu_config"}]])
-            edit_telegram_message(chat_id, message_id, f"📝 <b>Gestionando Registros</b>", kb)
-
-        elif call_data.startswith("conf_del_"):
-            db.query(models.Setting).filter(models.Setting.id == int(call_data.replace("conf_del_", ""))).delete(); db.commit()
-            send_telegram_message(chat_id, "🗑 Registro Eliminado.")
-            
-        elif call_data.startswith("conf_add_"):
-            send_telegram_message(chat_id, "💳 NUEVA CATEGORIA\nEscribe el nombre:", {"force_reply": True})
-        
-        requests.post(f"{TELEGRAM_API_URL}/answerCallbackQuery", json={"callback_query_id": callback_id})
-    return {"status": "ok"}
-
-
-@app.get("/setup-telegram")
-def setup_telegram(request: Request):
-    requests.get(f"{TELEGRAM_API_URL}/setWebhook?url={str(request.base_url).rstrip('/')}/webhook/telegram")
-    return {"message": "Webhook configurado"}
-
-def send_daily_finance_summary():
-    db = database.SessionLocal()
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    finances = db.query(models.Finance).filter(models.Finance.date == today_str).all()
-    db.close()
-    if not finances: return 
-    inc, exp = sum([f.amount for f in finances if f.amount > 0]), sum([abs(f.amount) for f in finances if f.amount < 0])
-    send_telegram_alert(f"📊 <b>CORTE FINANCIERO DIARIO ({today_str})</b>\n\n📈 <b>Ingresos Hoy:</b> ${inc:,.2f}\n📉 <b>Egresos Hoy:</b> ${exp:,.2f}\n⚖️ <b>Flujo Diario:</b> ${(inc - exp):,.2f}")
-
-@app.on_event("startup")
-def start_scheduler():
-    scheduler = BackgroundScheduler(); scheduler.add_job(send_daily_finance_summary, CronTrigger(hour=19, minute=0)); scheduler.start()
-
-class FinanceCreate(BaseModel): concept: str; type: str; amount: float; date: str = None
-class SettingCreate(BaseModel): type: str; value: str
-
-@app.get("/settings")
-def get_settings(db: Session = Depends(database.get_db)): return db.query(models.Setting).all()
-@app.post("/settings")
-def create_setting(setting: SettingCreate, db: Session = Depends(database.get_db)):
-    db_obj = models.Setting(type=setting.type, value=setting.value); db.add(db_obj); db.commit(); db.refresh(db_obj); return db_obj
-@app.delete("/settings/{item_id}")
-def delete_setting(item_id: int, db: Session = Depends(database.get_db)): db.query(models.Setting).filter(models.Setting.id == item_id).delete(); db.commit(); return {"msg": "ok"}
-
-@app.get("/finances")
-def get_finances(db: Session = Depends(database.get_db)): return db.query(models.Finance).order_by(models.Finance.id.desc()).all()
-@app.post("/finances")
-def create_finance(fin: FinanceCreate, db: Session = Depends(database.get_db)):
-    db_obj = models.Finance(**fin.dict()); db.add(db_obj); db.commit(); return db_obj
-@app.delete("/finances/{item_id}")
-def delete_finance(item_id: int, db: Session = Depends(database.get_db)): db.query(models.Finance).filter(models.Finance.id == item_id).delete(); db.commit(); return {"msg": "ok"}
-
-@app.post("/test-telegram")
-def test_telegram(): send_daily_finance_summary(); return {"message": "ok"}
+    return FileResponse(temp_file.name, media_type='application/pdf', filename=f"Certificado_{user.username}.pdf")

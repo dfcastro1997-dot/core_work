@@ -1,16 +1,25 @@
-from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import Column, Integer, String, Float, ForeignKey
 from database import Base
 
-class Setting(Base):
-    __tablename__ = "settings"
+class School(Base):
+    __tablename__ = "schools"
     id = Column(Integer, primary_key=True, index=True)
-    type = Column(String, index=True) # categories
-    value = Column(String)
+    name = Column(String, index=True)
+    subscription_type = Column(String) # Ej: "Mensual", "Por Alumno"
 
-class Finance(Base):
-    __tablename__ = "finances"
+class User(Base):
+    __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
-    concept = Column(String)
-    amount = Column(Float)
-    type = Column(String) 
-    date = Column(String, nullable=True)
+    username = Column(String, unique=True, index=True)
+    password = Column(String)
+    role = Column(String) # 'admin', 'school', 'operator'
+    school_id = Column(Integer, ForeignKey("schools.id"), nullable=True)
+
+class SimulationResult(Base):
+    __tablename__ = "results"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    simulator_type = Column(String) # 'DENSITY', 'VMS-X'
+    score = Column(Float)
+    date = Column(String)
+    details = Column(String)

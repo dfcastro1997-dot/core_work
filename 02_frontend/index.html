@@ -3,86 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CORE-FINANCE | Dashboard</title>
+    <title>DETAIM CLOUD | Training Simulators</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #F8FAFC; color: #0F172A; }
-        .custom-scroll::-webkit-scrollbar { width: 4px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0F172A; color: #F8FAFC; }
     </style>
 </head>
-<body class="flex h-screen overflow-hidden">
+<body class="flex flex-col h-screen">
 
-    <aside class="w-64 bg-white border-r border-slate-200 flex flex-col z-10">
-        <div class="h-16 flex items-center px-6 border-b border-slate-200">
-            <h1 class="text-2xl font-bold tracking-tighter text-slate-900">CORE<span class="text-emerald-600">-FINANCE</span></h1>
+    <!-- Topbar -->
+    <header class="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center shadow-lg">
+        <h1 class="text-2xl font-bold tracking-tighter">DETAIM<span class="text-emerald-500">CLOUD</span></h1>
+        <div class="flex items-center space-x-4">
+            <span id="user-welcome" class="text-sm font-semibold text-slate-300"></span>
+            <button onclick="logout()" class="text-xs bg-rose-600 px-3 py-1.5 rounded hover:bg-rose-500 font-bold">Salir</button>
         </div>
-        <nav class="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto custom-scroll">
-            <a href="index.html" class="flex items-center px-4 py-2.5 bg-slate-900 text-white rounded-lg font-semibold transition-all shadow-sm">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
-                Dashboard Resumen
-            </a>
-            <a href="finanzas.html" class="flex items-center px-4 py-2.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-lg font-medium transition-all">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                Libro Mayor (Finanzas)
-            </a>
-            <a href="configuraciones.html" class="flex items-center px-4 py-2.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-lg font-medium transition-all">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                Configuraciones
-            </a>
-        </nav>
-    </aside>
+    </header>
 
-    <main class="flex-1 flex flex-col overflow-y-auto">
-        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 sticky top-0 z-20">
-            <h2 class="text-lg font-semibold text-slate-800">Métricas Principales</h2>
-            <div class="flex items-center space-x-2">
-                <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                <span class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Sync Financiero: Online</span>
-            </div>
-        </header>
+    <main class="flex-1 flex overflow-y-auto p-6 items-start justify-center">
+        
+        <!-- LOGIN VIEW -->
+        <div id="login-view" class="view-section w-full max-w-sm bg-slate-800 p-8 rounded-xl shadow-2xl border border-slate-700 mt-10">
+            <h2 class="text-xl font-bold mb-6 text-center text-white">Acceso a la Plataforma</h2>
+            <form onsubmit="login(event)" class="space-y-4">
+                <input type="text" id="username" placeholder="Usuario" required class="w-full bg-slate-900 border border-slate-700 rounded p-3 focus:outline-none focus:border-emerald-500 text-white">
+                <input type="password" id="password" placeholder="Contraseña" required class="w-full bg-slate-900 border border-slate-700 rounded p-3 focus:outline-none focus:border-emerald-500 text-white">
+                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded transition-colors">Ingresar</button>
+            </form>
+        </div>
 
-        <div class="p-8 space-y-8">
-            <!-- Bloque Mes Actual -->
-            <h3 class="font-bold text-slate-900 mb-2">Desempeño del Mes Actual</h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                    <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Ingresos (Mes)</p>
-                    <h3 class="text-2xl font-bold mt-1 text-emerald-600" id="dash-ingresos-mes">$0.00</h3>
-                </div>
-                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                    <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Egresos (Mes)</p>
-                    <h3 class="text-2xl font-bold mt-1 text-rose-600" id="dash-egresos-mes">$0.00</h3>
-                </div>
-                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                    <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Balance Operativo (Mes)</p>
-                    <h3 class="text-2xl font-bold mt-1 text-slate-900" id="dash-neto-mes">$0.00</h3>
-                </div>
+        <!-- ADMIN VIEW (DETAIM) -->
+        <div id="admin-view" class="view-section hidden w-full max-w-4xl grid grid-cols-2 gap-8">
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                <h2 class="text-xl font-bold mb-4 text-emerald-400">Crear Nueva Escuela</h2>
+                <form onsubmit="createSchool(event)" class="space-y-4">
+                    <input type="text" id="school-name" placeholder="Nombre Academia" required class="w-full bg-slate-900 p-3 rounded border border-slate-700 text-white">
+                    <select id="school-plan" class="w-full bg-slate-900 p-3 rounded border border-slate-700 text-white">
+                        <option value="Por Alumno">Cobro Por Alumno ($15,000)</option>
+                        <option value="Suscripción Mensual">Mensualidad Ilimitada ($500,000)</option>
+                    </select>
+                    <button type="submit" class="w-full bg-emerald-600 p-3 rounded font-bold">Registrar Escuela (LMS)</button>
+                </form>
             </div>
-
-            <!-- Balance Histórico -->
-            <div class="mt-8 bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center">
-                <div>
-                    <h3 class="font-bold text-slate-900 text-lg">Patrimonio Neto Total</h3>
-                    <p class="text-xs text-slate-500 mt-1">Cálculo de ingresos menos egresos de todo el histórico de la cuenta.</p>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <button onclick="toggleBalance()" class="text-slate-400 hover:text-slate-700 focus:outline-none" id="eye-icon-btn">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg>
-                    </button>
-                    <h3 class="text-3xl font-bold text-emerald-700" id="dash-income-total" data-value="0.00">••••••</h3>
-                </div>
-            </div>
-            
-            <div class="text-center pt-8">
-                <a href="finanzas.html" class="inline-block bg-slate-900 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors shadow-sm">
-                    Ir al Libro Mayor de Transacciones &rarr;
-                </a>
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                <h2 class="text-xl font-bold mb-4 text-emerald-400">Escuelas Activas</h2>
+                <ul id="school-list" class="text-sm text-slate-800"></ul> <!-- Renderizado en JS, estilo interior oscuro adaptado -->
             </div>
         </div>
+
+        <!-- SCHOOL VIEW (ACADEMIA) -->
+        <div id="school-view" class="view-section hidden w-full max-w-5xl grid grid-cols-2 gap-6">
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                <h2 class="text-xl font-bold mb-4 text-emerald-400">Inscribir Operador (Alumno)</h2>
+                <form onsubmit="createOperator(event)" class="space-y-4">
+                    <input type="text" id="op-username" placeholder="CC o Nombre Alumno" required class="w-full bg-slate-900 p-3 rounded border border-slate-700 text-white">
+                    <button type="submit" class="w-full bg-emerald-600 p-3 rounded font-bold">Generar Pin de Acceso</button>
+                </form>
+                <div class="mt-8 bg-slate-900 p-4 rounded text-sm text-slate-300" id="school-results-display">
+                    Selecciona un operador para ver sus certificados.
+                </div>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                <h2 class="text-xl font-bold mb-4 text-emerald-400">Nómina de Estudiantes</h2>
+                <ul id="operator-list" class="text-slate-800 text-sm overflow-y-auto max-h-96"></ul>
+            </div>
+        </div>
+
+        <!-- OPERATOR VIEW (ALUMNO) -->
+        <div id="operator-view" class="view-section hidden w-full max-w-4xl text-center space-y-8">
+            <h2 class="text-2xl font-bold text-white">Centro de Entrenamiento Virtual</h2>
+            <div class="grid grid-cols-2 gap-6">
+                <div class="bg-slate-800 p-8 rounded-xl border border-slate-700 hover:border-emerald-500 cursor-pointer transition-colors" onclick="startSim('DENSITY')">
+                    <h3 class="text-xl font-bold text-emerald-400 mb-2">DENSITY WEB</h3>
+                    <p class="text-sm text-slate-400 mb-6">Simulador de Rayos X 3D e Inspección de Equipaje</p>
+                    <button class="bg-emerald-600 px-6 py-2 rounded font-bold text-white">Iniciar Práctica</button>
+                </div>
+                <div class="bg-slate-800 p-8 rounded-xl border border-slate-700 hover:border-blue-500 cursor-pointer transition-colors" onclick="startSim('VMS-X')">
+                    <h3 class="text-xl font-bold text-blue-400 mb-2">VMS-X WEB</h3>
+                    <p class="text-sm text-slate-400 mb-6">Simulador de Centro de Comando y CCTV</p>
+                    <button class="bg-blue-600 px-6 py-2 rounded font-bold text-white">Iniciar Práctica</button>
+                </div>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-left mt-8">
+                <h3 class="font-bold text-emerald-400 mb-4">Mis Certificados (Informes PDF)</h3>
+                <ul id="my-certificates" class="text-sm bg-slate-900 p-4 rounded"></ul>
+            </div>
+        </div>
+
+        <!-- SIMULATOR VIEW (WEBGL PLACEHOLDER) -->
+        <div id="sim-view" class="view-section hidden w-full h-full flex flex-col bg-black rounded-xl overflow-hidden border border-slate-700">
+            <div class="bg-slate-900 p-4 flex justify-between items-center border-b border-slate-700">
+                <h3 id="sim-title" class="font-bold text-emerald-400">Simulador</h3>
+                <button onclick="finishSim()" class="bg-emerald-600 px-4 py-1.5 rounded font-bold text-white text-sm">Auditar y Finalizar</button>
+            </div>
+            <div class="flex-1 flex items-center justify-center text-slate-500 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
+                <!-- Aquí embeberías el iframe de WebGL de Unity para Density/VMS-X -->
+                <div class="text-center">
+                    <svg class="w-16 h-16 mx-auto mb-4 animate-spin text-slate-600" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <p class="font-mono text-sm">CARGANDO ENTORNO 3D EN NAVEGADOR...</p>
+                </div>
+            </div>
+        </div>
+
     </main>
-
     <script src="app.js"></script>
 </body>
 </html>
