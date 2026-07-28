@@ -1,20 +1,51 @@
-const API_URL = 'http://localhost:8000';
+const API_URL = 'https://core-work-api.onrender.com';
 let currentUser = null;
+
+// Mapa de roles para la interfaz
+const ROLE_LABELS = {
+    'admin': 'Administrador',
+    'school': 'Escuela / Academia',
+    'operator': 'Operador'
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     const savedUser = localStorage.getItem('securityCloudUser');
+    const path = window.location.pathname;
+
     if (savedUser) {
         currentUser = JSON.parse(savedUser);
-        routeUser();
+        
+        // Cargar Header global si no estamos en el login
+        if(!path.endsWith('index.html') && path !== '/') {
+            setupHeader();
+        }
+
+        // Ejecutar lógicas específicas según la página en la que estemos
+        if (path.endsWith('admin.html') && currentUser.role === 'admin') loadAdminDashboard();
+        else if (path.endsWith('school.html') && currentUser.role === 'school') loadSchoolDashboard();
+        else if (path.endsWith('operator.html') && currentUser.role === 'operator') loadOperatorDashboard();
+        else if (path.endsWith('index.html') || path === '/') redirectUserByRole(); // Si está logueado y va al index, redirigir.
+        
     } else {
-        showView('login-view');
-        document.getElementById('header-nav').classList.add('hidden');
+        // Si no hay sesión y NO está en el index, forzar redirección al login
+        if(!path.endsWith('index.html') && path !== '/') {
+            window.location.href = 'index.html';
+        }
     }
 });
 
-function showView(viewId) {
-    document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
-    document.getElementById(viewId).classList.remove('hidden');
+function setupHeader() {
+    const welcomeEl = document.getElementById('user-welcome');
+    const roleEl = document.getElementById('user-role');
+    
+    if(welcomeEl) welcomeEl.innerText = currentUser.username.toUpperCase();
+    if(roleEl) roleEl.innerText = ROLE_LABELS[currentUser.role];
+}
+
+function redirectUserByRole() {
+    if (currentUser.role === 'admin') window.location.href = 'admin.html';
+    else if (currentUser.role === 'school') window.location.href = 'school.html';
+    else if (currentUser.role === 'operator') window.location.href = 'operator.html';
 }
 
 async function login(e) {
@@ -29,7 +60,7 @@ async function login(e) {
         if(res.ok) {
             currentUser = await res.json();
             localStorage.setItem('securityCloudUser', JSON.stringify(currentUser));
-            routeUser();
+            redirectUserByRole();
         } else {
             alert('❌ Credenciales incorrectas');
         }
@@ -39,31 +70,10 @@ async function login(e) {
 function logout() {
     localStorage.removeItem('securityCloudUser');
     currentUser = null;
-    document.getElementById('header-nav').classList.add('hidden');
-    showView('login-view');
-    document.getElementById('username').value = '';
-    document.getElementById('password').value = '';
+    window.location.href = 'index.html';
 }
 
-function routeUser() {
-    document.getElementById('header-nav').classList.remove('hidden');
-    document.getElementById('user-welcome').innerText = `Operador: ${currentUser.username.toUpperCase()}`;
-    
-    if(currentUser.role === 'admin') { 
-        loadAdminDashboard(); 
-        showView('admin-view'); 
-    }
-    else if(currentUser.role === 'school') { 
-        loadSchoolDashboard(); 
-        showView('school-view'); 
-    }
-    else if(currentUser.role === 'operator') { 
-        loadOperatorDashboard(); 
-        showView('operator-view'); 
-    }
-}
-
-// --- ADMIN LOGIC ---
+// --- LOGICA ADMIN ---
 async function loadAdminDashboard() {
     const res = await fetch(`${API_URL}/schools`);
     const schools = await res.json();
@@ -98,7 +108,7 @@ async function createSchool(e) {
     loadAdminDashboard();
 }
 
-// --- SCHOOL LOGIC ---
+// --- LOGICA ESCUELA ---
 async function loadSchoolDashboard() {
     const res = await fetch(`${API_URL}/users`);
     const users = await res.json();
@@ -142,7 +152,7 @@ async function viewOperatorResults(userId) {
     }
     
     display.innerHTML = results.map(r => `
-        <div class="mb-3 p-3 border-l-4 border-red-600 bg-gray-50 rounded-r-lg flex justify-between items-center">
+        <div class="mb-3 p-3 border-l-4 border-red-600 bg-gray-50 rounded-r-lg flex justify-between items-center shadow-sm">
             <div>
                 <p class="font-bold text-sm text-gray-900">${r.simulator_type}</p>
                 <p class="text-xs text-gray-600">Score: ${r.score}% | ${r.date.split(' ')[0]}</p>
@@ -154,7 +164,7 @@ async function viewOperatorResults(userId) {
     `).join('');
 }
 
-// --- OPERATOR LOGIC ---
+// --- LOGICA OPERADOR ---
 let activeSim = '';
 async function loadOperatorDashboard() {
     const res = await fetch(`${API_URL}/results/${currentUser.id}`);
@@ -165,10 +175,10 @@ async function loadOperatorDashboard() {
         list.innerHTML = '<p class="text-sm text-gray-500">No hay certificaciones disponibles.</p>';
     } else {
         list.innerHTML = results.map(r => `
-            <li class="p-3 mb-2 bg-gray-50 border border-gray-200 rounded-lg flex justify-between items-center">
-                <span class="font-bold text-gray-800 text-sm">${r.simulator_type} <span class="text-gray-400 font-normal">| ${r.score}%</span></span>
-                <a href="${API_URL}/generate_pdf/${r.id}" target="_blank" class="text-xs font-bold text-red-600 hover:underline flex items-center">
-                    PDF Certificado
+            <li class="p-4 mb-3 bg-gray-50 border border-gray-200 rounded-lg flex justify-between items-center shadow-sm hover:shadow transition-shadow">
+                <span class="font-bold text-gray-900 text-sm">${r.simulator_type} <span class="text-gray-500 font-normal ml-2">| Eficiencia: ${r.score}%</span></span>
+                <a href="${API_URL}/generate_pdf/${r.id}" target="_blank" class="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition-colors">
+                    Descargar PDF
                 </a>
             </li>
         `).join('');
@@ -178,12 +188,12 @@ async function loadOperatorDashboard() {
 function startSim(type) {
     activeSim = type;
     document.getElementById('sim-title').innerText = `Entorno Activo: ${type} WEB`;
-    showView('sim-view');
+    document.getElementById('dashboard-view').classList.add('hidden');
+    document.getElementById('sim-view').classList.remove('hidden');
 }
 
 async function finishSim() {
-    // Generación de score aleatorio para demostración
-    const score = Math.floor(Math.random() * 20) + 80; 
+    const score = Math.floor(Math.random() * 20) + 80; // Score random 80-100
     
     await fetch(`${API_URL}/results`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -191,11 +201,13 @@ async function finishSim() {
             user_id: currentUser.id, 
             simulator_type: activeSim, 
             score: score, 
-            details: `[SISTEMA AUTOMATIZADO]\nEl operador inspeccionó múltiples equipajes/escenarios bajo presión de tiempo.\nTasa de Acierto (TIP): ${score}%.\nTiempo de Reacción Promedio: 4.2s.`
+            details: `[SISTEMA AUTOMATIZADO]\nEl operador completó el protocolo de inspección.\nTasa de Acierto: ${score}%.\nTiempo de Reacción Promedio: 4.2s.`
         })
     });
     
     alert(`✅ Práctica finalizada. Calificación técnica: ${score}%. \nEl reporte ha sido guardado en su perfil.`);
+    
+    document.getElementById('sim-view').classList.add('hidden');
+    document.getElementById('dashboard-view').classList.remove('hidden');
     loadOperatorDashboard();
-    showView('operator-view');
 }

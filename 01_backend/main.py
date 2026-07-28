@@ -14,11 +14,21 @@ import models
 # Inicializar Base de Datos
 models.Base.metadata.create_all(bind=database.engine)
 
-# Crear Super Admin por defecto si no existe
+# Crear Usuarios de Prueba (Seed) por defecto
 with database.SessionLocal() as session:
-    if session.query(models.User).filter_by(username="admin").count() == 0:
+    if session.query(models.User).count() == 0:
+        # 1. Crear una escuela de prueba
+        school_test = models.School(name="Academia Central Guardias", subscription_type="Suscripción Mensual")
+        session.add(school_test)
+        session.commit()
+        session.refresh(school_test)
+
+        # 2. Crear los 3 perfiles de ingreso
         admin = models.User(username="admin", password="123", role="admin")
-        session.add(admin)
+        academia = models.User(username="academia", password="123", role="school", school_id=school_test.id)
+        operador = models.User(username="operador", password="123", role="operator", school_id=school_test.id)
+        
+        session.add_all([admin, academia, operador])
         session.commit()
 
 app = FastAPI(title="SECURITY CLOUD API")
@@ -81,25 +91,22 @@ def save_result(r: ResultCreate, db: Session = Depends(database.get_db)):
     db.commit()
     return db_r
 
-# --- Motor Generador de Certificados PDF (Tema: Negro, Rojo, Blanco) ---
+# --- Motor Generador de Certificados PDF ---
 class CertPDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 22)
-        # Título en Negro
         self.set_text_color(0, 0, 0)
         self.cell(0, 10, 'SECURITY ', 0, 0, 'C')
         
-        # Superposición para simular "CLOUD" en rojo (Truco FPDF)
         w = self.get_string_width('SECURITY ')
         self.set_x(self.get_x() - (self.w / 2) + (w / 2) - 2)
-        self.set_text_color(220, 38, 38) # Rojo
+        self.set_text_color(220, 38, 38)
         self.cell(0, 10, 'CLOUD', 0, 1, 'C')
         
         self.set_font('Arial', '', 12)
         self.set_text_color(100, 100, 100)
         self.cell(0, 8, 'Certificado de Competencia Operativa en Entorno Virtual', 0, 1, 'C')
         
-        # Línea roja de separación
         self.set_draw_color(220, 38, 38)
         self.set_line_width(0.8)
         self.line(20, 32, 190, 32)
@@ -109,7 +116,7 @@ class CertPDF(FPDF):
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
         self.set_text_color(150, 150, 150)
-        self.cell(0, 10, 'Documento generado automáticamente por Security Cloud Platform.', 0, 0, 'C')
+        self.cell(0, 10, 'Documento generado automaticamente por Security Cloud Platform.', 0, 0, 'C')
 
 @app.get("/generate_pdf/{result_id}")
 def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
@@ -120,25 +127,22 @@ def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
     pdf = CertPDF()
     pdf.add_page()
     
-    # Datos del Operador
     pdf.set_font("Arial", 'B', 14)
     pdf.set_text_color(0, 0, 0)
     pdf.cell(0, 10, f"OPERADOR EVALUADO: {user.username.upper()}", 0, 1)
     
     pdf.set_font("Arial", '', 12)
-    pdf.cell(0, 8, f"Plataforma de Simulación: {res.simulator_type}", 0, 1)
-    pdf.cell(0, 8, f"Fecha de Certificación: {res.date}", 0, 1)
+    pdf.cell(0, 8, f"Plataforma de Simulacion: {res.simulator_type}", 0, 1)
+    pdf.cell(0, 8, f"Fecha de Certificacion: {res.date}", 0, 1)
     
-    # Puntaje destacado
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 16)
     if res.score >= 80:
-        pdf.set_text_color(0, 128, 0) # Verde si pasa
+        pdf.set_text_color(0, 128, 0)
     else:
-        pdf.set_text_color(220, 38, 38) # Rojo si reprueba
+        pdf.set_text_color(220, 38, 38)
     pdf.cell(0, 10, f"EFECTIVIDAD TACTICA (SCORE): {res.score}%", 0, 1)
     
-    # Detalles y Auditoría
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 12)
     pdf.set_text_color(0, 0, 0)
