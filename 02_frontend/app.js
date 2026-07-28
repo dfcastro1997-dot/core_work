@@ -2,12 +2,13 @@ const API_URL = 'http://localhost:8000';
 let currentUser = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-    const savedUser = localStorage.getItem('detaimUser');
+    const savedUser = localStorage.getItem('securityCloudUser');
     if (savedUser) {
         currentUser = JSON.parse(savedUser);
         routeUser();
     } else {
         showView('login-view');
+        document.getElementById('header-nav').classList.add('hidden');
     }
 });
 
@@ -27,25 +28,39 @@ async function login(e) {
         });
         if(res.ok) {
             currentUser = await res.json();
-            localStorage.setItem('detaimUser', JSON.stringify(currentUser));
+            localStorage.setItem('securityCloudUser', JSON.stringify(currentUser));
             routeUser();
         } else {
-            alert('Credenciales incorrectas');
+            alert('❌ Credenciales incorrectas');
         }
-    } catch(err) { alert('Error de conexión'); }
+    } catch(err) { alert('❌ Error conectando con el servidor'); }
 }
 
 function logout() {
-    localStorage.removeItem('detaimUser');
+    localStorage.removeItem('securityCloudUser');
     currentUser = null;
+    document.getElementById('header-nav').classList.add('hidden');
     showView('login-view');
+    document.getElementById('username').value = '';
+    document.getElementById('password').value = '';
 }
 
 function routeUser() {
-    document.getElementById('user-welcome').innerText = `Hola, ${currentUser.username.toUpperCase()}`;
-    if(currentUser.role === 'admin') { loadAdminDashboard(); showView('admin-view'); }
-    else if(currentUser.role === 'school') { loadSchoolDashboard(); showView('school-view'); }
-    else if(currentUser.role === 'operator') { loadOperatorDashboard(); showView('operator-view'); }
+    document.getElementById('header-nav').classList.remove('hidden');
+    document.getElementById('user-welcome').innerText = `Operador: ${currentUser.username.toUpperCase()}`;
+    
+    if(currentUser.role === 'admin') { 
+        loadAdminDashboard(); 
+        showView('admin-view'); 
+    }
+    else if(currentUser.role === 'school') { 
+        loadSchoolDashboard(); 
+        showView('school-view'); 
+    }
+    else if(currentUser.role === 'operator') { 
+        loadOperatorDashboard(); 
+        showView('operator-view'); 
+    }
 }
 
 // --- ADMIN LOGIC ---
@@ -53,19 +68,33 @@ async function loadAdminDashboard() {
     const res = await fetch(`${API_URL}/schools`);
     const schools = await res.json();
     const list = document.getElementById('school-list');
-    list.innerHTML = schools.map(s => `<li class="p-3 bg-slate-50 border border-slate-200 rounded mb-2 font-bold">${s.name} - Plan: ${s.subscription_type} (ID: ${s.id})</li>`).join('');
+    list.innerHTML = schools.map(s => `
+        <li class="p-4 bg-white border border-gray-200 rounded-lg shadow-sm mb-3 flex flex-col">
+            <span class="font-bold text-gray-900 text-lg">${s.name}</span>
+            <span class="text-sm text-gray-500">Suscripción: <b class="text-black">${s.subscription_type}</b> | ID: ${s.id}</span>
+        </li>
+    `).join('');
 }
 
 async function createSchool(e) {
     e.preventDefault();
     const name = document.getElementById('school-name').value;
     const sub = document.getElementById('school-plan').value;
-    const resS = await fetch(`${API_URL}/schools`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, subscription_type: sub}) });
+    
+    const resS = await fetch(`${API_URL}/schools`, { 
+        method: 'POST', headers: {'Content-Type': 'application/json'}, 
+        body: JSON.stringify({name, subscription_type: sub}) 
+    });
     const newSchool = await resS.json();
     
-    // Create admin user for this school
-    await fetch(`${API_URL}/users`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: `${name.toLowerCase()}_admin`, password: '123', role: 'school', school_id: newSchool.id}) });
-    alert(`Escuela creada. Usuario: ${name.toLowerCase()}_admin / Pass: 123`);
+    const adminUser = `${name.replace(/\s+/g, '').toLowerCase()}_admin`;
+    await fetch(`${API_URL}/users`, { 
+        method: 'POST', headers: {'Content-Type': 'application/json'}, 
+        body: JSON.stringify({username: adminUser, password: '123', role: 'school', school_id: newSchool.id}) 
+    });
+    
+    alert(`✅ Escuela creada.\nUsuario Admin: ${adminUser}\nContraseña: 123`);
+    document.getElementById('school-name').value = '';
     loadAdminDashboard();
 }
 
@@ -74,24 +103,55 @@ async function loadSchoolDashboard() {
     const res = await fetch(`${API_URL}/users`);
     const users = await res.json();
     const operators = users.filter(u => u.school_id === currentUser.school_id && u.role === 'operator');
+    
     const list = document.getElementById('operator-list');
-    list.innerHTML = operators.map(o => `<li class="p-3 bg-slate-50 border border-slate-200 rounded mb-2 flex justify-between"><span>Operador: <b>${o.username}</b></span> <button onclick="viewOperatorResults(${o.id})" class="text-emerald-600 underline text-sm">Ver Certificados</button></li>`).join('');
+    list.innerHTML = operators.map(o => `
+        <li class="p-4 border-b border-gray-100 flex justify-between items-center hover:bg-gray-50 transition-colors">
+            <span class="font-bold text-gray-800">${o.username.toUpperCase()}</span> 
+            <button onclick="viewOperatorResults(${o.id})" class="bg-black text-white text-xs px-4 py-2 rounded shadow-sm hover:bg-gray-800 transition-colors">Ver Reportes</button>
+        </li>
+    `).join('');
 }
 
 async function createOperator(e) {
     e.preventDefault();
     const username = document.getElementById('op-username').value;
-    await fetch(`${API_URL}/users`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username, password: '123', role: 'operator', school_id: currentUser.school_id}) });
-    alert('Operador creado exitosamente');
-    loadSchoolDashboard();
+    try {
+        const res = await fetch(`${API_URL}/users`, { 
+            method: 'POST', headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({username, password: '123', role: 'operator', school_id: currentUser.school_id}) 
+        });
+        if(res.ok){
+            alert('✅ Operador creado exitosamente (Pass: 123)');
+            document.getElementById('op-username').value = '';
+            loadSchoolDashboard();
+        } else {
+            alert('⚠️ El nombre de usuario ya existe.');
+        }
+    } catch(err) { alert('Error creando operador'); }
 }
 
 async function viewOperatorResults(userId) {
     const res = await fetch(`${API_URL}/results/${userId}`);
     const results = await res.json();
-    if(results.length === 0) return alert("Sin resultados aún");
-    let text = results.map(r => `${r.simulator_type} - Score: ${r.score}% - <a href="${API_URL}/generate_pdf/${r.id}" target="_blank" class="text-blue-500">Descargar PDF</a>`).join('<br>');
-    document.getElementById('school-results-display').innerHTML = text;
+    const display = document.getElementById('school-results-display');
+    
+    if(results.length === 0) {
+        display.innerHTML = '<p class="text-sm text-gray-500 italic">Este operador aún no tiene simulaciones registradas.</p>';
+        return;
+    }
+    
+    display.innerHTML = results.map(r => `
+        <div class="mb-3 p-3 border-l-4 border-red-600 bg-gray-50 rounded-r-lg flex justify-between items-center">
+            <div>
+                <p class="font-bold text-sm text-gray-900">${r.simulator_type}</p>
+                <p class="text-xs text-gray-600">Score: ${r.score}% | ${r.date.split(' ')[0]}</p>
+            </div>
+            <a href="${API_URL}/generate_pdf/${r.id}" target="_blank" class="text-red-600 hover:text-red-800 bg-red-50 p-2 rounded-full">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            </a>
+        </div>
+    `).join('');
 }
 
 // --- OPERATOR LOGIC ---
@@ -100,22 +160,42 @@ async function loadOperatorDashboard() {
     const res = await fetch(`${API_URL}/results/${currentUser.id}`);
     const results = await res.json();
     const list = document.getElementById('my-certificates');
-    list.innerHTML = results.map(r => `<li class="p-2 border-b"><a href="${API_URL}/generate_pdf/${r.id}" target="_blank" class="text-emerald-600 font-bold hover:underline">📄 Certificado ${r.simulator_type} (${r.score}%)</a></li>`).join('');
+    
+    if(results.length === 0) {
+        list.innerHTML = '<p class="text-sm text-gray-500">No hay certificaciones disponibles.</p>';
+    } else {
+        list.innerHTML = results.map(r => `
+            <li class="p-3 mb-2 bg-gray-50 border border-gray-200 rounded-lg flex justify-between items-center">
+                <span class="font-bold text-gray-800 text-sm">${r.simulator_type} <span class="text-gray-400 font-normal">| ${r.score}%</span></span>
+                <a href="${API_URL}/generate_pdf/${r.id}" target="_blank" class="text-xs font-bold text-red-600 hover:underline flex items-center">
+                    PDF Certificado
+                </a>
+            </li>
+        `).join('');
+    }
 }
 
 function startSim(type) {
     activeSim = type;
-    document.getElementById('sim-title').innerText = `Simulador Activo: ${type} WEB`;
+    document.getElementById('sim-title').innerText = `Entorno Activo: ${type} WEB`;
     showView('sim-view');
 }
 
 async function finishSim() {
-    const score = Math.floor(Math.random() * 40) + 60; // Score random 60-100 para demo
+    // Generación de score aleatorio para demostración
+    const score = Math.floor(Math.random() * 20) + 80; 
+    
     await fetch(`${API_URL}/results`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({user_id: currentUser.id, simulator_type: activeSim, score: score, details: `El operador identificó correctamente el 100% de amenazas en el entorno ${activeSim}.`})
+        body: JSON.stringify({
+            user_id: currentUser.id, 
+            simulator_type: activeSim, 
+            score: score, 
+            details: `[SISTEMA AUTOMATIZADO]\nEl operador inspeccionó múltiples equipajes/escenarios bajo presión de tiempo.\nTasa de Acierto (TIP): ${score}%.\nTiempo de Reacción Promedio: 4.2s.`
+        })
     });
-    alert(`¡Simulación completada con ${score}% de precisión!`);
+    
+    alert(`✅ Práctica finalizada. Calificación técnica: ${score}%. \nEl reporte ha sido guardado en su perfil.`);
     loadOperatorDashboard();
     showView('operator-view');
 }
