@@ -10,47 +10,100 @@
         body { font-family: 'Inter', sans-serif; }
     </style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center h-screen overflow-hidden relative">
+<body class="bg-gray-100 flex flex-col min-h-screen overflow-hidden relative">
     
     <!-- Imagen de fondo sutil (Opacidad baja para no distraer) -->
     <div class="absolute inset-0 z-0 bg-cover bg-center opacity-15" style="background-image: url('https://i.ibb.co/rKdBNj2W/Gemini-Generated-Image-3eexqn3eexqn3eex-clean.png');"></div>
 
-    <!-- Contenedor del Login con efecto difuminado (Backdrop Blur) -->
-    <div class="w-full max-w-sm bg-white/95 backdrop-blur-md p-10 rounded-2xl shadow-2xl border border-gray-100 relative z-10">
-        <!-- Detalle de diseño superior -->
-        <div class="absolute top-0 left-0 w-full h-2 bg-red-600 rounded-t-2xl"></div>
-
-        <div class="text-center mb-8 mt-2">
-            <h1 class="text-3xl font-extrabold tracking-tight text-black mb-1">
-                SECURITY <span class="text-red-600">CLOUD</span>
-            </h1>
-            <p class="text-sm text-gray-500 font-semibold">Plataforma de Entrenamiento</p>
+    <!-- ================= ENCABEZADO ================= -->
+    <header class="w-full px-8 py-5 flex justify-between items-center relative z-20 bg-white/60 backdrop-blur-md border-b border-gray-200 shadow-sm">
+        <div class="flex items-center">
+            <!-- Logo proporcionado -->
+            <img src="https://i.ibb.co/DHmrYHsN/Group-339.png" alt="Security Cloud Logo" class="h-10 object-contain">
         </div>
-        
-        <form onsubmit="login(event)" class="space-y-5">
-            <div>
-                <label class="block text-xs font-bold text-gray-700 uppercase mb-1 tracking-wider">Tipo de Ingreso</label>
-                <select id="role" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent transition-shadow cursor-pointer">
-                    <option value="" disabled selected>Seleccione su rol...</option>
-                    <option value="operator">Operador (Alumno)</option>
-                    <option value="school">Escuela (Academia)</option>
-                    <option value="admin">Administrador (DETAIM)</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-xs font-bold text-gray-700 uppercase mb-1 tracking-wider">Usuario / ID</label>
-                <input type="text" id="username" required placeholder="Ingrese su identificador" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent transition-shadow">
-            </div>
-            <div>
-                <label class="block text-xs font-bold text-gray-700 uppercase mb-1 tracking-wider">Contraseña</label>
-                <input type="password" id="password" required placeholder="••••••" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent transition-shadow">
-            </div>
-            <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-lg shadow-md hover:shadow-lg transition-all mt-4">
-                Ingresar al Sistema
-            </button>
-        </form>
-    </div>
+        <div class="flex items-center space-x-2 text-gray-700 bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm">
+            <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <span id="live-clock" class="text-sm font-semibold tracking-wide font-mono">Cargando fecha...</span>
+        </div>
+    </header>
 
+    <!-- ================= CONTENEDOR CENTRAL (LOGIN) ================= -->
+    <main class="flex-1 flex items-center justify-center relative z-10 px-4">
+        <div class="w-full max-w-sm bg-white/95 backdrop-blur-md p-10 rounded-2xl shadow-2xl border border-gray-100 relative">
+            <!-- Detalle de diseño superior -->
+            <div class="absolute top-0 left-0 w-full h-2 bg-red-600 rounded-t-2xl"></div>
+
+            <div class="text-center mb-8 mt-2">
+                <h1 class="text-3xl font-extrabold tracking-tight text-black mb-1">
+                    SECURITY <span class="text-red-600">CLOUD</span>
+                </h1>
+                <p class="text-sm text-gray-500 font-semibold">Plataforma de Entrenamiento</p>
+            </div>
+            
+            <form onsubmit="login(event)" class="space-y-5">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1 tracking-wider">Tipo de Ingreso</label>
+                    <select id="role" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent transition-shadow cursor-pointer">
+                        <option value="" disabled selected>Seleccione su rol...</option>
+                        <option value="operator">Operador (Alumno)</option>
+                        <option value="school">Escuela (Academia)</option>
+                        <option value="admin">Administrador (DETAIM)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1 tracking-wider">Usuario / ID</label>
+                    <input type="text" id="username" required placeholder="Ingrese su identificador" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent transition-shadow">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1 tracking-wider">Contraseña</label>
+                    <input type="password" id="password" required placeholder="••••••" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent transition-shadow">
+                </div>
+                <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-lg shadow-md hover:shadow-lg transition-all mt-4">
+                    Ingresar al Sistema
+                </button>
+            </form>
+        </div>
+    </main>
+
+    <!-- ================= PIE DE PÁGINA (MÉTRICAS) ================= -->
+    <footer class="w-full bg-white/90 backdrop-blur-md border-t border-gray-200 py-6 relative z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <div class="max-w-5xl mx-auto px-4 grid grid-cols-3 gap-4 text-center divide-x divide-gray-200">
+            <!-- Estadística 1 -->
+            <div class="flex flex-col items-center justify-center">
+                <span class="block text-2xl font-extrabold text-black">14,892</span>
+                <span class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-widest font-bold mt-1">Operadores Registrados</span>
+            </div>
+            <!-- Estadística 2 -->
+            <div class="flex flex-col items-center justify-center">
+                <span class="block text-2xl font-extrabold text-black">89,450</span>
+                <span class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-widest font-bold mt-1">Pruebas Realizadas</span>
+            </div>
+            <!-- Estadística 3 -->
+            <div class="flex flex-col items-center justify-center">
+                <span class="block text-2xl font-extrabold text-red-600">32,105</span>
+                <span class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-widest font-bold mt-1">Informes Emitidos</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Script para Reloj y Login -->
     <script src="app.js"></script>
+    <script>
+        // Lógica del Reloj en Tiempo Real
+        function updateClock() {
+            const now = new Date();
+            const options = { 
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', 
+                hour: '2-digit', minute: '2-digit', second: '2-digit' 
+            };
+            // Capitalizar la primera letra y mostrar la fecha/hora
+            let dateString = now.toLocaleDateString('es-ES', options);
+            dateString = dateString.charAt(0).toUpperCase() + dateString.slice(1);
+            document.getElementById('live-clock').innerText = dateString;
+        }
+        
+        setInterval(updateClock, 1000);
+        updateClock();
+    </script>
 </body>
 </html>
