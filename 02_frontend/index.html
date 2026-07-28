@@ -10,9 +10,13 @@
         body { font-family: 'Inter', sans-serif; }
     </style>
 </head>
-<body class="bg-gray-50 flex items-center justify-center h-screen overflow-hidden">
+<body class="bg-gray-100 flex items-center justify-center h-screen overflow-hidden relative">
     
-    <div class="w-full max-w-sm bg-white p-10 rounded-2xl shadow-2xl border border-gray-100 relative">
+    <!-- Imagen de fondo sutil (Opacidad baja para no distraer) -->
+    <div class="absolute inset-0 z-0 bg-cover bg-center opacity-15" style="background-image: url('https://i.ibb.co/rKdBNj2W/Gemini-Generated-Image-3eexqn3eexqn3eex-clean.png');"></div>
+
+    <!-- Contenedor del Login con efecto difuminado (Backdrop Blur) -->
+    <div class="w-full max-w-sm bg-white/95 backdrop-blur-md p-10 rounded-2xl shadow-2xl border border-gray-100 relative z-10">
         <!-- Detalle de diseño superior -->
         <div class="absolute top-0 left-0 w-full h-2 bg-red-600 rounded-t-2xl"></div>
 
@@ -25,8 +29,17 @@
         
         <form onsubmit="login(event)" class="space-y-5">
             <div>
+                <label class="block text-xs font-bold text-gray-700 uppercase mb-1 tracking-wider">Tipo de Ingreso</label>
+                <select id="role" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent transition-shadow cursor-pointer">
+                    <option value="" disabled selected>Seleccione su rol...</option>
+                    <option value="operator">Operador (Alumno)</option>
+                    <option value="school">Escuela (Academia)</option>
+                    <option value="admin">Administrador (DETAIM)</option>
+                </select>
+            </div>
+            <div>
                 <label class="block text-xs font-bold text-gray-700 uppercase mb-1 tracking-wider">Usuario / ID</label>
-                <input type="text" id="username" required placeholder="Ej. operador" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent transition-shadow">
+                <input type="text" id="username" required placeholder="Ingrese su identificador" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent transition-shadow">
             </div>
             <div>
                 <label class="block text-xs font-bold text-gray-700 uppercase mb-1 tracking-wider">Contraseña</label>
@@ -36,12 +49,6 @@
                 Ingresar al Sistema
             </button>
         </form>
-
-        <div class="mt-8 text-center border-t border-gray-100 pt-6">
-            <p class="text-[10px] text-gray-400 font-mono">USUARIOS DE PRUEBA CREADOS:</p>
-            <p class="text-[11px] text-gray-500 mt-1">Admin: <b class="text-gray-800">admin</b> | Escuela: <b class="text-gray-800">academia</b> | Operador: <b class="text-gray-800">operador</b></p>
-            <p class="text-[11px] text-gray-500">Pass para todos: <b class="text-gray-800">123</b></p>
-        </div>
     </div>
 
     <script src="app.js"></script>

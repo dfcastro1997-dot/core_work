@@ -17,13 +17,11 @@ models.Base.metadata.create_all(bind=database.engine)
 # Crear Usuarios de Prueba (Seed) por defecto
 with database.SessionLocal() as session:
     if session.query(models.User).count() == 0:
-        # 1. Crear una escuela de prueba
         school_test = models.School(name="Academia Central Guardias", subscription_type="Suscripción Mensual")
         session.add(school_test)
         session.commit()
         session.refresh(school_test)
 
-        # 2. Crear los 3 perfiles de ingreso
         admin = models.User(username="admin", password="123", role="admin")
         academia = models.User(username="academia", password="123", role="school", school_id=school_test.id)
         operador = models.User(username="operador", password="123", role="operator", school_id=school_test.id)
@@ -42,7 +40,11 @@ app.add_middleware(
 )
 
 # --- Esquemas Pydantic ---
-class LoginData(BaseModel): username: str; password: str
+class LoginData(BaseModel): 
+    role: str
+    username: str
+    password: str
+    
 class SchoolCreate(BaseModel): name: str; subscription_type: str
 class UserCreate(BaseModel): username: str; password: str; role: str; school_id: int = None
 class ResultCreate(BaseModel): user_id: int; simulator_type: str; score: float; details: str
@@ -50,8 +52,13 @@ class ResultCreate(BaseModel): user_id: int; simulator_type: str; score: float; 
 # --- Endpoints ---
 @app.post("/login")
 def login(data: LoginData, db: Session = Depends(database.get_db)):
-    user = db.query(models.User).filter_by(username=data.username, password=data.password).first()
-    if not user: raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+    user = db.query(models.User).filter_by(
+        username=data.username, 
+        password=data.password, 
+        role=data.role
+    ).first()
+    if not user: 
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     return {"id": user.id, "role": user.role, "school_id": user.school_id, "username": user.username}
 
 @app.get("/schools")

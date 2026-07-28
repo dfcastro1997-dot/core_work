@@ -24,10 +24,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (path.endsWith('admin.html') && currentUser.role === 'admin') loadAdminDashboard();
         else if (path.endsWith('school.html') && currentUser.role === 'school') loadSchoolDashboard();
         else if (path.endsWith('operator.html') && currentUser.role === 'operator') loadOperatorDashboard();
-        else if (path.endsWith('index.html') || path === '/') redirectUserByRole(); // Si está logueado y va al index, redirigir.
+        else if (path.endsWith('index.html') || path === '/') redirectUserByRole();
         
     } else {
-        // Si no hay sesión y NO está en el index, forzar redirección al login
         if(!path.endsWith('index.html') && path !== '/') {
             window.location.href = 'index.html';
         }
@@ -50,19 +49,20 @@ function redirectUserByRole() {
 
 async function login(e) {
     e.preventDefault();
+    const r = document.getElementById('role').value;
     const u = document.getElementById('username').value;
     const p = document.getElementById('password').value;
     try {
         const res = await fetch(`${API_URL}/login`, {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({username: u, password: p})
+            body: JSON.stringify({role: r, username: u, password: p})
         });
         if(res.ok) {
             currentUser = await res.json();
             localStorage.setItem('securityCloudUser', JSON.stringify(currentUser));
             redirectUserByRole();
         } else {
-            alert('❌ Credenciales incorrectas');
+            alert('❌ Credenciales o Tipo de Ingreso incorrectos');
         }
     } catch(err) { alert('❌ Error conectando con el servidor'); }
 }
@@ -193,7 +193,7 @@ function startSim(type) {
 }
 
 async function finishSim() {
-    const score = Math.floor(Math.random() * 20) + 80; // Score random 80-100
+    const score = Math.floor(Math.random() * 20) + 80; 
     
     await fetch(`${API_URL}/results`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
