@@ -1,13 +1,8 @@
-// ==========================================
-// CONFIGURACIÓN GLOBAL Y ESTADO FINANCIERO
-// ==========================================
 const API_URL = 'https://core-work-api.onrender.com';
 let financesCache = [], pocketsCache = [], settingsCache = [];
 let balanceVisible = false;
 
-document.addEventListener('DOMContentLoaded', async () => {
-    await fetchAllData(); 
-});
+document.addEventListener('DOMContentLoaded', async () => { await fetchAllData(); });
 
 function showCustomAlert(title, message, type = 'info') {
     let modal = document.getElementById('global-alert-modal');
@@ -25,49 +20,35 @@ const safeFetch = (url) => fetch(url).then(r => r.ok ? r.json() : []).catch(() =
 
 async function fetchAllData() {
     try {
-        const [resFinances, resPockets, resSettings] = await Promise.all([
-            safeFetch(`${API_URL}/finances`), safeFetch(`${API_URL}/pockets`), safeFetch(`${API_URL}/settings`)
-        ]);
-
+        const [resFinances, resPockets, resSettings] = await Promise.all([ safeFetch(`${API_URL}/finances`), safeFetch(`${API_URL}/pockets`), safeFetch(`${API_URL}/settings`) ]);
         settingsCache = Array.isArray(resSettings) ? resSettings : [];
         financesCache = Array.isArray(resFinances) ? resFinances : [];
         pocketsCache = Array.isArray(resPockets) ? resPockets : [];
-
-    } catch (err) { console.error("Error obteniendo datos", err); } 
+    } catch (err) { console.error(err); } 
     finally {
         loadDynamicOptions();
         if (document.getElementById('dash-income-total')) updateDashboard();
         if (document.getElementById('finance-table-body')) { renderFinances(); renderPockets(); }
-        if (document.getElementById('profile-list')) renderSettings();
+        if (document.getElementById('expense-list')) renderSettings();
     }
 }
 
-// ==========================================
-// MÓDULO CONFIGURACIONES 
-// ==========================================
 function loadDynamicOptions() {
-    const entities = settingsCache.filter(s => s.type === 'entities').map(s => s.value);
     const categories = settingsCache.filter(s => s.type === 'categories').map(s => s.value);
     const fixedItems = settingsCache.filter(s => s.type === 'fixed').map(s => s.value);
-    
-    document.querySelectorAll('.dynamic-profiles').forEach(sel => { sel.innerHTML = ''; entities.forEach(e => sel.innerHTML += `<option value="${e}">${e}</option>`); });
     document.querySelectorAll('.dynamic-expenses').forEach(sel => { sel.innerHTML = ''; categories.forEach(c => sel.innerHTML += `<option value="${c}">${c}</option>`); });
-    
     const fixedDatalist = document.getElementById('fixed-expenses-list');
     if (fixedDatalist) { fixedDatalist.innerHTML = ''; fixedItems.forEach(f => fixedDatalist.innerHTML += `<option value="${f}"></option>`); }
 }
 
 function renderSettings() {
-    const eList = document.getElementById('profile-list'), cList = document.getElementById('expense-list'), fList = document.getElementById('fixed-list');
-    if(!eList) return;
-    eList.innerHTML = ''; cList.innerHTML = ''; fList.innerHTML = '';
-    
-    settingsCache.filter(s => s.type === 'entities').forEach(p => eList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${p.value}</span><button onclick="deleteSetting(${p.id})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`);
+    const cList = document.getElementById('expense-list'), fList = document.getElementById('fixed-list');
+    if(!cList) return;
+    cList.innerHTML = ''; fList.innerHTML = '';
     settingsCache.filter(s => s.type === 'categories').forEach(e => cList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${e.value}</span><button onclick="deleteSetting(${e.id})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`);
     settingsCache.filter(s => s.type === 'fixed').forEach(f => fList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${f.value}</span><button onclick="deleteSetting(${f.id})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`);
 }
 
-async function addProfile() { const val = document.getElementById('new-profile').value; if(val) { await fetch(`${API_URL}/settings`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'entities', value:val})}); document.getElementById('new-profile').value=''; fetchAllData(); } }
 async function addExpenseType() { const val = document.getElementById('new-expense').value; if(val) { await fetch(`${API_URL}/settings`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'categories', value:val})}); document.getElementById('new-expense').value=''; fetchAllData(); } }
 async function addFixedItem() { const val = document.getElementById('new-fixed').value; if(val) { await fetch(`${API_URL}/settings`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'fixed', value:val})}); document.getElementById('new-fixed').value=''; fetchAllData(); } }
 async function deleteSetting(id) { await fetch(`${API_URL}/settings/${id}`, {method:'DELETE'}); fetchAllData(); }
@@ -80,9 +61,6 @@ async function testTelegramAlert() {
     } catch (e) { showCustomAlert("Error de Conexión", "El backend no responde.", "error"); }
 }
 
-// ==========================================
-// MÓDULO DASHBOARD FINANCIERO
-// ==========================================
 function toggleBalance() { balanceVisible = !balanceVisible; updateBalanceDisplay(); }
 function updateBalanceDisplay() {
     const el = document.getElementById('dash-income-total'), btn = document.getElementById('eye-icon-btn');
@@ -91,36 +69,17 @@ function updateBalanceDisplay() {
     else { el.innerText = '••••••'; btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg>`; }
 }
 function updateDashboard() {
-    let inc = 0, exp = 0, incMes = 0, expMes = 0; 
-    const now = new Date();
-    
+    let inc = 0, exp = 0, incMes = 0, expMes = 0; const now = new Date();
     financesCache.forEach(f => { 
-        const amt = parseFloat(f.amount);
-        const fDate = new Date(f.date);
-        const isThisMonth = fDate.getMonth() === now.getMonth() && fDate.getFullYear() === now.getFullYear();
-        
-        if (f.type.includes('Ingreso')) {
-            inc += amt;
-            if(isThisMonth) incMes += amt;
-        } else { 
-            exp += amt;
-            if(isThisMonth) expMes += amt;
-        } 
+        const amt = parseFloat(f.amount), isThisMonth = new Date(f.date).getMonth() === now.getMonth() && new Date(f.date).getFullYear() === now.getFullYear();
+        if (amt > 0) { inc += amt; if(isThisMonth) incMes += amt; } else { exp += Math.abs(amt); if(isThisMonth) expMes += Math.abs(amt); } 
     });
-
-    if(document.getElementById('dash-income-total')) { 
-        document.getElementById('dash-income-total').setAttribute('data-value', (inc - exp).toFixed(2)); 
-        updateBalanceDisplay(); 
-    }
-    
+    if(document.getElementById('dash-income-total')) { document.getElementById('dash-income-total').setAttribute('data-value', (inc - exp).toFixed(2)); updateBalanceDisplay(); }
     if(document.getElementById('dash-ingresos-mes')) document.getElementById('dash-ingresos-mes').innerText = `$${incMes.toFixed(2)}`;
     if(document.getElementById('dash-egresos-mes')) document.getElementById('dash-egresos-mes').innerText = `$${expMes.toFixed(2)}`;
     if(document.getElementById('dash-neto-mes')) document.getElementById('dash-neto-mes').innerText = `$${(incMes - expMes).toFixed(2)}`;
 }
 
-// ==========================================
-// MÓDULO DE FINANZAS Y FACTURACIÓN
-// ==========================================
 function verifyFinances(e) {
     e.preventDefault();
     if (document.getElementById('fin-password').value === '12345') { const overlay = document.getElementById('auth-overlay'); overlay.style.opacity = '0'; setTimeout(() => overlay.classList.add('hidden'), 300); document.getElementById('fin-error').classList.add('hidden'); } else { document.getElementById('fin-error').classList.remove('hidden'); document.getElementById('fin-password').value = ''; }
@@ -146,26 +105,24 @@ function renderFinances() {
         document.getElementById('empty-finance-msg').classList.add('hidden');
         finances.forEach((item) => {
             const amt = parseFloat(item.amount);
-            if (item.type.includes('Ingreso')) inc += amt; else exp += amt;
-            tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-50"><td class="px-6 py-3.5">${item.date}</td><td class="px-6 py-3.5 font-medium">${item.concept}</td><td class="px-6 py-3.5"><span class="px-2 py-0.5 bg-slate-100 rounded text-[10px] font-bold">${item.type}</span></td><td class="px-6 py-3.5">${item.entity}</td><td class="px-6 py-3.5 text-right font-bold">$${amt.toFixed(2)}</td><td class="px-6 py-3.5 text-center"><button onclick="deleteFinance(${item.id})" class="text-red-500 text-xs hover:underline">Borrar</button></td></tr>`;
+            if (amt > 0) inc += amt; else exp += Math.abs(amt);
+            const colorClass = amt > 0 ? "text-emerald-600" : "text-rose-600";
+            tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-50"><td class="px-6 py-3.5">${item.date}</td><td class="px-6 py-3.5 font-medium">${item.concept}</td><td class="px-6 py-3.5"><span class="px-2 py-0.5 bg-slate-100 rounded text-[10px] font-bold">${item.type}</span></td><td class="px-6 py-3.5 text-right font-bold ${colorClass}">$${Math.abs(amt).toFixed(2)}</td><td class="px-6 py-3.5 text-center"><button onclick="deleteFinance(${item.id})" class="text-red-500 text-xs hover:underline">Borrar</button></td></tr>`;
         });
     }
-    if (document.getElementById('fin-total-ingresos')) {
-        document.getElementById('fin-total-ingresos').innerText = `$${inc.toFixed(2)}`; 
-        document.getElementById('fin-total-pasivos').innerText = `$${exp.toFixed(2)}`; 
-        document.getElementById('fin-balance-neto').innerText = `$${(inc - exp).toFixed(2)}`;
-    }
+    if (document.getElementById('fin-total-ingresos')) { document.getElementById('fin-total-ingresos').innerText = `$${inc.toFixed(2)}`; document.getElementById('fin-total-pasivos').innerText = `$${exp.toFixed(2)}`; document.getElementById('fin-balance-neto').innerText = `$${(inc - exp).toFixed(2)}`; }
 }
 async function saveFinance(e) {
     e.preventDefault();
-    const payload = { concept: document.getElementById('fin-concept').value, type: document.getElementById('fin-type').value, amount: parseFloat(document.getElementById('fin-amount').value), entity: document.getElementById('fin-entity').value, date: document.getElementById('fin-date').value };
+    let amt = Math.abs(parseFloat(document.getElementById('fin-amount').value));
+    if(document.getElementById('fin-transaction-type').value === 'expense') amt = -amt;
+    const payload = { concept: document.getElementById('fin-concept').value, type: document.getElementById('fin-type').value, amount: amt, date: document.getElementById('fin-date').value };
     try { await fetch(`${API_URL}/finances`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); closeFinanceModal(); document.getElementById('finance-form').reset(); showCustomAlert("Registrado", "Movimiento financiero guardado exitosamente.", "success"); fetchAllData(); } catch(err) { showCustomAlert("Error", "No se pudo registrar.", "error"); }
 }
 async function deleteFinance(id) { await fetch(`${API_URL}/finances/${id}`, { method: 'DELETE' }); showCustomAlert("Eliminado", "Registro borrado.", "success"); fetchAllData(); }
 function openFinanceModal() { document.getElementById('finance-modal').classList.remove('hidden'); }
 function closeFinanceModal() { document.getElementById('finance-modal').classList.add('hidden'); }
 
-// INVOICING
 function openInvoiceModal() { document.getElementById('invoice-modal').classList.remove('hidden'); }
 function closeInvoiceModal() { document.getElementById('invoice-modal').classList.add('hidden'); }
 function generateInvoicePDF(e) {
@@ -180,9 +137,6 @@ function generateInvoicePDF(e) {
     doc.save(`${invoiceNumber}_${client}.pdf`); closeInvoiceModal(); showCustomAlert("Factura Generada", "El PDF ha sido descargado.", "success");
 }
 
-// ==========================================
-// MÓDULO BOLSILLOS DE AHORRO
-// ==========================================
 function renderPockets() {
     const grid = document.getElementById('pockets-grid'); if (!grid) return; grid.innerHTML = '';
     if(pocketsCache.length === 0) { grid.innerHTML = '<p class="text-xs text-slate-500 col-span-3">No hay bolsillos de ahorro creados.</p>'; return; }
@@ -192,8 +146,7 @@ function renderPockets() {
     });
 }
 async function savePocket(e) {
-    e.preventDefault();
-    const payload = { name: document.getElementById('pkt-name').value, bank: document.getElementById('pkt-bank').value, account: document.getElementById('pkt-account').value, target: parseFloat(document.getElementById('pkt-target').value), current: parseFloat(document.getElementById('pkt-current').value) };
+    e.preventDefault(); const payload = { name: document.getElementById('pkt-name').value, bank: document.getElementById('pkt-bank').value, account: document.getElementById('pkt-account').value, target: parseFloat(document.getElementById('pkt-target').value), current: parseFloat(document.getElementById('pkt-current').value) };
     try { await fetch(`${API_URL}/pockets`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); closePocketModal(); document.getElementById('pocket-form').reset(); showCustomAlert("Bolsillo Creado", "Fondo registrado exitosamente.", "success"); fetchAllData(); } catch(err) { showCustomAlert("Error", "Falló la creación.", "error"); }
 }
 async function deletePocket(id) { await fetch(`${API_URL}/pockets/${id}`, { method: 'DELETE' }); showCustomAlert("Bolsillo Borrado", "Eliminado correctamente.", "success"); fetchAllData(); }
@@ -208,7 +161,6 @@ function setTxType(type) {
 }
 async function executePocketTx(e) {
     e.preventDefault(); const id = parseInt(document.getElementById('tx-pocket-id').value), type = document.getElementById('tx-type').value, amount = parseFloat(document.getElementById('tx-amount').value), pkt = pocketsCache.find(x => x.id === id);
-    let newCurrent = pkt.current;
-    if (type === 'add') newCurrent += amount; else { if(amount > pkt.current) { showCustomAlert("Fondos Insuficientes", "El monto supera el saldo actual.", "error"); return; } newCurrent -= amount; }
+    let newCurrent = pkt.current; if (type === 'add') newCurrent += amount; else { if(amount > pkt.current) { showCustomAlert("Fondos Insuficientes", "El monto supera el saldo actual.", "error"); return; } newCurrent -= amount; }
     try { await fetch(`${API_URL}/pockets/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current: newCurrent }) }); closePocketTxModal(); document.getElementById('pocket-tx-form').reset(); showCustomAlert("Transacción Exitosa", "Saldo actualizado.", "success"); fetchAllData(); } catch(err) { showCustomAlert("Error", "No se guardó el saldo.", "error"); }
 }

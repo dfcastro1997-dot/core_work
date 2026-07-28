@@ -4,7 +4,7 @@ from database import Base
 class Setting(Base):
     __tablename__ = "settings"
     id = Column(Integer, primary_key=True, index=True)
-    type = Column(String, index=True) # entities, categories, fixed
+    type = Column(String, index=True) # categories, fixed
     value = Column(String)
 
 class Finance(Base):
@@ -13,7 +13,6 @@ class Finance(Base):
     concept = Column(String)
     amount = Column(Float)
     type = Column(String) 
-    entity = Column(String, nullable=True)
     date = Column(String, nullable=True)
 
 class Pocket(Base):

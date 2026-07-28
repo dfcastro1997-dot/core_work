@@ -44,18 +44,7 @@
         </header>
 
         <div class="p-8 space-y-6">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                <!-- Perfiles / Entidades -->
-                <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                    <h3 class="font-bold text-base text-slate-900 mb-2">Entidades / Clientes</h3>
-                    <p class="text-xs text-slate-500 mb-4">Empresas o proyectos de los cuales entra o sale dinero.</p>
-                    <div class="flex space-x-2 mb-4">
-                        <input type="text" id="new-profile" placeholder="Ej: Cliente Alpha..." class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-900">
-                        <button onclick="addProfile()" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-slate-800">Añadir</button>
-                    </div>
-                    <ul id="profile-list" class="space-y-2 border-t border-slate-100 pt-4 custom-scroll max-h-48 overflow-y-auto"></ul>
-                </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                 <!-- Tipos de Gastos -->
                 <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
@@ -80,7 +69,7 @@
                 </div>
                 
                 <!-- Integraciones / Alertas -->
-                <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 lg:col-span-3">
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 lg:col-span-2">
                     <h3 class="font-bold text-base text-slate-900 mb-2">Integraciones & Notificaciones (Telegram)</h3>
                     <p class="text-xs text-slate-500 mb-4">El servidor enviará el balance del flujo de caja diario automáticamente al final del día.</p>
                     <div class="flex space-x-3 border-t border-slate-100 pt-4">
