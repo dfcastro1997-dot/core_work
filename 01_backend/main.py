@@ -14,10 +14,10 @@ import models
 # Inicializar Base de Datos
 models.Base.metadata.create_all(bind=database.engine)
 
-# Crear Usuarios de Prueba (Seed) por defecto
+# Crear Usuarios de Prueba (Seed)
 with database.SessionLocal() as session:
     if session.query(models.User).count() == 0:
-        school_test = models.School(name="Academia Central Guardias", subscription_type="Suscripción Mensual")
+        school_test = models.School(name="Academia Central Guardias", subscription_type="Mensual", max_operators=100)
         session.add(school_test)
         session.commit()
         session.refresh(school_test)
@@ -45,20 +45,22 @@ class LoginData(BaseModel):
     username: str
     password: str
     
-class SchoolCreate(BaseModel): name: str; subscription_type: str
+class SchoolCreate(BaseModel): 
+    name: str
+    subscription_type: str
+    username: str
+    password: str
+    max_operators: int
+
 class UserCreate(BaseModel): username: str; password: str; role: str; school_id: int = None
+class UserUpdate(BaseModel): username: str; password: str; school_id: int
 class ResultCreate(BaseModel): user_id: int; simulator_type: str; score: float; details: str
 
 # --- Endpoints ---
 @app.post("/login")
 def login(data: LoginData, db: Session = Depends(database.get_db)):
-    user = db.query(models.User).filter_by(
-        username=data.username, 
-        password=data.password, 
-        role=data.role
-    ).first()
-    if not user: 
-        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+    user = db.query(models.User).filter_by(username=data.username, password=data.password, role=data.role).first()
+    if not user: raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     return {"id": user.id, "role": user.role, "school_id": user.school_id, "username": user.username}
 
 @app.get("/schools")
@@ -67,10 +69,20 @@ def get_schools(db: Session = Depends(database.get_db)):
 
 @app.post("/schools")
 def create_school(s: SchoolCreate, db: Session = Depends(database.get_db)):
-    db_s = models.School(**s.dict())
+    if db.query(models.User).filter_by(username=s.username).first():
+        raise HTTPException(status_code=400, detail="El usuario ya existe")
+    
+    # 1. Crear Escuela
+    db_s = models.School(name=s.name, subscription_type=s.subscription_type, max_operators=s.max_operators)
     db.add(db_s)
     db.commit()
     db.refresh(db_s)
+    
+    # 2. Crear Usuario de Acceso para la Escuela
+    db_u = models.User(username=s.username, password=s.password, role="school", school_id=db_s.id)
+    db.add(db_u)
+    db.commit()
+    
     return db_s
 
 @app.get("/users")
@@ -81,11 +93,44 @@ def get_users(db: Session = Depends(database.get_db)):
 def create_user(u: UserCreate, db: Session = Depends(database.get_db)):
     if db.query(models.User).filter_by(username=u.username).first():
         raise HTTPException(status_code=400, detail="El usuario ya existe")
+        
+    # Validar limite de operadores
+    if u.role == "operator" and u.school_id:
+        school = db.query(models.School).filter_by(id=u.school_id).first()
+        current_ops = db.query(models.User).filter_by(school_id=u.school_id, role="operator").count()
+        if school and current_ops >= school.max_operators:
+            raise HTTPException(status_code=400, detail=f"Límite de operadores ({school.max_operators}) alcanzado para esta escuela.")
+
     db_u = models.User(**u.dict())
     db.add(db_u)
     db.commit()
     db.refresh(db_u)
     return db_u
+
+@app.put("/users/{user_id}")
+def update_user(user_id: int, u: UserUpdate, db: Session = Depends(database.get_db)):
+    db_u = db.query(models.User).filter_by(id=user_id).first()
+    if not db_u: raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    # Check si el nuevo username existe y no es el mismo
+    exist = db.query(models.User).filter_by(username=u.username).first()
+    if exist and exist.id != user_id: raise HTTPException(status_code=400, detail="Username ya en uso")
+    
+    db_u.username = u.username
+    if u.password: db_u.password = u.password
+    db_u.school_id = u.school_id
+    db.commit()
+    return db_u
+
+@app.delete("/users/{user_id}")
+def delete_user(user_id: int, db: Session = Depends(database.get_db)):
+    db_u = db.query(models.User).filter_by(id=user_id).first()
+    if not db_u: raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    # Borrar resultados asociados
+    db.query(models.SimulationResult).filter_by(user_id=user_id).delete()
+    db.delete(db_u)
+    db.commit()
+    return {"msg": "Usuario borrado"}
 
 @app.get("/results/{user_id}")
 def get_results(user_id: int, db: Session = Depends(database.get_db)):
@@ -98,27 +143,22 @@ def save_result(r: ResultCreate, db: Session = Depends(database.get_db)):
     db.commit()
     return db_r
 
-# --- Motor Generador de Certificados PDF ---
 class CertPDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 22)
         self.set_text_color(0, 0, 0)
         self.cell(0, 10, 'SECURITY ', 0, 0, 'C')
-        
         w = self.get_string_width('SECURITY ')
         self.set_x(self.get_x() - (self.w / 2) + (w / 2) - 2)
         self.set_text_color(220, 38, 38)
         self.cell(0, 10, 'CLOUD', 0, 1, 'C')
-        
         self.set_font('Arial', '', 12)
         self.set_text_color(100, 100, 100)
         self.cell(0, 8, 'Certificado de Competencia Operativa en Entorno Virtual', 0, 1, 'C')
-        
         self.set_draw_color(220, 38, 38)
         self.set_line_width(0.8)
         self.line(20, 32, 190, 32)
         self.ln(15)
-
     def footer(self):
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
@@ -133,28 +173,21 @@ def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
     
     pdf = CertPDF()
     pdf.add_page()
-    
     pdf.set_font("Arial", 'B', 14)
     pdf.set_text_color(0, 0, 0)
     pdf.cell(0, 10, f"OPERADOR EVALUADO: {user.username.upper()}", 0, 1)
-    
     pdf.set_font("Arial", '', 12)
     pdf.cell(0, 8, f"Plataforma de Simulacion: {res.simulator_type}", 0, 1)
     pdf.cell(0, 8, f"Fecha de Certificacion: {res.date}", 0, 1)
-    
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 16)
-    if res.score >= 80:
-        pdf.set_text_color(0, 128, 0)
-    else:
-        pdf.set_text_color(220, 38, 38)
+    if res.score >= 80: pdf.set_text_color(0, 128, 0)
+    else: pdf.set_text_color(220, 38, 38)
     pdf.cell(0, 10, f"EFECTIVIDAD TACTICA (SCORE): {res.score}%", 0, 1)
-    
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 12)
     pdf.set_text_color(0, 0, 0)
     pdf.cell(0, 10, "Auditoria Forense (Log del Sistema):", 0, 1)
-    
     pdf.set_font("Arial", '', 11)
     pdf.set_fill_color(245, 245, 245)
     pdf.multi_cell(0, 8, f"{res.details}", fill=True, border=1)

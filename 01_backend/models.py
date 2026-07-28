@@ -5,7 +5,8 @@ class School(Base):
     __tablename__ = "schools"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
-    subscription_type = Column(String) # Ej: "Suscripción Mensual", "Pago Por Alumno"
+    subscription_type = Column(String) 
+    max_operators = Column(Integer, default=50) # Nuevo: Límite de personal
 
 class User(Base):
     __tablename__ = "users"
@@ -19,7 +20,7 @@ class SimulationResult(Base):
     __tablename__ = "results"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    simulator_type = Column(String) # 'DENSITY', 'VMS-X', 'CHECKPOINT-X'
+    simulator_type = Column(String) 
     score = Column(Float)
     date = Column(String)
     details = Column(String)
