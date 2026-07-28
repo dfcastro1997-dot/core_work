@@ -164,10 +164,33 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
                     if not is_income: amount = -amount # Gasto es negativo
                     db_fin = models.Finance(concept=parts[1], amount=amount, type="Pendiente", date=datetime.now().strftime("%Y-%m-%d"))
                     db.add(db_fin); db.commit(); db.refresh(db_fin)
+                    
                     kb = get_setting_keyboard("categories", f"fin_cat_{db_fin.id}_", db)
+                    # Agregamos el botón para crear una nueva categoría dinámicamente
+                    kb["inline_keyboard"].append([{"text": "➕ Crear Nueva Categoría", "callback_data": f"new_cat_{db_fin.id}"}])
+                    
                     send_telegram_message(chat_id, f"✅ Registro Exitoso: <b>${abs(amount):,.2f}</b>\n\n<b>Selecciona la Categoría Financiera:</b>", kb)
                 except ValueError: send_telegram_message(chat_id, "⚠️ El monto debe ser numérico.", get_main_menu())
             else: send_telegram_message(chat_id, "⚠️ Formato incorrecto. Ejemplo: 1500 Concepto", get_main_menu())
+            return {"status": "ok"}
+            
+        elif "CATEGORIA PARA REGISTRO" in reply_text:
+            try:
+                # Extraemos el ID del registro desde el mensaje original del bot
+                fin_id = int(reply_text.split("\n")[0].split()[-1])
+                
+                # 1. Crear y guardar la nueva categoría
+                db.add(models.Setting(type="categories", value=text_msg))
+                
+                # 2. Asignarla a la transacción pendiente
+                fin = db.query(models.Finance).filter(models.Finance.id == fin_id).first()
+                if fin:
+                    fin.type = text_msg
+                db.commit()
+                
+                send_telegram_message(chat_id, f"✅ Categoría '{text_msg}' creada y asignada a la transacción.", get_main_menu())
+            except Exception as e:
+                send_telegram_message(chat_id, "⚠️ Error al procesar la nueva categoría.", get_main_menu())
             return {"status": "ok"}
                 
         elif "NUEVA CATEGORIA" in reply_text:
@@ -215,6 +238,10 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
                 send_telegram_message(chat_id, "¿Deseas hacer algo más?", get_main_menu())
 
         # WIZARDS FINALIZACIÓN
+        elif call_data.startswith("new_cat_"):
+            fin_id = call_data.replace("new_cat_", "")
+            send_telegram_message(chat_id, f"➕ CATEGORIA PARA REGISTRO {fin_id}\nEscribe el nombre de la nueva categoría:", {"force_reply": True})
+
         elif call_data.startswith("fin_cat_"):
             parts = call_data.split("_")
             fin, setting = db.query(models.Finance).filter(models.Finance.id == int(parts[2])).first(), db.query(models.Setting).filter(models.Setting.id == int(parts[3])).first()
@@ -242,6 +269,7 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
         
         requests.post(f"{TELEGRAM_API_URL}/answerCallbackQuery", json={"callback_query_id": callback_id})
     return {"status": "ok"}
+
 
 @app.get("/setup-telegram")
 def setup_telegram(request: Request):
