@@ -1,5 +1,5 @@
 const API_URL = 'https://core-work-api.onrender.com';
-let financesCache = [], pocketsCache = [], settingsCache = [];
+let financesCache = [], settingsCache = [];
 let balanceVisible = false;
 
 document.addEventListener('DOMContentLoaded', async () => { await fetchAllData(); });
@@ -20,37 +20,31 @@ const safeFetch = (url) => fetch(url).then(r => r.ok ? r.json() : []).catch(() =
 
 async function fetchAllData() {
     try {
-        const [resFinances, resPockets, resSettings] = await Promise.all([ safeFetch(`${API_URL}/finances`), safeFetch(`${API_URL}/pockets`), safeFetch(`${API_URL}/settings`) ]);
+        const [resFinances, resSettings] = await Promise.all([ safeFetch(`${API_URL}/finances`), safeFetch(`${API_URL}/settings`) ]);
         settingsCache = Array.isArray(resSettings) ? resSettings : [];
         financesCache = Array.isArray(resFinances) ? resFinances : [];
-        pocketsCache = Array.isArray(resPockets) ? resPockets : [];
     } catch (err) { console.error(err); } 
     finally {
         loadDynamicOptions();
         if (document.getElementById('dash-income-total')) updateDashboard();
-        if (document.getElementById('finance-table-body')) { renderFinances(); renderPockets(); }
+        if (document.getElementById('finance-table-body')) { renderFinances(); }
         if (document.getElementById('expense-list')) renderSettings();
     }
 }
 
 function loadDynamicOptions() {
     const categories = settingsCache.filter(s => s.type === 'categories').map(s => s.value);
-    const fixedItems = settingsCache.filter(s => s.type === 'fixed').map(s => s.value);
     document.querySelectorAll('.dynamic-expenses').forEach(sel => { sel.innerHTML = ''; categories.forEach(c => sel.innerHTML += `<option value="${c}">${c}</option>`); });
-    const fixedDatalist = document.getElementById('fixed-expenses-list');
-    if (fixedDatalist) { fixedDatalist.innerHTML = ''; fixedItems.forEach(f => fixedDatalist.innerHTML += `<option value="${f}"></option>`); }
 }
 
 function renderSettings() {
-    const cList = document.getElementById('expense-list'), fList = document.getElementById('fixed-list');
+    const cList = document.getElementById('expense-list');
     if(!cList) return;
-    cList.innerHTML = ''; fList.innerHTML = '';
+    cList.innerHTML = '';
     settingsCache.filter(s => s.type === 'categories').forEach(e => cList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${e.value}</span><button onclick="deleteSetting(${e.id})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`);
-    settingsCache.filter(s => s.type === 'fixed').forEach(f => fList.innerHTML += `<li class="flex justify-between items-center text-xs bg-slate-50 p-2 rounded border border-slate-100"><span class="font-medium text-slate-800">${f.value}</span><button onclick="deleteSetting(${f.id})" class="text-red-500 hover:text-red-700">Eliminar</button></li>`);
 }
 
 async function addExpenseType() { const val = document.getElementById('new-expense').value; if(val) { await fetch(`${API_URL}/settings`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'categories', value:val})}); document.getElementById('new-expense').value=''; fetchAllData(); } }
-async function addFixedItem() { const val = document.getElementById('new-fixed').value; if(val) { await fetch(`${API_URL}/settings`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'fixed', value:val})}); document.getElementById('new-fixed').value=''; fetchAllData(); } }
 async function deleteSetting(id) { await fetch(`${API_URL}/settings/${id}`, {method:'DELETE'}); fetchAllData(); }
 
 async function testTelegramAlert() {
@@ -135,32 +129,4 @@ function generateInvoicePDF(e) {
     doc.autoTable({ startY: 65, head: [['Descripción del Servicio / Venta', 'Total']], body: [ [concept, `$${parseFloat(amount).toFixed(2)}`] ], theme: 'striped', headStyles: { fillColor: [15, 23, 42] } });
     doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text(`Total a Pagar: $${parseFloat(amount).toFixed(2)}`, 140, (doc.lastAutoTable.finalY || 65) + 10);
     doc.save(`${invoiceNumber}_${client}.pdf`); closeInvoiceModal(); showCustomAlert("Factura Generada", "El PDF ha sido descargado.", "success");
-}
-
-function renderPockets() {
-    const grid = document.getElementById('pockets-grid'); if (!grid) return; grid.innerHTML = '';
-    if(pocketsCache.length === 0) { grid.innerHTML = '<p class="text-xs text-slate-500 col-span-3">No hay bolsillos de ahorro creados.</p>'; return; }
-    pocketsCache.forEach(p => {
-        const prog = Math.min(Math.round((p.current / p.target) * 100), 100);
-        grid.innerHTML += `<div class="border border-slate-200 rounded-xl p-4 bg-slate-50 flex flex-col justify-between"><div class="flex justify-between items-start mb-2"><h4 class="font-bold text-slate-900 text-sm truncate pr-2">${p.name}</h4><span class="px-2 py-0.5 bg-slate-200 text-slate-700 text-[10px] font-bold rounded flex-shrink-0">${p.bank} - **${p.account}</span></div><div class="mb-3"><div class="flex justify-between text-xs mb-1"><span class="text-slate-500 font-medium">$${parseFloat(p.current).toFixed(2)}</span><span class="text-slate-800 font-bold">$${parseFloat(p.target).toFixed(2)}</span></div><div class="w-full bg-slate-200 rounded-full h-1.5"><div class="bg-emerald-500 h-1.5 rounded-full" style="width: ${prog}%"></div></div></div><div class="flex justify-between items-center border-t border-slate-200 pt-3"><button onclick="openPocketTxModal(${p.id})" class="text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 px-2 py-1 rounded">Transacción</button><button onclick="deletePocket(${p.id})" class="text-red-500 hover:text-red-700 text-xs font-medium">Borrar</button></div></div>`;
-    });
-}
-async function savePocket(e) {
-    e.preventDefault(); const payload = { name: document.getElementById('pkt-name').value, bank: document.getElementById('pkt-bank').value, account: document.getElementById('pkt-account').value, target: parseFloat(document.getElementById('pkt-target').value), current: parseFloat(document.getElementById('pkt-current').value) };
-    try { await fetch(`${API_URL}/pockets`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); closePocketModal(); document.getElementById('pocket-form').reset(); showCustomAlert("Bolsillo Creado", "Fondo registrado exitosamente.", "success"); fetchAllData(); } catch(err) { showCustomAlert("Error", "Falló la creación.", "error"); }
-}
-async function deletePocket(id) { await fetch(`${API_URL}/pockets/${id}`, { method: 'DELETE' }); showCustomAlert("Bolsillo Borrado", "Eliminado correctamente.", "success"); fetchAllData(); }
-function openPocketModal() { document.getElementById('pocket-modal').classList.remove('hidden'); }
-function closePocketModal() { document.getElementById('pocket-modal').classList.add('hidden'); }
-function openPocketTxModal(id) { const p = pocketsCache.find(x => x.id === id); document.getElementById('tx-pocket-id').value = id; document.getElementById('tx-pocket-name').innerText = p.name; document.getElementById('pocket-tx-modal').classList.remove('hidden'); setTxType('add'); }
-function closePocketTxModal() { document.getElementById('pocket-tx-modal').classList.add('hidden'); }
-function setTxType(type) {
-    document.getElementById('tx-type').value = type; const bAdd = document.getElementById('btn-tx-add'), bSub = document.getElementById('btn-tx-sub');
-    if(type === 'add') { bAdd.className = "py-1.5 border-2 border-emerald-500 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg transition-colors"; bSub.className = "py-1.5 border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors"; } 
-    else { bSub.className = "py-1.5 border-2 border-rose-500 bg-rose-50 text-rose-700 text-xs font-bold rounded-lg transition-colors"; bAdd.className = "py-1.5 border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors"; }
-}
-async function executePocketTx(e) {
-    e.preventDefault(); const id = parseInt(document.getElementById('tx-pocket-id').value), type = document.getElementById('tx-type').value, amount = parseFloat(document.getElementById('tx-amount').value), pkt = pocketsCache.find(x => x.id === id);
-    let newCurrent = pkt.current; if (type === 'add') newCurrent += amount; else { if(amount > pkt.current) { showCustomAlert("Fondos Insuficientes", "El monto supera el saldo actual.", "error"); return; } newCurrent -= amount; }
-    try { await fetch(`${API_URL}/pockets/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current: newCurrent }) }); closePocketTxModal(); document.getElementById('pocket-tx-form').reset(); showCustomAlert("Transacción Exitosa", "Saldo actualizado.", "success"); fetchAllData(); } catch(err) { showCustomAlert("Error", "No se guardó el saldo.", "error"); }
 }

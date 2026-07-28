@@ -46,36 +46,27 @@
         <div class="p-8 space-y-6">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                <!-- Tipos de Gastos -->
+                <!-- Tipos de Gastos / Categorías -->
                 <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                     <h3 class="font-bold text-base text-slate-900 mb-2">Categorías Financieras</h3>
-                    <p class="text-xs text-slate-500 mb-4">Clasificación general de los movimientos.</p>
+                    <p class="text-xs text-slate-500 mb-4">Añade o elimina clasificaciones para tus movimientos de dinero.</p>
                     <div class="flex space-x-2 mb-4">
                         <input type="text" id="new-expense" placeholder="Ej: Pago de Nómina..." class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-900">
                         <button onclick="addExpenseType()" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-slate-800">Añadir</button>
                     </div>
                     <ul id="expense-list" class="space-y-2 border-t border-slate-100 pt-4 custom-scroll max-h-48 overflow-y-auto"></ul>
                 </div>
-
-                <!-- Deducciones / Gastos Fijos -->
-                <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                    <h3 class="font-bold text-base text-slate-900 mb-2">Deducciones Fijas Mensuales</h3>
-                    <p class="text-xs text-slate-500 mb-4">Arriendos, Luz, Internet. Para selección rápida.</p>
-                    <div class="flex space-x-2 mb-4">
-                        <input type="text" id="new-fixed" placeholder="Ej: Arriendo Oficina..." class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-900">
-                        <button onclick="addFixedItem()" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-slate-800">Añadir</button>
-                    </div>
-                    <ul id="fixed-list" class="space-y-2 border-t border-slate-100 pt-4 custom-scroll max-h-48 overflow-y-auto"></ul>
-                </div>
                 
                 <!-- Integraciones / Alertas -->
-                <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 lg:col-span-2">
-                    <h3 class="font-bold text-base text-slate-900 mb-2">Integraciones & Notificaciones (Telegram)</h3>
-                    <p class="text-xs text-slate-500 mb-4">El servidor enviará el balance del flujo de caja diario automáticamente al final del día.</p>
-                    <div class="flex space-x-3 border-t border-slate-100 pt-4">
-                        <button onclick="testTelegramAlert()" class="bg-[#0088cc] hover:bg-[#0077b5] text-white px-5 py-2.5 rounded-lg text-xs font-semibold transition-colors flex items-center shadow-sm">
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between">
+                    <div>
+                        <h3 class="font-bold text-base text-slate-900 mb-2">Integraciones & Notificaciones (Telegram)</h3>
+                        <p class="text-xs text-slate-500 mb-4">El servidor enviará el balance del flujo de caja diario automáticamente al final de cada jornada operativa.</p>
+                    </div>
+                    <div class="flex space-x-3 border-t border-slate-100 pt-4 mt-auto">
+                        <button onclick="testTelegramAlert()" class="bg-[#0088cc] hover:bg-[#0077b5] text-white px-5 py-2.5 rounded-lg text-xs font-semibold transition-colors flex items-center shadow-sm w-full justify-center">
                             <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.18-.08-.05-.2-.02-.28 0-.11.03-1.84 1.18-5.21 3.45-.49.34-.94.5-1.35.49-.44-.01-1.3-.25-1.93-.46-.78-.26-1.4-.4-1.34-.84.03-.23.36-.47.98-.72 3.85-1.68 6.42-2.78 7.71-3.32 3.67-1.53 4.43-1.8 4.93-1.81.11 0 .36.03.49.13.1.09.13.21.14.31-.01.03-.01.07-.02.16z"></path></svg>
-                            Forzar / Probar Reporte a Telegram Ahora
+                            Forzar Reporte a Telegram Ahora
                         </button>
                     </div>
                 </div>

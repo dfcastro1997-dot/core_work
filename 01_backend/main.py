@@ -23,8 +23,7 @@ with database.SessionLocal() as session:
     
     if session.query(models.Setting).count() == 0:
         defaults = [
-            ("categories", "Ingreso Operativo"), ("categories", "Pasivo Fijo"), ("categories", "Gasto Variable"),
-            ("fixed", "Arriendo Oficina"), ("fixed", "Suscripciones SaaS")
+            ("categories", "Ingreso Operativo"), ("categories", "Gasto Variable")
         ]
         for t, v in defaults: session.add(models.Setting(type=t, value=v))
         session.commit()
@@ -141,9 +140,8 @@ def get_main_menu():
     return {
         "inline_keyboard": [
             [{"text": "💰 + Ingreso", "callback_data": "add_income"}, {"text": "💸 - Gasto", "callback_data": "add_expense"}],
-            [{"text": "📌 - Descuento Fijo", "callback_data": "add_fixed"}],
-            [{"text": "📊 Resumen", "callback_data": "menu_dashboard"}, {"text": "🏦 Cuentas", "callback_data": "menu_pockets"}],
-            [{"text": "📄 Extracto PDF", "callback_data": "menu_pdf"}, {"text": "⚙️ Config", "callback_data": "menu_config"}]
+            [{"text": "📊 Resumen General", "callback_data": "menu_dashboard"}, {"text": "📄 Extracto PDF", "callback_data": "menu_pdf"}],
+            [{"text": "⚙️ Configuraciones", "callback_data": "menu_config"}]
         ]
     }
 
@@ -156,39 +154,25 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
         text_msg = data["message"]["text"].strip()
         reply_text = data["message"].get("reply_to_message", {}).get("text", "")
 
-        if "NUEVO INGRESO" in reply_text or "NUEVO GASTO" in reply_text or "DESCUENTO FIJO" in reply_text:
+        if "NUEVO INGRESO" in reply_text or "NUEVO GASTO" in reply_text:
             is_income = "INGRESO" in reply_text
-            is_fixed = "FIJO" in reply_text
             
-            if is_fixed:
+            parts = text_msg.split(" ", 1)
+            if len(parts) == 2:
                 try:
-                    amount = -abs(float(text_msg)) # Siempre negativo
-                    db_fin = models.Finance(concept="Descuento Fijo", amount=amount, type="Gasto Fijo", date=datetime.now().strftime("%Y-%m-%d"))
+                    amount = abs(float(parts[0]))
+                    if not is_income: amount = -amount # Gasto es negativo
+                    db_fin = models.Finance(concept=parts[1], amount=amount, type="Pendiente", date=datetime.now().strftime("%Y-%m-%d"))
                     db.add(db_fin); db.commit(); db.refresh(db_fin)
-                    kb = get_setting_keyboard("fixed", f"fin_fix_{db_fin.id}_", db)
-                    send_telegram_message(chat_id, f"✅ Monto guardado: <b>${abs(amount):,.2f}</b>\n\n<b>Selecciona la Deducción Fija:</b>", kb)
+                    kb = get_setting_keyboard("categories", f"fin_cat_{db_fin.id}_", db)
+                    send_telegram_message(chat_id, f"✅ Registro Exitoso: <b>${abs(amount):,.2f}</b>\n\n<b>Selecciona la Categoría Financiera:</b>", kb)
                 except ValueError: send_telegram_message(chat_id, "⚠️ El monto debe ser numérico.", get_main_menu())
-            else:
-                parts = text_msg.split(" ", 1)
-                if len(parts) == 2:
-                    try:
-                        amount = abs(float(parts[0]))
-                        if not is_income: amount = -amount # Gasto es negativo
-                        db_fin = models.Finance(concept=parts[1], amount=amount, type="Pendiente", date=datetime.now().strftime("%Y-%m-%d"))
-                        db.add(db_fin); db.commit(); db.refresh(db_fin)
-                        kb = get_setting_keyboard("categories", f"fin_cat_{db_fin.id}_", db)
-                        send_telegram_message(chat_id, f"✅ Registro Exitoso: <b>${abs(amount):,.2f}</b>\n\n<b>Selecciona la Categoría Financiera:</b>", kb)
-                    except ValueError: send_telegram_message(chat_id, "⚠️ El monto debe ser numérico.", get_main_menu())
-                else: send_telegram_message(chat_id, "⚠️ Formato incorrecto. Ejemplo: 1500 Concepto", get_main_menu())
+            else: send_telegram_message(chat_id, "⚠️ Formato incorrecto. Ejemplo: 1500 Concepto", get_main_menu())
             return {"status": "ok"}
                 
         elif "NUEVA CATEGORIA" in reply_text:
             db.add(models.Setting(type="categories", value=text_msg)); db.commit()
             send_telegram_message(chat_id, f"✅ Categoría añadida: {text_msg}", get_main_menu())
-            return {"status": "ok"}
-        elif "NUEVO GASTO FIJO" in reply_text:
-            db.add(models.Setting(type="fixed", value=text_msg)); db.commit()
-            send_telegram_message(chat_id, f"✅ Deducción fija añadida: {text_msg}", get_main_menu())
             return {"status": "ok"}
 
         if text_msg.startswith(("/start", "/menu")):
@@ -202,7 +186,6 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
         if call_data == "menu_main": edit_telegram_message(chat_id, message_id, "💼 <b>CORE-FINANCE OS</b>", get_main_menu())
         elif call_data == "add_income": send_telegram_message(chat_id, "💰 <b>NUEVO INGRESO</b>\nDigita Monto y Concepto (Ej: 1500 Venta):", {"force_reply": True})
         elif call_data == "add_expense": send_telegram_message(chat_id, "💸 <b>NUEVO GASTO</b>\nDigita Monto y Concepto (Ej: 45 Internet):", {"force_reply": True})
-        elif call_data == "add_fixed": send_telegram_message(chat_id, "📌 <b>NUEVO DESCUENTO FIJO</b>\nDigita solo el Monto (Ej: 500):", {"force_reply": True})
 
         elif call_data == "menu_dashboard":
             finances = db.query(models.Finance).all()
@@ -210,18 +193,6 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
             exp = sum([abs(f.amount) for f in finances if f.amount < 0])
             msg = f"📊 <b>ESTADO PATRIMONIAL GLOBAL:</b>\n\n📈 Ingresos: ${inc:,.2f}\n📉 Egresos: ${exp:,.2f}\n⚖️ <b>Flujo de Caja: ${(inc - exp):,.2f}</b>"
             send_telegram_message(chat_id, msg, get_main_menu())
-            
-        elif call_data == "menu_pockets":
-            pockets = db.query(models.Pocket).all()
-            if not pockets: send_telegram_message(chat_id, "⚠️ No tienes cuentas bancarias ni bolsillos.", get_main_menu())
-            else:
-                msg, total_liq = "🏦 <b>ESTADO DE CUENTAS (BOLSILLOS):</b>\n\n", 0
-                for p in pockets:
-                    prog = min(int((p.current / p.target) * 100) if p.target > 0 else 0, 100)
-                    msg += f"🔹 <b>{p.name}</b> ({p.bank})\n💰 Saldo: ${p.current:,.2f} <i>(Meta: {prog}%)</i>\n\n"
-                    total_liq += p.current
-                msg += f"💵 <b>Líquidez Total: ${total_liq:,.2f}</b>"
-                send_telegram_message(chat_id, msg, get_main_menu())
 
         elif call_data == "menu_pdf":
             kb = {"inline_keyboard": [[{"text": "📅 Hoy", "callback_data": "pdf_day"}, {"text": "📆 Esta Semana", "callback_data": "pdf_week"}], [{"text": "🗓 Este Mes", "callback_data": "pdf_month"}, {"text": "🌍 Este Año", "callback_data": "pdf_year"}], [{"text": "🔙 Volver", "callback_data": "menu_main"}]]}
@@ -251,15 +222,8 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
                 fin.type = setting.value; db.commit()
                 edit_telegram_message(chat_id, message_id, f"✅ ¡Transacción guardada en Categoría: {setting.value}!", get_main_menu())
 
-        elif call_data.startswith("fin_fix_"):
-            parts = call_data.split("_")
-            fin, setting = db.query(models.Finance).filter(models.Finance.id == int(parts[2])).first(), db.query(models.Setting).filter(models.Setting.id == int(parts[3])).first()
-            if fin and setting:
-                fin.concept = setting.value; db.commit()
-                edit_telegram_message(chat_id, message_id, f"✅ ¡Descuento Fijo registrado: {setting.value}!", get_main_menu())
-
         elif call_data == "menu_config":
-            kb = {"inline_keyboard": [[{"text": "💳 Categorías", "callback_data": "conf_list_categories"}, {"text": "📌 Gastos Fijos", "callback_data": "conf_list_fixed"}], [{"text": "🔙 Volver", "callback_data": "menu_main"}]]}
+            kb = {"inline_keyboard": [[{"text": "💳 Categorías", "callback_data": "conf_list_categories"}], [{"text": "🔙 Volver", "callback_data": "menu_main"}]]}
             edit_telegram_message(chat_id, message_id, "⚙️ <b>CONFIGURACIONES FINANCIERAS</b>", kb)
             
         elif call_data.startswith("conf_list_"):
@@ -274,8 +238,7 @@ async def telegram_webhook(request: Request, db: Session = Depends(database.get_
             send_telegram_message(chat_id, "🗑 Registro Eliminado.")
             
         elif call_data.startswith("conf_add_"):
-            prompt = "💳 NUEVA CATEGORIA" if "categories" in call_data else "📌 NUEVO GASTO FIJO"
-            send_telegram_message(chat_id, f"{prompt}\nEscribe el nombre:", {"force_reply": True})
+            send_telegram_message(chat_id, "💳 NUEVA CATEGORIA\nEscribe el nombre:", {"force_reply": True})
         
         requests.post(f"{TELEGRAM_API_URL}/answerCallbackQuery", json={"callback_query_id": callback_id})
     return {"status": "ok"}
@@ -299,8 +262,6 @@ def start_scheduler():
     scheduler = BackgroundScheduler(); scheduler.add_job(send_daily_finance_summary, CronTrigger(hour=19, minute=0)); scheduler.start()
 
 class FinanceCreate(BaseModel): concept: str; type: str; amount: float; date: str = None
-class PocketCreate(BaseModel): name: str; bank: str; account: str; target: float; current: float
-class PocketUpdate(BaseModel): current: float
 class SettingCreate(BaseModel): type: str; value: str
 
 @app.get("/settings")
@@ -318,15 +279,6 @@ def create_finance(fin: FinanceCreate, db: Session = Depends(database.get_db)):
     db_obj = models.Finance(**fin.dict()); db.add(db_obj); db.commit(); return db_obj
 @app.delete("/finances/{item_id}")
 def delete_finance(item_id: int, db: Session = Depends(database.get_db)): db.query(models.Finance).filter(models.Finance.id == item_id).delete(); db.commit(); return {"msg": "ok"}
-
-@app.get("/pockets")
-def get_pockets(db: Session = Depends(database.get_db)): return db.query(models.Pocket).all()
-@app.post("/pockets")
-def create_pocket(pkt: PocketCreate, db: Session = Depends(database.get_db)): db_obj = models.Pocket(**pkt.dict()); db.add(db_obj); db.commit(); return db_obj
-@app.put("/pockets/{item_id}")
-def update_pocket(item_id: int, pkt: PocketUpdate, db: Session = Depends(database.get_db)): db_obj = db.query(models.Pocket).filter(models.Pocket.id == item_id).first(); db_obj.current = pkt.current; db.commit(); return db_obj
-@app.delete("/pockets/{item_id}")
-def delete_pocket(item_id: int, db: Session = Depends(database.get_db)): db.query(models.Pocket).filter(models.Pocket.id == item_id).delete(); db.commit(); return {"msg": "ok"}
 
 @app.post("/test-telegram")
 def test_telegram(): send_daily_finance_summary(); return {"message": "ok"}
