@@ -11,13 +11,11 @@ from fpdf import FPDF
 import database
 import models
 
-# Inicializar Base de Datos
 models.Base.metadata.create_all(bind=database.engine)
 
-# Crear Usuarios de Prueba (Seed)
 with database.SessionLocal() as session:
     if session.query(models.User).count() == 0:
-        school_test = models.School(name="Academia Central Guardias", subscription_type="Mensual", max_operators=100, max_instructors=20)
+        school_test = models.School(name="Academia Central Guardias", subscription_type="Mensual", max_operators=100, max_instructors=20, is_active=True, allowed_sims="DENSITY,VMS-X")
         session.add(school_test)
         session.commit()
         session.refresh(school_test)
@@ -30,18 +28,16 @@ with database.SessionLocal() as session:
         session.add_all([admin, academia, instructor, operador])
         session.commit()
 
-app = FastAPI(title="SECURITY CLOUD API")
+app = FastAPI(title="SECURITY CLOUD API V2")
 
-# --- CORRECCIÓN CRÍTICA DE CORS ---
 app.add_middleware(
     CORSMiddleware, 
     allow_origins=["*"], 
-    allow_credentials=False, # <--- DEBE SER FALSE PARA QUE FUNCIONE CON ORIGINS=["*"]
+    allow_credentials=False, 
     allow_methods=["*"], 
     allow_headers=["*"]
 )
 
-# --- Esquemas Pydantic ---
 class LoginData(BaseModel): 
     role: str
     username: str
@@ -55,6 +51,8 @@ class SchoolCreate(BaseModel):
     max_operators: int
     max_instructors: int = 10
     icon_url: str = ""
+    is_active: bool = True
+    allowed_sims: str = "DENSITY,VMS-X"
 
 class SchoolUpdate(BaseModel):
     name: str
@@ -62,16 +60,25 @@ class SchoolUpdate(BaseModel):
     max_operators: int
     max_instructors: int = 10
     icon_url: str = ""
+    is_active: bool = True
+    allowed_sims: str = "DENSITY,VMS-X"
 
 class UserCreate(BaseModel): username: str; password: str; role: str; school_id: int = None
 class UserUpdate(BaseModel): username: str; password: str; school_id: int; role: str
 class ResultCreate(BaseModel): user_id: int; simulator_type: str; score: float; details: str
+class FeedbackUpdate(BaseModel): feedback: str
 
-# --- Endpoints ---
 @app.post("/login")
 def login(data: LoginData, db: Session = Depends(database.get_db)):
     user = db.query(models.User).filter_by(username=data.username, password=data.password, role=data.role).first()
     if not user: raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+    
+    # Bloquear si la academia está suspendida
+    if user.school_id and user.role != "admin":
+        school = db.query(models.School).filter_by(id=user.school_id).first()
+        if school and not school.is_active:
+            raise HTTPException(status_code=403, detail="Tu academia ha sido suspendida por el administrador.")
+            
     return {"id": user.id, "role": user.role, "school_id": user.school_id, "username": user.username}
 
 @app.get("/schools")
@@ -83,7 +90,7 @@ def create_school(s: SchoolCreate, db: Session = Depends(database.get_db)):
     if db.query(models.User).filter_by(username=s.username).first():
         raise HTTPException(status_code=400, detail="El usuario ya existe")
     
-    db_s = models.School(name=s.name, subscription_type=s.subscription_type, max_operators=s.max_operators, max_instructors=s.max_instructors, icon_url=s.icon_url)
+    db_s = models.School(**s.dict(exclude={'username', 'password'}))
     db.add(db_s)
     db.commit()
     db.refresh(db_s)
@@ -91,20 +98,14 @@ def create_school(s: SchoolCreate, db: Session = Depends(database.get_db)):
     db_u = models.User(username=s.username, password=s.password, role="school", school_id=db_s.id)
     db.add(db_u)
     db.commit()
-    
     return db_s
 
 @app.put("/schools/{school_id}")
 def update_school(school_id: int, s: SchoolUpdate, db: Session = Depends(database.get_db)):
     db_s = db.query(models.School).filter_by(id=school_id).first()
     if not db_s: raise HTTPException(status_code=404, detail="Escuela no encontrada")
-    
-    db_s.name = s.name
-    db_s.subscription_type = s.subscription_type
-    db_s.max_operators = s.max_operators
-    db_s.max_instructors = s.max_instructors
-    db_s.icon_url = s.icon_url
-    
+    for key, value in s.dict().items():
+        setattr(db_s, key, value)
     db.commit()
     return db_s
 
@@ -112,15 +113,13 @@ def update_school(school_id: int, s: SchoolUpdate, db: Session = Depends(databas
 def delete_school(school_id: int, db: Session = Depends(database.get_db)):
     db_s = db.query(models.School).filter_by(id=school_id).first()
     if not db_s: raise HTTPException(status_code=404, detail="Escuela no encontrada")
-    
     users = db.query(models.User).filter_by(school_id=school_id).all()
     for u in users:
         db.query(models.SimulationResult).filter_by(user_id=u.id).delete()
         db.delete(u)
-        
     db.delete(db_s)
     db.commit()
-    return {"msg": "Escuela borrada exitosamente"}
+    return {"msg": "Escuela borrada"}
 
 @app.get("/users")
 def get_users(db: Session = Depends(database.get_db)):
@@ -130,19 +129,15 @@ def get_users(db: Session = Depends(database.get_db)):
 def create_user(u: UserCreate, db: Session = Depends(database.get_db)):
     if db.query(models.User).filter_by(username=u.username).first():
         raise HTTPException(status_code=400, detail="El usuario ya existe")
-        
     if u.role in ["operator", "instructor"] and u.school_id:
         school = db.query(models.School).filter_by(id=u.school_id).first()
         if school:
             if u.role == "operator":
                 current_ops = db.query(models.User).filter_by(school_id=u.school_id, role="operator").count()
-                if current_ops >= school.max_operators:
-                    raise HTTPException(status_code=400, detail=f"Límite de Operadores ({school.max_operators}) alcanzado para esta escuela.")
+                if current_ops >= school.max_operators: raise HTTPException(status_code=400, detail="Límite de Operadores alcanzado.")
             elif u.role == "instructor":
                 current_inst = db.query(models.User).filter_by(school_id=u.school_id, role="instructor").count()
-                if current_inst >= school.max_instructors:
-                    raise HTTPException(status_code=400, detail=f"Límite de Instructores ({school.max_instructors}) alcanzado para esta escuela.")
-
+                if current_inst >= school.max_instructors: raise HTTPException(status_code=400, detail="Límite de Instructores alcanzado.")
     db_u = models.User(**u.dict())
     db.add(db_u)
     db.commit()
@@ -153,10 +148,8 @@ def create_user(u: UserCreate, db: Session = Depends(database.get_db)):
 def update_user(user_id: int, u: UserUpdate, db: Session = Depends(database.get_db)):
     db_u = db.query(models.User).filter_by(id=user_id).first()
     if not db_u: raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    
     exist = db.query(models.User).filter_by(username=u.username).first()
     if exist and exist.id != user_id: raise HTTPException(status_code=400, detail="Username ya en uso")
-    
     db_u.username = u.username
     if u.password: db_u.password = u.password
     db_u.school_id = u.school_id
@@ -179,23 +172,8 @@ def get_results(user_id: int, db: Session = Depends(database.get_db)):
 
 @app.get("/school-results/{school_id}")
 def get_school_results(school_id: int, db: Session = Depends(database.get_db)):
-    results = db.query(models.SimulationResult, models.User)\
-        .join(models.User, models.SimulationResult.user_id == models.User.id)\
-        .filter(models.User.school_id == school_id)\
-        .order_by(models.SimulationResult.id.desc()).all()
-    
-    return [
-        {
-            "id": r.SimulationResult.id,
-            "user_id": r.SimulationResult.user_id,
-            "username": r.User.username,
-            "role": r.User.role,
-            "simulator_type": r.SimulationResult.simulator_type,
-            "score": r.SimulationResult.score,
-            "date": r.SimulationResult.date,
-            "details": r.SimulationResult.details
-        } for r in results
-    ]
+    results = db.query(models.SimulationResult, models.User).join(models.User, models.SimulationResult.user_id == models.User.id).filter(models.User.school_id == school_id).order_by(models.SimulationResult.id.desc()).all()
+    return [{ "id": r.SimulationResult.id, "user_id": r.SimulationResult.user_id, "username": r.User.username, "role": r.User.role, "simulator_type": r.SimulationResult.simulator_type, "score": r.SimulationResult.score, "date": r.SimulationResult.date, "details": r.SimulationResult.details, "feedback": r.SimulationResult.feedback } for r in results]
 
 @app.post("/results")
 def save_result(r: ResultCreate, db: Session = Depends(database.get_db)):
@@ -203,6 +181,14 @@ def save_result(r: ResultCreate, db: Session = Depends(database.get_db)):
     db.add(db_r)
     db.commit()
     return db_r
+
+@app.put("/results/{result_id}/feedback")
+def add_feedback(result_id: int, f: FeedbackUpdate, db: Session = Depends(database.get_db)):
+    res = db.query(models.SimulationResult).filter_by(id=result_id).first()
+    if not res: raise HTTPException(404, "Resultado no encontrado")
+    res.feedback = f.feedback
+    db.commit()
+    return res
 
 class CertPDF(FPDF):
     def header(self):
@@ -215,7 +201,7 @@ class CertPDF(FPDF):
         self.cell(0, 10, 'CLOUD', 0, 1, 'C')
         self.set_font('Arial', '', 12)
         self.set_text_color(100, 100, 100)
-        self.cell(0, 8, 'Certificado de Competencia Operativa en Entorno Virtual', 0, 1, 'C')
+        self.cell(0, 8, 'Certificado de Competencia Operativa', 0, 1, 'C')
         self.set_draw_color(220, 38, 38)
         self.set_line_width(0.8)
         self.line(20, 32, 190, 32)
@@ -224,7 +210,7 @@ class CertPDF(FPDF):
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
         self.set_text_color(150, 150, 150)
-        self.cell(0, 10, 'Documento generado automaticamente por Security Cloud Platform.', 0, 0, 'C')
+        self.cell(0, 10, 'Generado automaticamente por Security Cloud Platform.', 0, 0, 'C')
 
 @app.get("/generate_pdf/{result_id}")
 def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
@@ -236,27 +222,36 @@ def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
     pdf.add_page()
     pdf.set_font("Arial", 'B', 14)
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 10, f"PERSONAL EVALUADO: {user.username.upper()}", 0, 1)
+    pdf.cell(0, 10, f"PERSONAL EVALUADO: {user.username.upper()} ({user.role.upper()})", 0, 1)
     pdf.set_font("Arial", '', 12)
-    pdf.cell(0, 8, f"Rol: {user.role.capitalize()}", 0, 1)
-    pdf.cell(0, 8, f"Plataforma de Simulacion: {res.simulator_type}", 0, 1)
-    pdf.cell(0, 8, f"Fecha de Certificacion: {res.date}", 0, 1)
+    pdf.cell(0, 8, f"Plataforma: {res.simulator_type}", 0, 1)
+    pdf.cell(0, 8, f"Fecha: {res.date}", 0, 1)
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 16)
     if res.score >= 80: pdf.set_text_color(0, 128, 0)
     else: pdf.set_text_color(220, 38, 38)
     pdf.cell(0, 10, f"EFECTIVIDAD TACTICA (SCORE): {res.score}%", 0, 1)
     pdf.ln(5)
+    
     pdf.set_font("Arial", 'B', 12)
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 10, "Auditoria Forense (Log del Sistema):", 0, 1)
+    pdf.cell(0, 10, "Auditoria Forense (Log):", 0, 1)
     pdf.set_font("Arial", '', 11)
     pdf.set_fill_color(245, 245, 245)
     pdf.multi_cell(0, 8, f"{res.details}", fill=True, border=1)
+    pdf.ln(5)
     
+    if res.feedback:
+        pdf.set_font("Arial", 'B', 12)
+        pdf.set_text_color(220, 38, 38)
+        pdf.cell(0, 10, "Comentarios del Instructor:", 0, 1)
+        pdf.set_font("Arial", 'I', 11)
+        pdf.set_text_color(0, 0, 0)
+        pdf.multi_cell(0, 8, f"{res.feedback}")
+
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     pdf.output(temp_file.name)
-    return FileResponse(temp_file.name, media_type='application/pdf', filename=f"Certificado_{user.username}.pdf")
+    return FileResponse(temp_file.name, media_type='application/pdf', filename=f"Cert_{user.username}.pdf")
 
 @app.get("/reset-db")
 def reset_database():
