@@ -1,3 +1,4 @@
+// Asegúrate de que esta URL apunta a tu Render (o a http://localhost:8000 en desarrollo)
 const API_URL = 'https://core-work-api.onrender.com';
 let currentUser = null;
 let allSchools = [];
@@ -9,7 +10,7 @@ const ROLE_LABELS = {
     'operator': 'Operador'
 };
 
-/* ================== SISTEMA DE MODALES (SOLO ADMIN) ================== */
+/* ================== SISTEMA DE MODALES ================== */
 function customAlert(title, message, type = 'success') {
     const modal = document.getElementById('alert-modal');
     if (modal) {
@@ -84,7 +85,6 @@ async function setupHeader() {
     if(welcomeEl) welcomeEl.innerText = currentUser.username.toUpperCase();
     if(roleEl) roleEl.innerText = ROLE_LABELS[currentUser.role];
 
-    // LÓGICA DE LOGO DINÁMICO
     if (currentUser.role === 'school' || currentUser.role === 'operator') {
         try {
             const res = await fetch(`${API_URL}/schools`);
@@ -151,7 +151,6 @@ async function login(e) {
             progressBar.style.width = '100%';
             loadingText.innerText = "¡Acceso Autorizado!";
             loadingText.classList.remove('text-gray-500', 'animate-pulse');
-            // MODIFICACIÓN A TEXTO ROJO:
             loadingText.classList.add('text-red-600'); 
             
             currentUser = await res.json();
@@ -206,6 +205,8 @@ async function loadAdminDashboard() {
     fetchAndRenderOperators();
 }
 
+/* ================== LÓGICA ESCUELAS (CREAR, LEER, EDITAR, BORRAR) ================== */
+
 async function fetchSchools() {
     try {
         const res = await fetch(`${API_URL}/schools`);
@@ -213,32 +214,45 @@ async function fetchSchools() {
         
         const list = document.getElementById('school-list');
         if(list) {
-            list.innerHTML = allSchools.map(s => {
-                const iconoHTML = s.icon_url 
-                    ? `<img src="${s.icon_url}" class="w-12 h-12 rounded-lg object-contain bg-white border border-gray-200">`
-                    : `<div class="w-12 h-12 bg-gray-200 text-gray-500 rounded-lg flex items-center justify-center font-bold text-xl">${s.name.charAt(0).toUpperCase()}</div>`;
-                
-                return `
-                <li class="p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-sm mb-3 flex items-center hover:border-red-300 transition-colors">
-                    ${iconoHTML}
-                    <div class="ml-4">
-                        <span class="block font-bold text-black text-lg">${s.name}</span>
-                        <span class="block text-sm text-gray-500">Plan: <b>${s.subscription_type}</b> | Límite Ops: <b>${s.max_operators}</b></span>
-                    </div>
-                </li>
-                `;
-            }).join('');
+            // Renderiza la lista con el diseño mejorado y botones de acción
+            if(allSchools.length === 0) {
+                list.innerHTML = `<li class="text-center py-6 text-gray-500 italic">No hay escuelas registradas.</li>`;
+            } else {
+                list.innerHTML = allSchools.map(s => {
+                    const iconoHTML = s.icon_url 
+                        ? `<img src="${s.icon_url}" class="w-12 h-12 rounded-lg object-contain bg-white border border-gray-200 flex-shrink-0">`
+                        : `<div class="w-12 h-12 bg-gray-200 text-gray-500 rounded-lg flex items-center justify-center font-bold text-xl flex-shrink-0">${s.name.charAt(0).toUpperCase()}</div>`;
+                    
+                    return `
+                    <li class="p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-sm mb-3 flex items-center justify-between hover:border-red-300 transition-colors">
+                        <div class="flex items-center">
+                            ${iconoHTML}
+                            <div class="ml-4">
+                                <span class="block font-bold text-black text-lg">${s.name}</span>
+                                <span class="block text-sm text-gray-500">Plan: <b>${s.subscription_type}</b> | Límite Ops: <b>${s.max_operators}</b></span>
+                            </div>
+                        </div>
+                        <div class="flex space-x-3 ml-4">
+                            <button onclick="openEditSchoolModal(${s.id})" class="text-blue-600 font-bold hover:underline text-sm">Editar</button>
+                            <button onclick="deleteSchool(${s.id})" class="text-red-600 font-bold hover:underline text-sm">Borrar</button>
+                        </div>
+                    </li>
+                    `;
+                }).join('');
+            }
         }
         
+        // Rellenar selects
         const filterSelect = document.getElementById('filter-school');
         const modalSelect = document.getElementById('op-school-id');
-        
         if(filterSelect && modalSelect) {
             let optionsHtml = allSchools.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
             filterSelect.innerHTML = `<option value="all">Todas las escuelas</option>` + optionsHtml;
             modalSelect.innerHTML = optionsHtml;
         }
-    } catch(e) {}
+    } catch(e) {
+        console.error(e);
+    }
 }
 
 async function createSchool(e) {
@@ -248,7 +262,7 @@ async function createSchool(e) {
     const username = document.getElementById('school-username').value;
     const pass = document.getElementById('school-password').value;
     const limit = document.getElementById('school-limit').value;
-    const iconUrl = document.getElementById('school-icon').value; // NUEVO
+    const iconUrl = document.getElementById('school-icon').value;
     
     try {
         const res = await fetch(`${API_URL}/schools`, { 
@@ -256,7 +270,7 @@ async function createSchool(e) {
             body: JSON.stringify({name, subscription_type: sub, username: username, password: pass, max_operators: parseInt(limit), icon_url: iconUrl}) 
         });
         if(res.ok) {
-            customAlert('Creación Exitosa', 'La escuela y su usuario de acceso LMS fueron creados exitosamente.', 'success');
+            customAlert('Creación Exitosa', 'La escuela y su usuario de acceso fueron creados exitosamente.', 'success');
             document.getElementById('school-name').value = '';
             document.getElementById('school-username').value = '';
             document.getElementById('school-password').value = '';
@@ -269,6 +283,62 @@ async function createSchool(e) {
     } catch(err) { customAlert('Error', 'Problema de conexión con el servidor.', 'error'); }
 }
 
+function openEditSchoolModal(id) {
+    const school = allSchools.find(s => s.id === id);
+    if(school) {
+        document.getElementById('edit-school-id').value = school.id;
+        document.getElementById('edit-school-name').value = school.name;
+        document.getElementById('edit-school-plan').value = school.subscription_type;
+        document.getElementById('edit-school-limit').value = school.max_operators;
+        document.getElementById('edit-school-icon').value = school.icon_url || '';
+        document.getElementById('edit-school-modal').classList.remove('hidden');
+    }
+}
+
+function closeEditSchoolModal() {
+    document.getElementById('edit-school-modal').classList.add('hidden');
+}
+
+async function saveEditSchool(e) {
+    e.preventDefault();
+    const id = document.getElementById('edit-school-id').value;
+    const name = document.getElementById('edit-school-name').value;
+    const sub = document.getElementById('edit-school-plan').value;
+    const limit = document.getElementById('edit-school-limit').value;
+    const iconUrl = document.getElementById('edit-school-icon').value;
+
+    try {
+        const res = await fetch(`${API_URL}/schools/${id}`, {
+            method: 'PUT', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: name, subscription_type: sub, max_operators: parseInt(limit), icon_url: iconUrl})
+        });
+        if(res.ok) {
+            customAlert('Éxito', 'Escuela actualizada correctamente.', 'success');
+            closeEditSchoolModal();
+            fetchSchools(); // Refrescar lista
+        } else {
+            customAlert('Error', 'No se pudo actualizar la escuela.', 'error');
+        }
+    } catch (error) {
+        customAlert('Error', 'Error de conexión con el servidor.', 'error');
+    }
+}
+
+function deleteSchool(id) {
+    customConfirm('Borrar Escuela', '¿Deseas eliminar la escuela? Se borrarán todos los operadores y resultados permanentemente.', async () => {
+        try {
+            const res = await fetch(`${API_URL}/schools/${id}`, { method: 'DELETE' });
+            if(res.ok) {
+                customAlert('Eliminado', 'La escuela ha sido eliminada por completo.', 'success');
+                fetchSchools();
+            } else {
+                customAlert('Error', 'Ocurrió un problema al borrar.', 'error');
+            }
+        } catch(err) { customAlert('Error', 'Error de conexión.', 'error'); }
+    });
+}
+
+/* ================== LÓGICA OPERADORES ================== */
 async function fetchAndRenderOperators() {
     try {
         const res = await fetch(`${API_URL}/users`);
@@ -370,7 +440,7 @@ function deleteOperator(id) {
     });
 }
 
-/* ================== LÓGICA ESCUELA ================== */
+/* ================== LÓGICA ESCUELA DASHBOARD ================== */
 async function loadSchoolDashboard() {
     const res = await fetch(`${API_URL}/users`);
     const users = await res.json();
@@ -428,7 +498,7 @@ async function viewOperatorResults(userId) {
     `).join('');
 }
 
-/* ================== LÓGICA OPERADOR ================== */
+/* ================== LÓGICA OPERADOR DASHBOARD ================== */
 let activeSim = '';
 async function loadOperatorDashboard() {
     const res = await fetch(`${API_URL}/results/${currentUser.id}`);

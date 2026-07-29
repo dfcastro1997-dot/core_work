@@ -51,7 +51,14 @@ class SchoolCreate(BaseModel):
     username: str
     password: str
     max_operators: int
-    icon_url: str = ""  # <--- AÑADE ESTA LÍNEA
+    icon_url: str = ""
+
+# Nuevo esquema para actualizar la escuela sin tocar la contraseña/usuario
+class SchoolUpdate(BaseModel):
+    name: str
+    subscription_type: str
+    max_operators: int
+    icon_url: str = ""
 
 class UserCreate(BaseModel): username: str; password: str; role: str; school_id: int = None
 class UserUpdate(BaseModel): username: str; password: str; school_id: int
@@ -73,8 +80,8 @@ def create_school(s: SchoolCreate, db: Session = Depends(database.get_db)):
     if db.query(models.User).filter_by(username=s.username).first():
         raise HTTPException(status_code=400, detail="El usuario ya existe")
     
-    # <--- AÑADE s.icon_url AQUÍ ABAJO
-    db_s = models.School(name=s.name, subscription_type=s.subscription_type, max_operators=s.max_operators, icon_url=s.icon_url) 
+    # 1. Crear Escuela
+    db_s = models.School(name=s.name, subscription_type=s.subscription_type, max_operators=s.max_operators, icon_url=s.icon_url)
     db.add(db_s)
     db.commit()
     db.refresh(db_s)
@@ -86,6 +93,36 @@ def create_school(s: SchoolCreate, db: Session = Depends(database.get_db)):
     
     return db_s
 
+# NUEVO: Editar Escuela
+@app.put("/schools/{school_id}")
+def update_school(school_id: int, s: SchoolUpdate, db: Session = Depends(database.get_db)):
+    db_s = db.query(models.School).filter_by(id=school_id).first()
+    if not db_s: raise HTTPException(status_code=404, detail="Escuela no encontrada")
+    
+    db_s.name = s.name
+    db_s.subscription_type = s.subscription_type
+    db_s.max_operators = s.max_operators
+    db_s.icon_url = s.icon_url
+    
+    db.commit()
+    return db_s
+
+# NUEVO: Borrar Escuela
+@app.delete("/schools/{school_id}")
+def delete_school(school_id: int, db: Session = Depends(database.get_db)):
+    db_s = db.query(models.School).filter_by(id=school_id).first()
+    if not db_s: raise HTTPException(status_code=404, detail="Escuela no encontrada")
+    
+    # Buscar y borrar todos los usuarios y resultados asociados a esta escuela para no dejar basura
+    users = db.query(models.User).filter_by(school_id=school_id).all()
+    for u in users:
+        db.query(models.SimulationResult).filter_by(user_id=u.id).delete()
+        db.delete(u)
+        
+    db.delete(db_s)
+    db.commit()
+    return {"msg": "Escuela borrada exitosamente"}
+
 @app.get("/users")
 def get_users(db: Session = Depends(database.get_db)):
     return db.query(models.User).all()
@@ -95,7 +132,6 @@ def create_user(u: UserCreate, db: Session = Depends(database.get_db)):
     if db.query(models.User).filter_by(username=u.username).first():
         raise HTTPException(status_code=400, detail="El usuario ya existe")
         
-    # Validar limite de operadores
     if u.role == "operator" and u.school_id:
         school = db.query(models.School).filter_by(id=u.school_id).first()
         current_ops = db.query(models.User).filter_by(school_id=u.school_id, role="operator").count()
@@ -113,7 +149,6 @@ def update_user(user_id: int, u: UserUpdate, db: Session = Depends(database.get_
     db_u = db.query(models.User).filter_by(id=user_id).first()
     if not db_u: raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
-    # Check si el nuevo username existe y no es el mismo
     exist = db.query(models.User).filter_by(username=u.username).first()
     if exist and exist.id != user_id: raise HTTPException(status_code=400, detail="Username ya en uso")
     
@@ -127,7 +162,6 @@ def update_user(user_id: int, u: UserUpdate, db: Session = Depends(database.get_
 def delete_user(user_id: int, db: Session = Depends(database.get_db)):
     db_u = db.query(models.User).filter_by(id=user_id).first()
     if not db_u: raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    # Borrar resultados asociados
     db.query(models.SimulationResult).filter_by(user_id=user_id).delete()
     db.delete(db_u)
     db.commit()
@@ -166,15 +200,6 @@ class CertPDF(FPDF):
         self.set_text_color(150, 150, 150)
         self.cell(0, 10, 'Documento generado automaticamente por Security Cloud Platform.', 0, 0, 'C')
 
-
-@app.get("/reset-db")
-def reset_database():
-    # ADVERTENCIA: Esto borrará todos los datos. Solo para desarrollo.
-    models.Base.metadata.drop_all(bind=database.engine)
-    models.Base.metadata.create_all(bind=database.engine)
-    return {"msg": "Base de datos reseteada con éxito. Ya puedes crear escuelas."}
-
-
 @app.get("/generate_pdf/{result_id}")
 def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
     res = db.query(models.SimulationResult).filter_by(id=result_id).first()
@@ -205,3 +230,10 @@ def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     pdf.output(temp_file.name)
     return FileResponse(temp_file.name, media_type='application/pdf', filename=f"Certificado_{user.username}.pdf")
+
+# (Ruta de reseteo para desarrollo temporal si la necesitas)
+@app.get("/reset-db")
+def reset_database():
+    models.Base.metadata.drop_all(bind=database.engine)
+    models.Base.metadata.create_all(bind=database.engine)
+    return {"msg": "Base de datos reseteada con éxito."}
