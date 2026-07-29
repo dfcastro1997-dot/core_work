@@ -165,6 +165,15 @@ class CertPDF(FPDF):
         self.set_text_color(150, 150, 150)
         self.cell(0, 10, 'Documento generado automaticamente por Security Cloud Platform.', 0, 0, 'C')
 
+
+@app.get("/reset-db")
+def reset_database():
+    # ADVERTENCIA: Esto borrará todos los datos. Solo para desarrollo.
+    models.Base.metadata.drop_all(bind=database.engine)
+    models.Base.metadata.create_all(bind=database.engine)
+    return {"msg": "Base de datos reseteada con éxito. Ya puedes crear escuelas."}
+
+
 @app.get("/generate_pdf/{result_id}")
 def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
     res = db.query(models.SimulationResult).filter_by(id=result_id).first()
