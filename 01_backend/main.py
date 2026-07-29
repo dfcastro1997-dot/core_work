@@ -29,7 +29,7 @@ with database.SessionLocal() as session:
         session.add_all([admin, academia, instructor, operador])
         session.commit()
 
-app = FastAPI(title="SECURITY CLOUD API V3.1")
+app = FastAPI(title="SECURITY CLOUD API V3.5")
 
 app.add_middleware(
     CORSMiddleware, 
@@ -48,6 +48,7 @@ class ResultCreate(BaseModel): user_id: int; simulator_type: str; score: float; 
 class FeedbackUpdate(BaseModel): feedback: str
 
 class QuizCreate(BaseModel): school_id: int; instructor_id: int; title: str; questions: str; time_limit: int; assigned_operators: str
+class QuizUpdate(BaseModel): title: str; questions: str; time_limit: int; assigned_operators: str
 class AnswerItem(BaseModel): question_index: int; selected_option: int
 class QuizSubmit(BaseModel): quiz_id: int; operator_id: int; answers: list[AnswerItem]
 class QuizAssign(BaseModel): new_operators: list[int]
@@ -176,29 +177,46 @@ def create_quiz(q: QuizCreate, db: Session = Depends(database.get_db)):
     db.commit()
     return {"msg": "Examen creado exitosamente"}
 
+@app.put("/quizzes/{quiz_id}")
+def update_quiz(quiz_id: int, q: QuizUpdate, db: Session = Depends(database.get_db)):
+    db_q = db.query(models.Quiz).filter_by(id=quiz_id).first()
+    if not db_q: raise HTTPException(404, "Examen no encontrado")
+    db_q.title = q.title
+    db_q.questions = q.questions
+    db_q.time_limit = q.time_limit
+    db_q.assigned_operators = q.assigned_operators
+    db.commit()
+    return {"msg": "Examen actualizado exitosamente"}
+
+@app.delete("/quizzes/{quiz_id}")
+def delete_quiz(quiz_id: int, db: Session = Depends(database.get_db)):
+    db_q = db.query(models.Quiz).filter_by(id=quiz_id).first()
+    if not db_q: raise HTTPException(404, "Examen no encontrado")
+    # Borrar primero resultados asociados para evitar error de FK
+    db.query(models.QuizResult).filter_by(quiz_id=quiz_id).delete()
+    db.delete(db_q)
+    db.commit()
+    return {"msg": "Examen borrado exitosamente"}
+
 @app.get("/quizzes/school/{school_id}")
 def get_school_quizzes(school_id: int, db: Session = Depends(database.get_db)):
     return db.query(models.Quiz).filter_by(school_id=school_id).order_by(models.Quiz.id.desc()).all()
 
-# NUEVO: Ruta para asignar un examen que ya existe a nuevos alumnos
 @app.put("/quizzes/{quiz_id}/assign")
 def assign_quiz(quiz_id: int, req: QuizAssign, db: Session = Depends(database.get_db)):
     quiz = db.query(models.Quiz).filter_by(id=quiz_id).first()
     if not quiz: raise HTTPException(404, "Examen no encontrado")
     
     current_assigned = json.loads(quiz.assigned_operators)
-    # Convierte a set para eliminar duplicados si por error se manda dos veces
     updated_assigned = list(set(current_assigned + req.new_operators))
     quiz.assigned_operators = json.dumps(updated_assigned)
     
     db.commit()
     return {"msg": "Asignación actualizada exitosamente"}
 
-# NUEVO: Ruta para saber que examenes ya hizo el operador y no dejarselos repetir
 @app.get("/quizzes/operator/{operator_id}/completed")
 def get_completed_quizzes(operator_id: int, db: Session = Depends(database.get_db)):
     results = db.query(models.QuizResult).filter_by(operator_id=operator_id).all()
-    # Retorna unicamente un arreglo con los IDs de los examenes que ya entregó
     return [r.quiz_id for r in results]
 
 @app.post("/quizzes/submit")

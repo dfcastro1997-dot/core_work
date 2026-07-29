@@ -1,10 +1,12 @@
-// ATENCION: Cambia a http://localhost:8000 si pruebas en local
+// ATENCION: Cambia a http://localhost:8000 si pruebas en tu computadora localmente
 const API_URL = 'https://core-work-api.onrender.com';
+
 let currentUser = null;
 let allSchools = [];
 let allUsers = [];
 let schoolDataResults = []; 
-let bankQuizzes = []; // Cache de exámenes creados por el instructor
+let bankQuizzes = []; 
+let editingQuizId = null; // Controla si creamos o editamos un examen
 
 const ROLE_LABELS = {
     'admin': 'Administrador',
@@ -13,7 +15,7 @@ const ROLE_LABELS = {
     'operator': 'Operador'
 };
 
-/* ================== SISTEMA DE MODALES ================== */
+/* ================== SISTEMA DE MODALES (UI) ================== */
 function customAlert(title, message, type = 'success') {
     const modal = document.getElementById('alert-modal');
     if (modal) {
@@ -31,7 +33,10 @@ function customAlert(title, message, type = 'success') {
     } else { alert(title + ": " + message); }
 }
 
-function closeAlertModal() { document.getElementById('alert-modal').classList.add('hidden'); }
+function closeAlertModal() { 
+    const modal = document.getElementById('alert-modal');
+    if(modal) modal.classList.add('hidden'); 
+}
 
 let pendingConfirmAction = null;
 function customConfirm(title, message, callback) {
@@ -45,11 +50,12 @@ function customConfirm(title, message, callback) {
 }
 
 function closeConfirmModal(proceed) {
-    document.getElementById('confirm-modal').classList.add('hidden');
+    const modal = document.getElementById('confirm-modal');
+    if(modal) modal.classList.add('hidden');
     if (proceed && pendingConfirmAction) pendingConfirmAction();
 }
 
-/* ================== INICIALIZACIÓN ================== */
+/* ================== INICIALIZACIÓN Y LOGIN ================== */
 document.addEventListener('DOMContentLoaded', () => {
     const savedUser = localStorage.getItem('securityCloudUser');
     const path = window.location.pathname;
@@ -61,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (path.endsWith('admin.html') && currentUser.role === 'admin') loadAdminDashboard();
         else if (path.endsWith('school.html') && currentUser.role === 'school') loadSchoolDashboard();
         else if (path.endsWith('operator.html') && currentUser.role === 'operator') loadOperatorDashboard();
-        else if (path.endsWith('instructor.html') && currentUser.role === 'instructor') { loadOperatorDashboard(); loadSchoolGeneralResults(); }
+        else if (path.endsWith('instructor.html') && currentUser.role === 'instructor') { loadOperatorDashboard(); loadSchoolGeneralResults(); loadQuizMaker(); }
         else if (path.endsWith('index.html') || path === '/') redirectUserByRole();
     } else {
         if(!path.endsWith('index.html') && path !== '/') window.location.href = 'index.html';
@@ -81,22 +87,27 @@ async function setupHeader() {
                 const schools = await res.json();
                 const userSchool = schools.find(s => s.id === currentUser.school_id);
                 
+                // Cargar Logo Dinámico
                 if (userSchool && userSchool.icon_url) {
                     const container = document.getElementById('top-right-logo-container');
                     const initialsEl = document.getElementById('top-right-initials');
                     const logoEl = document.getElementById('top-right-logo');
+                    
                     if (logoEl && initialsEl && container) {
                         logoEl.src = userSchool.icon_url;
-                        logoEl.classList.remove('hidden'); initialsEl.classList.add('hidden'); 
-                        container.classList.remove('bg-red-600', 'bg-gray-200');
+                        logoEl.classList.remove('hidden'); 
+                        initialsEl.classList.add('hidden'); 
+                        container.classList.remove('bg-red-600', 'text-white', 'bg-gray-200', 'border-2', 'border-gray-300');
                         container.classList.add('bg-white', 'border', 'border-gray-200');
                     }
                 }
+                
+                // Configurar Permisos de Simuladores
                 if((currentUser.role === 'operator' || currentUser.role === 'instructor') && userSchool) {
                     renderAllowedSimulators(userSchool.allowed_sims);
                 }
             }
-        } catch(e) {}
+        } catch(e) { console.error("Error cargando datos de la escuela.", e); }
     }
 }
 
@@ -131,7 +142,7 @@ function renderAllowedSimulators(allowedStr) {
         </div>`;
     }
     
-    container.innerHTML = html === '' ? `<div class="col-span-2 text-center p-8 bg-red-50 text-red-600 rounded-xl font-bold border border-red-200">Tu academia no tiene permisos asignados.</div>` : html;
+    container.innerHTML = html === '' ? `<div class="col-span-2 text-center p-8 bg-red-50 text-red-600 rounded-xl font-bold border border-red-200">Tu academia no tiene permisos asignados para usar los simuladores.</div>` : html;
 }
 
 function redirectUserByRole() {
@@ -152,8 +163,20 @@ async function login(e) {
     const progressBar = document.getElementById('progress-bar');
     const loadingText = document.getElementById('loading-text');
     
-    btn.classList.add('hidden'); loadingUi.classList.remove('hidden'); progressBar.style.width = '0%';
+    btn.classList.add('hidden'); 
+    loadingUi.classList.remove('hidden'); 
+    progressBar.style.width = '0%';
+    loadingText.classList.remove('text-red-600', 'text-green-600');
+    loadingText.classList.add('text-gray-500', 'animate-pulse');
     
+    const textos = ["Estableciendo conexión...", "Validando credenciales...", "Desplegando entorno..."];
+    let txtIndex = 0;
+    loadingText.innerText = textos[0];
+    const textInterval = setInterval(() => {
+        txtIndex = (txtIndex + 1) % textos.length;
+        loadingText.innerText = textos[txtIndex];
+    }, 800);
+
     let progress = 0;
     const progInterval = setInterval(() => {
         progress += Math.floor(Math.random() * 15) + 5;
@@ -166,28 +189,41 @@ async function login(e) {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({role: r, username: u, password: p})
         });
+        
+        clearInterval(textInterval);
         clearInterval(progInterval);
         
         if(res.ok) {
             progressBar.style.width = '100%';
+            loadingText.innerText = "¡Acceso Autorizado!";
+            loadingText.classList.remove('text-gray-500', 'animate-pulse');
+            loadingText.classList.add('text-red-600'); 
+            
             currentUser = await res.json();
             localStorage.setItem('securityCloudUser', JSON.stringify(currentUser));
             setTimeout(() => { redirectUserByRole(); }, 800);
         } else {
             const err = await res.json();
-            btn.classList.remove('hidden'); loadingUi.classList.add('hidden');
-            customAlert('Denegado', err.detail, 'error');
+            btn.classList.remove('hidden');
+            loadingUi.classList.add('hidden');
+            customAlert('Acceso Denegado', err.detail, 'error');
         }
     } catch(err) { 
+        clearInterval(textInterval);
         clearInterval(progInterval);
-        btn.classList.remove('hidden'); loadingUi.classList.add('hidden');
-        customAlert('Error', 'Fallo de conexión. El servidor no responde.', 'error');
+        btn.classList.remove('hidden');
+        loadingUi.classList.add('hidden');
+        customAlert('Error de Red', 'Fallo de conexión. El servidor backend no responde.', 'error'); 
     }
 }
 
-function logout() { localStorage.removeItem('securityCloudUser'); currentUser = null; window.location.href = 'index.html'; }
+function logout() {
+    localStorage.removeItem('securityCloudUser');
+    currentUser = null;
+    window.location.href = 'index.html';
+}
 
-/* ================== LÓGICA ADMIN (ESCUELAS Y LIMITES) ================== */
+/* ================== LÓGICA ADMINISTRADOR (Gestión Academias) ================== */
 function showAdminTab(sectionId, element) {
     document.getElementById('schools-section').classList.add('hidden');
     document.getElementById('operators-section').classList.add('hidden');
@@ -203,7 +239,10 @@ function showAdminTab(sectionId, element) {
     if(sectionId === 'operators-section') fetchAndRenderOperators();
 }
 
-async function loadAdminDashboard() { await fetchSchools(); fetchAndRenderOperators(); }
+async function loadAdminDashboard() {
+    await fetchSchools();
+    fetchAndRenderOperators();
+}
 
 async function fetchSchools() {
     try {
@@ -215,7 +254,10 @@ async function fetchSchools() {
             if(allSchools.length === 0) list.innerHTML = `<li class="text-center py-6 text-gray-500 italic">No hay escuelas registradas.</li>`;
             else {
                 list.innerHTML = allSchools.map(s => {
-                    const statusBadge = s.is_active ? `<span class="bg-green-100 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Activa</span>` : `<span class="bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Suspendida</span>`;
+                    const statusBadge = s.is_active 
+                        ? `<span class="bg-green-100 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Activa</span>` 
+                        : `<span class="bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Suspendida</span>`;
+                    
                     return `
                     <li class="p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-sm mb-3 flex items-center justify-between hover:border-red-300 transition-colors">
                         <div class="flex items-center">
@@ -243,7 +285,7 @@ async function fetchSchools() {
             filterSelect.innerHTML = `<option value="all">Todas las escuelas</option>` + optionsHtml;
             modalSelect.innerHTML = optionsHtml;
         }
-    } catch(e) {}
+    } catch(e) { console.error("Error fetching schools", e); }
 }
 
 function getCheckedSims(prefix) {
@@ -255,23 +297,25 @@ function getCheckedSims(prefix) {
 
 async function createSchool(e) {
     e.preventDefault();
-    const name = document.getElementById('school-name').value;
-    const sub = document.getElementById('school-plan').value;
-    const username = document.getElementById('school-username').value;
-    const pass = document.getElementById('school-password').value;
-    const limit = document.getElementById('school-limit').value;
-    const limitInst = document.getElementById('school-limit-inst').value;
-    const iconUrl = document.getElementById('school-icon').value;
-    const allowed = getCheckedSims("sim");
+    const payload = {
+        name: document.getElementById('school-name').value,
+        subscription_type: document.getElementById('school-plan').value,
+        username: document.getElementById('school-username').value,
+        password: document.getElementById('school-password').value,
+        max_operators: parseInt(document.getElementById('school-limit').value),
+        max_instructors: parseInt(document.getElementById('school-limit-inst').value),
+        icon_url: document.getElementById('school-icon').value,
+        allowed_sims: getCheckedSims("sim"),
+        is_active: true
+    };
     
     try {
         const res = await fetch(`${API_URL}/schools`, { 
-            method: 'POST', headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify({name, subscription_type: sub, username, password: pass, max_operators: parseInt(limit), max_instructors: parseInt(limitInst), icon_url: iconUrl, allowed_sims: allowed, is_active: true}) 
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) 
         });
         if(res.ok) { customAlert('Éxito', 'Escuela creada.', 'success'); e.target.reset(); fetchSchools(); } 
         else { const err = await res.json(); customAlert('Error', err.detail, 'error'); }
-    } catch(err) {}
+    } catch(err) { customAlert('Error', 'Fallo de conexión.', 'error'); }
 }
 
 function openEditSchoolModal(id) {
@@ -285,8 +329,10 @@ function openEditSchoolModal(id) {
         document.getElementById('edit-school-icon').value = s.icon_url;
         
         const chkActive = document.getElementById('edit-school-active');
-        chkActive.checked = s.is_active;
-        chkActive.dispatchEvent(new Event('change'));
+        if (chkActive) {
+            chkActive.checked = s.is_active;
+            chkActive.dispatchEvent(new Event('change'));
+        }
         
         document.getElementById('edit-sim-density').checked = s.allowed_sims.includes("DENSITY");
         document.getElementById('edit-sim-vmsx').checked = s.allowed_sims.includes("VMS-X");
@@ -309,20 +355,24 @@ async function saveEditSchool(e) {
         is_active: document.getElementById('edit-school-active').checked,
         allowed_sims: getCheckedSims("edit-sim")
     };
+
     try {
         const res = await fetch(`${API_URL}/schools/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
         if(res.ok) { customAlert('Éxito', 'Escuela actualizada.', 'success'); closeEditSchoolModal(); fetchSchools(); }
-    } catch (error) {}
+        else customAlert('Error', 'No se pudo actualizar.', 'error');
+    } catch (error) { customAlert('Error', 'Error de conexión.', 'error'); }
 }
 
 function deleteSchool(id) {
-    customConfirm('Borrar Escuela', 'Se borrarán todos los operadores y resultados permanentemente.', async () => {
-        const res = await fetch(`${API_URL}/schools/${id}`, { method: 'DELETE' });
-        if(res.ok) fetchSchools();
+    customConfirm('Borrar Escuela', 'Se borrarán todos los operadores, instructores y resultados en cascada permanentemente.', async () => {
+        try {
+            const res = await fetch(`${API_URL}/schools/${id}`, { method: 'DELETE' });
+            if(res.ok) fetchSchools();
+        } catch(e) {}
     });
 }
 
-/* ADMIN GESTION PERSONAL */
+/* ================== LÓGICA ADMIN GESTION PERSONAL ================== */
 async function fetchAndRenderOperators() {
     try {
         const res = await fetch(`${API_URL}/users`);
@@ -333,7 +383,7 @@ async function fetchAndRenderOperators() {
 
 function renderOperatorsTable() {
     const tbody = document.getElementById('operators-tbody');
-    const filterId = document.getElementById('filter-school').value;
+    const filterId = document.getElementById('filter-school') ? document.getElementById('filter-school').value : 'all';
     if(!tbody) return;
     
     let ops = allUsers.filter(u => u.role === 'operator' || u.role === 'instructor');
@@ -343,23 +393,25 @@ function renderOperatorsTable() {
 
     tbody.innerHTML = ops.map(o => {
         const sch = allSchools.find(s => s.id === o.school_id);
-        const roleBadge = o.role === 'instructor' ? `<span class="bg-red-100 text-red-800 text-xs px-2 py-1 rounded">Instructor</span>` : `<span class="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded">Operador</span>`;
+        const roleBadge = o.role === 'instructor' ? `<span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded">Instructor</span>` : `<span class="bg-gray-100 text-gray-800 text-xs font-bold px-2 py-1 rounded">Operador</span>`;
         return `
-            <tr class="hover:bg-gray-50">
+            <tr class="hover:bg-gray-50 transition-colors">
                 <td class="px-6 py-4 font-bold">${o.username}</td>
                 <td class="px-6 py-4">${roleBadge}</td>
-                <td class="px-6 py-4">${sch ? sch.name : 'N/A'}</td>
+                <td class="px-6 py-4 text-gray-600">${sch ? sch.name : 'N/A'}</td>
                 <td class="px-6 py-4 text-center space-x-3">
-                    <button onclick="openOperatorModal(${o.id})" class="text-blue-600 hover:underline">Editar</button>
-                    <button onclick="deleteOperator(${o.id})" class="text-red-600 hover:underline">Borrar</button>
+                    <button onclick="openOperatorModal(${o.id})" class="text-blue-600 font-bold hover:underline">Editar</button>
+                    <button onclick="deleteOperator(${o.id})" class="text-red-600 font-bold hover:underline">Borrar</button>
                 </td>
             </tr>`;
     }).join('');
 }
 
 function openOperatorModal(id = null) {
-    document.getElementById('op-modal-form').reset();
+    const form = document.getElementById('op-modal-form');
+    if(form) form.reset();
     document.getElementById('op-id').value = id || '';
+    
     if(id) {
         const op = allUsers.find(u => u.id === id);
         if(op) {
@@ -370,6 +422,7 @@ function openOperatorModal(id = null) {
     }
     document.getElementById('operator-modal').classList.remove('hidden');
 }
+
 function closeOperatorModal() { document.getElementById('operator-modal').classList.add('hidden'); }
 
 async function saveOperator(e) {
@@ -385,17 +438,18 @@ async function saveOperator(e) {
     try {
         const method = id ? 'PUT' : 'POST';
         const url = id ? `${API_URL}/users/${id}` : `${API_URL}/users`;
-        if(!id && !payload.password) return customAlert('Error', 'Contraseña obligatoria', 'error');
+        if(!id && !payload.password) return customAlert('Aviso', 'Contraseña obligatoria al crear', 'error');
+        
         const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-        if(res.ok) { closeOperatorModal(); fetchAndRenderOperators(); } 
+        if(res.ok) { closeOperatorModal(); fetchAndRenderOperators(); customAlert('Éxito', 'Datos guardados', 'success'); } 
         else { const data = await res.json(); customAlert('Error', data.detail, 'error'); }
-    } catch(err) {}
+    } catch(err) { customAlert('Error', 'Fallo de red', 'error'); }
 }
 
 function deleteOperator(id) {
-    customConfirm('Borrar', '¿Borrar usuario permanentemente?', async () => {
-        await fetch(`${API_URL}/users/${id}`, { method: 'DELETE' });
-        fetchAndRenderOperators();
+    customConfirm('Borrar Usuario', '¿Borrar usuario y resultados permanentemente?', async () => {
+        const res = await fetch(`${API_URL}/users/${id}`, { method: 'DELETE' });
+        if(res.ok) fetchAndRenderOperators();
     });
 }
 
@@ -457,6 +511,7 @@ function openSchoolPersonnelModal(id) {
         document.getElementById('school-personnel-modal').classList.remove('hidden');
     }
 }
+
 function closeSchoolPersonnelModal() { document.getElementById('school-personnel-modal').classList.add('hidden'); }
 
 async function saveSchoolPersonnel(e) {
@@ -480,7 +535,7 @@ function deleteSchoolPersonnel(id) {
     });
 }
 
-/* METRICAS Y EXPORTACION */
+/* ================== INSTRUCTOR Y ESCUELA: AUDITORIA Y METRICAS ================== */
 async function loadSchoolGeneralResults() {
     const res = await fetch(`${API_URL}/school-results/${currentUser.school_id}`);
     schoolDataResults = await res.json();
@@ -506,6 +561,7 @@ async function loadSchoolGeneralResults() {
         }
     }
 
+    // Chart JS solo visible para escuela
     if(currentUser.role === 'school') {
         const totalPruebas = schoolDataResults.length;
         const prom = totalPruebas > 0 ? (schoolDataResults.reduce((acc, curr) => acc + curr.score, 0) / totalPruebas).toFixed(1) : 0;
@@ -543,16 +599,15 @@ async function loadSchoolQuizGrades() {
         const res = await fetch(`${API_URL}/quizzes/results/${currentUser.school_id}`);
         const grades = await res.json();
         if(grades.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-gray-500 italic">No hay calificaciones registradas.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="3" class="text-center py-6 text-gray-500 italic">Nadie ha tomado exámenes aún.</td></tr>`;
         } else {
             tbody.innerHTML = grades.map(g => {
                 const color = g.score >= 80 ? 'text-green-600' : 'text-red-600';
                 return `
                 <tr class="hover:bg-gray-50 transition-colors border-b border-gray-100">
-                    <td class="py-3 text-xs text-gray-500">${g.date.split(' ')[0]}</td>
-                    <td class="py-3 font-bold text-black">${g.operator_name.toUpperCase()}</td>
-                    <td class="py-3 text-gray-700">${g.quiz_title}</td>
-                    <td class="py-3 text-center font-extrabold text-sm ${color}">${g.score}%</td>
+                    <td class="py-3 text-xs text-gray-500 px-4">${g.date.split(' ')[0]}</td>
+                    <td class="py-3 font-bold text-black px-4">${g.operator_name.toUpperCase()}</td>
+                    <td class="py-3 text-center font-extrabold text-sm px-4 ${color}">${g.score}%</td>
                 </tr>`;
             }).join('');
         }
@@ -573,7 +628,7 @@ function exportToCSV() {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
 
-/* ================== INSTRUCTOR FEEDBACK ================== */
+/* ================== INSTRUCTOR: FEEDBACK ================== */
 function openFeedbackModal(resultId) {
     document.getElementById('feed-result-id').value = resultId;
     document.getElementById('feed-text').value = '';
@@ -597,7 +652,6 @@ async function saveFeedback(e) {
 /* ================== SISTEMA DE EVALUACIONES (QUIZZES) ================== */
 let questionCount = 0;
 
-// Renderizar el Banco de Exámenes (Reutilizar)
 async function renderQuizBank() {
     try {
         const res = await fetch(`${API_URL}/quizzes/school/${currentUser.school_id}`);
@@ -611,11 +665,14 @@ async function renderQuizBank() {
         } else {
             tbody.innerHTML = bankQuizzes.map(q => `
                 <tr class="hover:bg-gray-50 border-b border-gray-100">
-                    <td class="px-6 py-4 font-bold text-gray-400">#${q.id}</td>
-                    <td class="px-6 py-4 font-bold text-black">${q.title}</td>
-                    <td class="px-6 py-4 text-gray-600">${q.time_limit} min</td>
-                    <td class="px-6 py-4 text-center">
-                        <button onclick="openAssignQuizModal(${q.id})" class="text-red-600 font-bold hover:underline bg-red-50 px-3 py-1 border border-red-100 rounded shadow-sm transition-colors">Reutilizar / Asignar</button>
+                    <td class="px-4 py-3 font-bold text-gray-400">#${q.id}</td>
+                    <td class="px-4 py-3 font-bold text-black">${q.title}</td>
+                    <td class="px-4 py-3 text-gray-600">${q.time_limit} min</td>
+                    <td class="px-4 py-3 text-right space-x-1">
+                        <button onclick="previewQuiz(${q.id})" class="text-gray-600 font-bold hover:text-black hover:underline text-[10px] bg-gray-100 px-2 py-1 rounded">Probar</button>
+                        <button onclick="editQuiz(${q.id})" class="text-blue-600 font-bold hover:underline text-[10px] bg-blue-50 px-2 py-1 rounded border border-blue-100">Editar</button>
+                        <button onclick="deleteQuiz(${q.id})" class="text-red-600 font-bold hover:underline text-[10px] bg-red-50 px-2 py-1 rounded border border-red-100">Borrar</button>
+                        <button onclick="openAssignQuizModal(${q.id})" class="text-green-600 font-bold hover:underline text-[10px] bg-green-50 px-2 py-1 rounded border border-green-100">Reasignar</button>
                     </td>
                 </tr>
             `).join('');
@@ -624,9 +681,11 @@ async function renderQuizBank() {
 }
 
 async function loadQuizMaker() {
+    editingQuizId = null;
     document.getElementById('quiz-title').value = '';
     document.getElementById('quiz-time').value = '15';
     document.getElementById('questions-container').innerHTML = '';
+    document.getElementById('btn-save-quiz').innerText = "Guardar y Activar Evaluación";
     questionCount = 0;
     addQuestion(); 
     updateTotalWeight();
@@ -697,6 +756,54 @@ function updateTotalWeight() {
     }
 }
 
+function deleteQuiz(id) {
+    customConfirm('Borrar Evaluación', '¿Estás seguro? Se borrará el examen y todas las calificaciones de los alumnos asociadas.', async () => {
+        try {
+            const res = await fetch(`${API_URL}/quizzes/${id}`, { method: 'DELETE' });
+            if(res.ok) { customAlert('Borrado', 'Examen eliminado.', 'success'); renderQuizBank(); }
+        } catch(e) {}
+    });
+}
+
+function editQuiz(id) {
+    const q = bankQuizzes.find(x => x.id === id);
+    if(!q) return;
+    
+    editingQuizId = id;
+    document.getElementById('quiz-title').value = q.title;
+    document.getElementById('quiz-time').value = q.time_limit;
+    document.getElementById('questions-container').innerHTML = '';
+    questionCount = 0;
+
+    const questions = JSON.parse(q.questions);
+    questions.forEach(qData => {
+        addQuestion();
+        const blocks = document.querySelectorAll('.question-block');
+        const lastBlock = blocks[blocks.length - 1];
+        lastBlock.querySelector('.q-text').value = qData.q;
+        const optsInputs = lastBlock.querySelectorAll('.q-opt');
+        qData.opts.forEach((opt, i) => optsInputs[i].value = opt);
+        lastBlock.querySelector('.q-correct').value = qData.correct;
+        lastBlock.querySelector('.q-weight').value = qData.weight;
+    });
+    updateTotalWeight();
+
+    const checkboxes = document.querySelectorAll('.chk-assign');
+    checkboxes.forEach(c => c.checked = false);
+    try {
+        const assigned = JSON.parse(q.assigned_operators);
+        checkboxes.forEach(c => { if(assigned.includes(parseInt(c.value))) c.checked = true; });
+    } catch(e){}
+
+    document.getElementById('btn-save-quiz').innerText = "Actualizar Evaluación";
+}
+
+function previewQuiz(id) {
+    const q = bankQuizzes.find(x => x.id === id);
+    if(!q) return;
+    takeQuiz(q); // Abre el modo Fullscreen de examen en modo preview
+}
+
 async function saveQuiz() {
     const title = document.getElementById('quiz-title').value.trim();
     const time = document.getElementById('quiz-time').value;
@@ -729,7 +836,6 @@ async function saveQuiz() {
         questions: JSON.stringify(questionsArray), time_limit: parseInt(time), assigned_operators: JSON.stringify(assignedIds)
     };
 
-    // Modal de Barra de Progreso
     const savingModal = document.getElementById('quiz-saving-modal');
     const savingProgress = document.getElementById('quiz-saving-progress');
     savingModal.classList.remove('hidden');
@@ -743,16 +849,19 @@ async function saveQuiz() {
     }, 200);
 
     try {
-        const res = await fetch(`${API_URL}/quizzes`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+        const method = editingQuizId ? 'PUT' : 'POST';
+        const url = editingQuizId ? `${API_URL}/quizzes/${editingQuizId}` : `${API_URL}/quizzes`;
+
+        const res = await fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
         clearInterval(progInterval);
         savingProgress.style.width = '100%';
         
         setTimeout(() => {
             savingModal.classList.add('hidden');
             if(res.ok) {
-                customAlert('Evaluación Desplegada', 'El examen ha sido guardado en el banco y activado exitosamente.', 'success');
+                customAlert('Evaluación Desplegada', 'El examen ha sido guardado exitosamente.', 'success');
                 loadQuizMaker(); 
-            } else customAlert('Error', 'No se pudo crear la evaluación.', 'error');
+            } else customAlert('Error', 'No se pudo guardar la evaluación.', 'error');
         }, 500);
         
     } catch(e) { 
@@ -783,7 +892,7 @@ async function openAssignQuizModal(quiz_id) {
             const isAssigned = assignedAlready.includes(o.id);
             const disabledStr = isAssigned ? 'disabled checked' : '';
             const colorStr = isAssigned ? 'text-gray-400 opacity-50' : 'text-gray-700';
-            const tagStr = isAssigned ? '<span class="ml-1 text-[9px] text-green-600 font-bold uppercase">(Ya asignado)</span>' : '';
+            const tagStr = isAssigned ? '<span class="ml-1 text-[9px] text-green-600 font-bold uppercase">(Asignado)</span>' : '';
             return `
             <label class="flex items-center space-x-2 cursor-pointer bg-white p-3 rounded border border-gray-200 shadow-sm hover:border-red-300 ${isAssigned ? 'bg-gray-50 cursor-not-allowed' : ''}">
                 <input type="checkbox" value="${o.id}" class="chk-reassign rounded text-red-600 focus:ring-red-600" ${disabledStr}>
@@ -841,14 +950,13 @@ async function loadQuizGrades() {
 }
 
 
-// OPERADOR: Cargar y Tomar Exámenes
+/* ================== OPERADOR: TOMAR EXAMEN ================== */
 let activeQuizData = null;
 let activeQuizTimer = null;
 let timeRemaining = 0;
 
 async function loadOperatorQuizzes() {
     try {
-        // Obtenemos los examenes que ya completó para no mostrarlos
         const compRes = await fetch(`${API_URL}/quizzes/operator/${currentUser.id}/completed`);
         const completedIds = await compRes.json();
 
@@ -857,7 +965,7 @@ async function loadOperatorQuizzes() {
         
         const myQuizzes = allQuizzes.filter(q => {
             if(!q.is_active) return false;
-            if(completedIds.includes(q.id)) return false; // Bloqueo anti-repeticion
+            if(completedIds.includes(q.id)) return false; 
             try { const assigned = JSON.parse(q.assigned_operators); return assigned.includes(currentUser.id); } catch(e) { return false; }
         });
 
@@ -885,26 +993,40 @@ async function loadOperatorQuizzes() {
 }
 
 function takeQuiz(quizObj) {
-    customConfirm('Iniciar Examen', `¿Estás listo? El tiempo comenzará a correr (${quizObj.time_limit} minutos) y no podrás pausarlo.`, () => {
+    const isInstructorPreview = currentUser.role === 'instructor';
+    const msg = isInstructorPreview 
+        ? `Modo Autoprueba: El tiempo será de ${quizObj.time_limit} mins. Tu calificación no se guardará en la base de datos.` 
+        : `¿Estás listo? El tiempo comenzará a correr (${quizObj.time_limit} minutos) y no podrás pausarlo ni salirte.`;
+
+    customConfirm('Iniciar Examen', msg, () => {
         activeQuizData = quizObj;
         
         document.getElementById('active-quiz-title').innerText = quizObj.title;
+        document.getElementById('quiz-operator-name').innerText = currentUser.username.toUpperCase();
+        
         const container = document.getElementById('quiz-questions-render');
         container.innerHTML = '';
         
         const questions = JSON.parse(quizObj.questions);
         questions.forEach((q, index) => {
             let optsHtml = q.opts.map((opt, i) => `
-                <label class="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-red-50 transition-colors">
-                    <input type="radio" name="q_${index}" value="${i}" class="w-4 h-4 text-red-600 focus:ring-red-600">
-                    <span class="text-sm font-semibold text-gray-800">${opt}</span>
+                <label class="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-red-600 hover:bg-red-50 transition-all group">
+                    <div class="relative flex items-center justify-center">
+                        <input type="radio" name="q_${index}" value="${i}" class="peer w-5 h-5 text-red-600 border-gray-300 focus:ring-red-600 cursor-pointer">
+                    </div>
+                    <span class="text-sm font-semibold text-gray-700 group-hover:text-black">${opt}</span>
                 </label>
             `).join('');
 
             container.innerHTML += `
-                <div class="quiz-item" data-index="${index}">
-                    <h4 class="text-lg font-bold text-black mb-4"><span class="text-red-600 mr-2">${index + 1}.</span>${q.q}</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pl-6">${optsHtml}</div>
+                <div class="quiz-item bg-white">
+                    <h4 class="text-lg font-bold text-black mb-5 leading-relaxed">
+                        <span class="bg-black text-white px-3 py-1 rounded text-sm mr-3 shadow-sm">${index + 1}</span>
+                        ${q.q}
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pl-2">
+                        ${optsHtml}
+                    </div>
                 </div>`;
         });
 
@@ -922,7 +1044,7 @@ function startQuizTimer(minutes) {
         updateTimerDisplay();
         if(timeRemaining <= 0) {
             clearInterval(activeQuizTimer);
-            customAlert('Tiempo Agotado', 'El tiempo ha terminado. Enviando...', 'error');
+            customAlert('Tiempo Agotado', 'El tiempo ha terminado. Evaluando respuestas...', 'error');
             document.getElementById('quiz-form').dispatchEvent(new Event('submit', {cancelable: true, bubbles: true}));
         }
     }, 1000);
@@ -934,7 +1056,10 @@ function updateTimerDisplay() {
     const m = String(Math.floor(timeRemaining / 60)).padStart(2, '0');
     const s = String(timeRemaining % 60).padStart(2, '0');
     el.innerText = `${m}:${s}`;
-    if (timeRemaining < 60) el.classList.add('animate-pulse', 'text-red-900', 'bg-red-200'); 
+    if (timeRemaining < 60) {
+        el.classList.remove('bg-red-600');
+        el.classList.add('animate-pulse', 'bg-red-900'); 
+    }
 }
 
 async function submitQuiz(e) {
@@ -943,13 +1068,22 @@ async function submitQuiz(e) {
 
     const answersArray = [];
     const questions = JSON.parse(activeQuizData.questions);
+    let localScore = 0.0;
     
     questions.forEach((q, index) => {
         const radios = document.getElementsByName(`q_${index}`);
         let selected = -1; 
         for(let r of radios) { if(r.checked) { selected = parseInt(r.value); break; } }
         answersArray.push({ question_index: index, selected_option: selected });
+        
+        if(selected === parseInt(q.correct)) localScore += parseFloat(q.weight);
     });
+
+    if (currentUser.role === 'instructor') {
+        document.getElementById('take-quiz-view').classList.add('hidden');
+        customAlert('Autoprueba Finalizada', `Tu calificación teórica es: ${localScore}% (No se guardó en la base de datos).`, 'success');
+        return;
+    }
 
     const payload = { quiz_id: activeQuizData.id, operator_id: currentUser.id, answers: answersArray };
 
@@ -964,7 +1098,8 @@ async function submitQuiz(e) {
     } catch(err) { customAlert('Error', 'Fallo al enviar.', 'error'); }
 }
 
-/* ================== LÓGICA DE SIMULADORES (PRÁCTICAS) ================== */
+/* ================== OPERADOR: SIMULADOR 3D ================== */
+let activeSim = '';
 async function loadOperatorDashboard() {
     const res = await fetch(`${API_URL}/results/${currentUser.id}`);
     const results = await res.json();

@@ -69,20 +69,29 @@
             </div>
         </main>
 
-        <div id="take-quiz-view" class="hidden absolute inset-0 bg-gray-50 z-40 flex flex-col">
-            <div class="bg-white px-8 py-4 flex justify-between items-center shadow-md border-b-4 border-red-600 z-50">
-                <h3 id="active-quiz-title" class="font-extrabold text-xl text-black">Examen</h3>
-                <div class="bg-red-50 border border-red-200 text-red-700 px-6 py-2 rounded-lg font-mono font-bold text-xl flex items-center shadow-sm">
+        <!-- ENTORNO EXAMEN (OPERADOR) MODERNO Y PROFESIONAL -->
+        <div id="take-quiz-view" class="hidden absolute inset-0 bg-white z-50 flex flex-col h-screen overflow-hidden">
+            <div class="bg-black text-white px-8 py-4 flex justify-between items-center shadow-lg border-b-4 border-red-600 shrink-0">
+                <div class="flex items-center space-x-4">
+                    <img src="https://i.ibb.co/DHmrYHsN/Group-339.png" alt="Logo" class="h-8 object-contain filter brightness-0 invert">
+                    <div class="border-l border-gray-700 pl-4">
+                        <h3 id="active-quiz-title" class="font-extrabold text-lg uppercase tracking-wider text-red-500">Examen</h3>
+                        <p class="text-xs text-gray-400">OPERADOR: <span id="quiz-operator-name" class="font-bold text-white"></span></p>
+                    </div>
+                </div>
+                <div class="bg-red-600 text-white px-6 py-2 rounded-lg font-mono font-bold text-xl flex items-center shadow-md">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     <span id="quiz-timer">00:00</span>
                 </div>
             </div>
-            <div class="flex-1 overflow-y-auto p-8 flex justify-center">
-                <div class="w-full max-w-3xl bg-white p-8 rounded-2xl border border-gray-200 shadow-lg h-fit">
+            
+            <div class="flex-1 overflow-y-auto bg-gray-50 p-8 flex justify-center">
+                <div class="w-full max-w-4xl bg-white p-10 rounded-xl border border-gray-200 shadow-sm h-fit">
                     <form id="quiz-form" onsubmit="submitQuiz(event)">
-                        <div id="quiz-questions-render" class="space-y-8"></div>
-                        <div class="mt-10 pt-6 border-t border-gray-200 flex justify-end">
-                            <button type="submit" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-10 rounded-lg shadow-md transition-colors text-lg">Entregar Evaluación</button>
+                        <div id="quiz-questions-render" class="space-y-10"></div>
+                        <div class="mt-12 pt-8 border-t border-gray-200 flex justify-between items-center">
+                            <p class="text-sm text-gray-500 font-bold">Revisa tus respuestas antes de enviar.</p>
+                            <button type="submit" class="bg-red-600 hover:bg-black text-white font-bold py-4 px-12 rounded-lg shadow-md transition-colors text-lg uppercase tracking-wider">Entregar Evaluación</button>
                         </div>
                     </form>
                 </div>
@@ -90,7 +99,7 @@
         </div>
 
         <div id="sim-view" class="hidden absolute inset-0 bg-white z-50 flex flex-col">
-            <div class="bg-black p-4 flex justify-between items-center shadow-lg border-b-4 border-red-600">
+            <div class="bg-black p-4 flex justify-between items-center shadow-lg border-b-4 border-red-600 z-10">
                 <h3 id="sim-title" class="font-bold text-white uppercase text-sm">Simulador Activo</h3>
                 <button onclick="finishSim()" class="bg-red-600 hover:bg-red-700 px-6 py-2 rounded text-white font-bold text-xs uppercase">Terminar</button>
             </div>
