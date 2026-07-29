@@ -1,12 +1,11 @@
-// ATENCION: Cambia a http://localhost:8000 si pruebas en tu computadora localmente
+// ATENCION: Cambia a http://localhost:8000 si pruebas en local
 const API_URL = 'https://core-work-api.onrender.com';
-
 let currentUser = null;
 let allSchools = [];
 let allUsers = [];
 let schoolDataResults = []; 
 let bankQuizzes = []; 
-let editingQuizId = null; // Controla si creamos o editamos un examen
+let editingQuizId = null; 
 
 const ROLE_LABELS = {
     'admin': 'Administrador',
@@ -15,7 +14,7 @@ const ROLE_LABELS = {
     'operator': 'Operador'
 };
 
-/* ================== SISTEMA DE MODALES (UI) ================== */
+/* ================== SISTEMA DE MODALES ================== */
 function customAlert(title, message, type = 'success') {
     const modal = document.getElementById('alert-modal');
     if (modal) {
@@ -33,10 +32,7 @@ function customAlert(title, message, type = 'success') {
     } else { alert(title + ": " + message); }
 }
 
-function closeAlertModal() { 
-    const modal = document.getElementById('alert-modal');
-    if(modal) modal.classList.add('hidden'); 
-}
+function closeAlertModal() { document.getElementById('alert-modal').classList.add('hidden'); }
 
 let pendingConfirmAction = null;
 function customConfirm(title, message, callback) {
@@ -50,12 +46,11 @@ function customConfirm(title, message, callback) {
 }
 
 function closeConfirmModal(proceed) {
-    const modal = document.getElementById('confirm-modal');
-    if(modal) modal.classList.add('hidden');
+    document.getElementById('confirm-modal').classList.add('hidden');
     if (proceed && pendingConfirmAction) pendingConfirmAction();
 }
 
-/* ================== INICIALIZACIÓN Y LOGIN ================== */
+/* ================== INICIALIZACIÓN ================== */
 document.addEventListener('DOMContentLoaded', () => {
     const savedUser = localStorage.getItem('securityCloudUser');
     const path = window.location.pathname;
@@ -67,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (path.endsWith('admin.html') && currentUser.role === 'admin') loadAdminDashboard();
         else if (path.endsWith('school.html') && currentUser.role === 'school') loadSchoolDashboard();
         else if (path.endsWith('operator.html') && currentUser.role === 'operator') loadOperatorDashboard();
-        else if (path.endsWith('instructor.html') && currentUser.role === 'instructor') { loadOperatorDashboard(); loadSchoolGeneralResults(); loadQuizMaker(); }
+        else if (path.endsWith('instructor.html') && currentUser.role === 'instructor') { loadOperatorDashboard(); loadSchoolGeneralResults(); }
         else if (path.endsWith('index.html') || path === '/') redirectUserByRole();
     } else {
         if(!path.endsWith('index.html') && path !== '/') window.location.href = 'index.html';
@@ -87,27 +82,22 @@ async function setupHeader() {
                 const schools = await res.json();
                 const userSchool = schools.find(s => s.id === currentUser.school_id);
                 
-                // Cargar Logo Dinámico
                 if (userSchool && userSchool.icon_url) {
                     const container = document.getElementById('top-right-logo-container');
                     const initialsEl = document.getElementById('top-right-initials');
                     const logoEl = document.getElementById('top-right-logo');
-                    
                     if (logoEl && initialsEl && container) {
                         logoEl.src = userSchool.icon_url;
-                        logoEl.classList.remove('hidden'); 
-                        initialsEl.classList.add('hidden'); 
-                        container.classList.remove('bg-red-600', 'text-white', 'bg-gray-200', 'border-2', 'border-gray-300');
+                        logoEl.classList.remove('hidden'); initialsEl.classList.add('hidden'); 
+                        container.classList.remove('bg-red-600', 'bg-gray-200');
                         container.classList.add('bg-white', 'border', 'border-gray-200');
                     }
                 }
-                
-                // Configurar Permisos de Simuladores
                 if((currentUser.role === 'operator' || currentUser.role === 'instructor') && userSchool) {
                     renderAllowedSimulators(userSchool.allowed_sims);
                 }
             }
-        } catch(e) { console.error("Error cargando datos de la escuela.", e); }
+        } catch(e) {}
     }
 }
 
@@ -142,7 +132,7 @@ function renderAllowedSimulators(allowedStr) {
         </div>`;
     }
     
-    container.innerHTML = html === '' ? `<div class="col-span-2 text-center p-8 bg-red-50 text-red-600 rounded-xl font-bold border border-red-200">Tu academia no tiene permisos asignados para usar los simuladores.</div>` : html;
+    container.innerHTML = html === '' ? `<div class="col-span-2 text-center p-8 bg-red-50 text-red-600 rounded-xl font-bold border border-red-200">Tu academia no tiene permisos asignados.</div>` : html;
 }
 
 function redirectUserByRole() {
@@ -163,9 +153,7 @@ async function login(e) {
     const progressBar = document.getElementById('progress-bar');
     const loadingText = document.getElementById('loading-text');
     
-    btn.classList.add('hidden'); 
-    loadingUi.classList.remove('hidden'); 
-    progressBar.style.width = '0%';
+    btn.classList.add('hidden'); loadingUi.classList.remove('hidden'); progressBar.style.width = '0%';
     loadingText.classList.remove('text-red-600', 'text-green-600');
     loadingText.classList.add('text-gray-500', 'animate-pulse');
     
@@ -189,7 +177,6 @@ async function login(e) {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({role: r, username: u, password: p})
         });
-        
         clearInterval(textInterval);
         clearInterval(progInterval);
         
@@ -204,26 +191,20 @@ async function login(e) {
             setTimeout(() => { redirectUserByRole(); }, 800);
         } else {
             const err = await res.json();
-            btn.classList.remove('hidden');
-            loadingUi.classList.add('hidden');
+            btn.classList.remove('hidden'); loadingUi.classList.add('hidden');
             customAlert('Acceso Denegado', err.detail, 'error');
         }
     } catch(err) { 
         clearInterval(textInterval);
         clearInterval(progInterval);
-        btn.classList.remove('hidden');
-        loadingUi.classList.add('hidden');
-        customAlert('Error de Red', 'Fallo de conexión. El servidor backend no responde.', 'error'); 
+        btn.classList.remove('hidden'); loadingUi.classList.add('hidden');
+        customAlert('Error de conexión', 'El servidor backend no responde.', 'error'); 
     }
 }
 
-function logout() {
-    localStorage.removeItem('securityCloudUser');
-    currentUser = null;
-    window.location.href = 'index.html';
-}
+function logout() { localStorage.removeItem('securityCloudUser'); currentUser = null; window.location.href = 'index.html'; }
 
-/* ================== LÓGICA ADMINISTRADOR (Gestión Academias) ================== */
+/* ================== LÓGICA ADMIN (ESCUELAS Y LIMITES) ================== */
 function showAdminTab(sectionId, element) {
     document.getElementById('schools-section').classList.add('hidden');
     document.getElementById('operators-section').classList.add('hidden');
@@ -239,10 +220,7 @@ function showAdminTab(sectionId, element) {
     if(sectionId === 'operators-section') fetchAndRenderOperators();
 }
 
-async function loadAdminDashboard() {
-    await fetchSchools();
-    fetchAndRenderOperators();
-}
+async function loadAdminDashboard() { await fetchSchools(); fetchAndRenderOperators(); }
 
 async function fetchSchools() {
     try {
@@ -254,10 +232,7 @@ async function fetchSchools() {
             if(allSchools.length === 0) list.innerHTML = `<li class="text-center py-6 text-gray-500 italic">No hay escuelas registradas.</li>`;
             else {
                 list.innerHTML = allSchools.map(s => {
-                    const statusBadge = s.is_active 
-                        ? `<span class="bg-green-100 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Activa</span>` 
-                        : `<span class="bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Suspendida</span>`;
-                    
+                    const statusBadge = s.is_active ? `<span class="bg-green-100 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Activa</span>` : `<span class="bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Suspendida</span>`;
                     return `
                     <li class="p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-sm mb-3 flex items-center justify-between hover:border-red-300 transition-colors">
                         <div class="flex items-center">
@@ -285,7 +260,7 @@ async function fetchSchools() {
             filterSelect.innerHTML = `<option value="all">Todas las escuelas</option>` + optionsHtml;
             modalSelect.innerHTML = optionsHtml;
         }
-    } catch(e) { console.error("Error fetching schools", e); }
+    } catch(e) {}
 }
 
 function getCheckedSims(prefix) {
@@ -308,14 +283,11 @@ async function createSchool(e) {
         allowed_sims: getCheckedSims("sim"),
         is_active: true
     };
-    
     try {
-        const res = await fetch(`${API_URL}/schools`, { 
-            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) 
-        });
+        const res = await fetch(`${API_URL}/schools`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
         if(res.ok) { customAlert('Éxito', 'Escuela creada.', 'success'); e.target.reset(); fetchSchools(); } 
         else { const err = await res.json(); customAlert('Error', err.detail, 'error'); }
-    } catch(err) { customAlert('Error', 'Fallo de conexión.', 'error'); }
+    } catch(err) {}
 }
 
 function openEditSchoolModal(id) {
@@ -329,10 +301,7 @@ function openEditSchoolModal(id) {
         document.getElementById('edit-school-icon').value = s.icon_url;
         
         const chkActive = document.getElementById('edit-school-active');
-        if (chkActive) {
-            chkActive.checked = s.is_active;
-            chkActive.dispatchEvent(new Event('change'));
-        }
+        if(chkActive) { chkActive.checked = s.is_active; chkActive.dispatchEvent(new Event('change')); }
         
         document.getElementById('edit-sim-density').checked = s.allowed_sims.includes("DENSITY");
         document.getElementById('edit-sim-vmsx').checked = s.allowed_sims.includes("VMS-X");
@@ -355,24 +324,20 @@ async function saveEditSchool(e) {
         is_active: document.getElementById('edit-school-active').checked,
         allowed_sims: getCheckedSims("edit-sim")
     };
-
     try {
         const res = await fetch(`${API_URL}/schools/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
         if(res.ok) { customAlert('Éxito', 'Escuela actualizada.', 'success'); closeEditSchoolModal(); fetchSchools(); }
-        else customAlert('Error', 'No se pudo actualizar.', 'error');
-    } catch (error) { customAlert('Error', 'Error de conexión.', 'error'); }
+    } catch (error) {}
 }
 
 function deleteSchool(id) {
-    customConfirm('Borrar Escuela', 'Se borrarán todos los operadores, instructores y resultados en cascada permanentemente.', async () => {
-        try {
-            const res = await fetch(`${API_URL}/schools/${id}`, { method: 'DELETE' });
-            if(res.ok) fetchSchools();
-        } catch(e) {}
+    customConfirm('Borrar Escuela', 'Se borrarán todos los operadores y resultados permanentemente.', async () => {
+        const res = await fetch(`${API_URL}/schools/${id}`, { method: 'DELETE' });
+        if(res.ok) fetchSchools();
     });
 }
 
-/* ================== LÓGICA ADMIN GESTION PERSONAL ================== */
+/* ADMIN GESTION PERSONAL */
 async function fetchAndRenderOperators() {
     try {
         const res = await fetch(`${API_URL}/users`);
@@ -393,15 +358,15 @@ function renderOperatorsTable() {
 
     tbody.innerHTML = ops.map(o => {
         const sch = allSchools.find(s => s.id === o.school_id);
-        const roleBadge = o.role === 'instructor' ? `<span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded">Instructor</span>` : `<span class="bg-gray-100 text-gray-800 text-xs font-bold px-2 py-1 rounded">Operador</span>`;
+        const roleBadge = o.role === 'instructor' ? `<span class="bg-red-100 text-red-800 text-xs px-2 py-1 rounded">Instructor</span>` : `<span class="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded">Operador</span>`;
         return `
-            <tr class="hover:bg-gray-50 transition-colors">
+            <tr class="hover:bg-gray-50">
                 <td class="px-6 py-4 font-bold">${o.username}</td>
                 <td class="px-6 py-4">${roleBadge}</td>
-                <td class="px-6 py-4 text-gray-600">${sch ? sch.name : 'N/A'}</td>
+                <td class="px-6 py-4">${sch ? sch.name : 'N/A'}</td>
                 <td class="px-6 py-4 text-center space-x-3">
-                    <button onclick="openOperatorModal(${o.id})" class="text-blue-600 font-bold hover:underline">Editar</button>
-                    <button onclick="deleteOperator(${o.id})" class="text-red-600 font-bold hover:underline">Borrar</button>
+                    <button onclick="openOperatorModal(${o.id})" class="text-blue-600 hover:underline">Editar</button>
+                    <button onclick="deleteOperator(${o.id})" class="text-red-600 hover:underline">Borrar</button>
                 </td>
             </tr>`;
     }).join('');
@@ -411,7 +376,6 @@ function openOperatorModal(id = null) {
     const form = document.getElementById('op-modal-form');
     if(form) form.reset();
     document.getElementById('op-id').value = id || '';
-    
     if(id) {
         const op = allUsers.find(u => u.id === id);
         if(op) {
@@ -422,7 +386,6 @@ function openOperatorModal(id = null) {
     }
     document.getElementById('operator-modal').classList.remove('hidden');
 }
-
 function closeOperatorModal() { document.getElementById('operator-modal').classList.add('hidden'); }
 
 async function saveOperator(e) {
@@ -438,18 +401,17 @@ async function saveOperator(e) {
     try {
         const method = id ? 'PUT' : 'POST';
         const url = id ? `${API_URL}/users/${id}` : `${API_URL}/users`;
-        if(!id && !payload.password) return customAlert('Aviso', 'Contraseña obligatoria al crear', 'error');
-        
+        if(!id && !payload.password) return customAlert('Error', 'Contraseña obligatoria', 'error');
         const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-        if(res.ok) { closeOperatorModal(); fetchAndRenderOperators(); customAlert('Éxito', 'Datos guardados', 'success'); } 
+        if(res.ok) { closeOperatorModal(); fetchAndRenderOperators(); } 
         else { const data = await res.json(); customAlert('Error', data.detail, 'error'); }
-    } catch(err) { customAlert('Error', 'Fallo de red', 'error'); }
+    } catch(err) {}
 }
 
 function deleteOperator(id) {
-    customConfirm('Borrar Usuario', '¿Borrar usuario y resultados permanentemente?', async () => {
-        const res = await fetch(`${API_URL}/users/${id}`, { method: 'DELETE' });
-        if(res.ok) fetchAndRenderOperators();
+    customConfirm('Borrar', '¿Borrar usuario permanentemente?', async () => {
+        await fetch(`${API_URL}/users/${id}`, { method: 'DELETE' });
+        fetchAndRenderOperators();
     });
 }
 
@@ -511,7 +473,6 @@ function openSchoolPersonnelModal(id) {
         document.getElementById('school-personnel-modal').classList.remove('hidden');
     }
 }
-
 function closeSchoolPersonnelModal() { document.getElementById('school-personnel-modal').classList.add('hidden'); }
 
 async function saveSchoolPersonnel(e) {
@@ -535,7 +496,7 @@ function deleteSchoolPersonnel(id) {
     });
 }
 
-/* ================== INSTRUCTOR Y ESCUELA: AUDITORIA Y METRICAS ================== */
+/* METRICAS Y EXPORTACION */
 async function loadSchoolGeneralResults() {
     const res = await fetch(`${API_URL}/school-results/${currentUser.school_id}`);
     schoolDataResults = await res.json();
@@ -561,7 +522,6 @@ async function loadSchoolGeneralResults() {
         }
     }
 
-    // Chart JS solo visible para escuela
     if(currentUser.role === 'school') {
         const totalPruebas = schoolDataResults.length;
         const prom = totalPruebas > 0 ? (schoolDataResults.reduce((acc, curr) => acc + curr.score, 0) / totalPruebas).toFixed(1) : 0;
@@ -628,7 +588,7 @@ function exportToCSV() {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
 
-/* ================== INSTRUCTOR: FEEDBACK ================== */
+/* ================== INSTRUCTOR FEEDBACK ================== */
 function openFeedbackModal(resultId) {
     document.getElementById('feed-result-id').value = resultId;
     document.getElementById('feed-text').value = '';
@@ -801,7 +761,7 @@ function editQuiz(id) {
 function previewQuiz(id) {
     const q = bankQuizzes.find(x => x.id === id);
     if(!q) return;
-    takeQuiz(q); // Abre el modo Fullscreen de examen en modo preview
+    takeQuiz(q); 
 }
 
 async function saveQuiz() {
@@ -950,7 +910,7 @@ async function loadQuizGrades() {
 }
 
 
-/* ================== OPERADOR: TOMAR EXAMEN ================== */
+/* ================== OPERADOR / INSTRUCTOR: TOMAR EXÁMENES ================== */
 let activeQuizData = null;
 let activeQuizTimer = null;
 let timeRemaining = 0;
@@ -972,20 +932,39 @@ async function loadOperatorQuizzes() {
         const list = document.getElementById('operator-quiz-list');
         if(!list) return;
 
-        if(myQuizzes.length === 0) list.innerHTML = `<div class="col-span-2 text-center p-8 bg-gray-50 border border-gray-200 rounded-xl text-gray-500 italic">No tienes evaluaciones teóricas pendientes.</div>`;
+        if(myQuizzes.length === 0) list.innerHTML = `<div class="col-span-3 text-center p-8 bg-gray-50 border border-gray-200 rounded-xl text-gray-500 italic">No tienes evaluaciones teóricas pendientes.</div>`;
         else {
+            // Diseño de la tarjeta con estilo dashboard moderno e inyectado por JS
             list.innerHTML = myQuizzes.map(q => `
-                <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-lg hover:border-red-600 transition-all flex flex-col justify-between">
-                    <div>
-                        <div class="flex justify-between items-start mb-2">
-                            <h3 class="font-bold text-black text-lg">${q.title}</h3>
-                            <span class="bg-red-50 text-red-700 text-[10px] font-bold px-2 py-1 rounded border border-red-200 shrink-0">NUEVO</span>
+                <div class="relative bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col overflow-hidden group">
+                    <div class="absolute top-0 left-0 w-full h-1.5 bg-red-600 opacity-80 group-hover:opacity-100 transition-opacity"></div>
+                    <div class="p-6 flex-1 flex flex-col">
+                        <div class="flex justify-between items-start mb-4 mt-2">
+                            <div class="w-12 h-12 bg-red-50 text-red-600 rounded-xl flex items-center justify-center shrink-0 shadow-inner">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                            </div>
+                            <span class="bg-red-100 text-red-800 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider border border-red-200">Pendiente</span>
                         </div>
-                        <p class="text-xs text-gray-500 flex items-center mt-3"><svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Tiempo Límite: <b>${q.time_limit} mins</b></p>
+                        
+                        <h3 class="font-extrabold text-black text-lg mb-2 leading-tight">${q.title}</h3>
+                        <p class="text-sm text-gray-500 mb-6 flex-1 line-clamp-2">Evaluación teórica asignada por tu academia. Consta de preguntas de opción múltiple.</p>
+                        
+                        <div class="flex items-center justify-between border-t border-gray-100 pt-4 mb-6">
+                            <div class="flex items-center text-xs text-gray-600 font-bold">
+                                <svg class="w-4 h-4 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                ${q.time_limit} MIN
+                            </div>
+                            <div class="flex items-center text-xs text-gray-600 font-bold">
+                                <svg class="w-4 h-4 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                TEÓRICA
+                            </div>
+                        </div>
+                        
+                        <button onclick='takeQuiz(${JSON.stringify(q).replace(/'/g, "\\'")})' class="w-full bg-black hover:bg-red-600 text-white font-bold py-3.5 rounded-xl transition-colors shadow-md flex items-center justify-center space-x-2">
+                            <span>Comenzar Examen</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                        </button>
                     </div>
-                    <button onclick='takeQuiz(${JSON.stringify(q).replace(/'/g, "\\'")})' class="w-full mt-6 bg-black hover:bg-red-600 text-white font-bold py-2.5 rounded-lg transition-colors shadow-sm text-sm">
-                        Comenzar Examen
-                    </button>
                 </div>
             `).join('');
         }
