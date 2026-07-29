@@ -109,7 +109,7 @@ async function setupHeader() {
                     }
                 }
             }
-        } catch(e) { console.error("No se pudo cargar el logo de la academia."); }
+        } catch(e) { console.error("Logo Error: Asegúrate de que el backend esté conectado para renderizar el logo.", e); }
     }
 }
 
@@ -181,7 +181,7 @@ async function login(e) {
         clearInterval(progInterval);
         btn.classList.remove('hidden');
         loadingUi.classList.add('hidden');
-        alert('❌ Error de conexión con el Servidor. Revisa que Render esté activo.'); 
+        alert('❌ Error de conexión. Render podría estar dormido, intenta nuevamente en 30 segundos.'); 
     }
 }
 
@@ -465,7 +465,7 @@ function deleteOperator(id) {
 /* ================== LÓGICA ESCUELA DASHBOARD ================== */
 async function loadSchoolDashboard() {
     const res = await fetch(`${API_URL}/users`);
-    allUsers = await res.json(); // Actualizamos variables globales para editar
+    allUsers = await res.json(); 
     const personnel = allUsers.filter(u => u.school_id === currentUser.school_id && (u.role === 'operator' || u.role === 'instructor'));
     
     const list = document.getElementById('operator-list');
@@ -659,7 +659,7 @@ async function finishSim() {
         })
     });
     
-    alert(`✅ Práctica finalizada. Calificación técnica: ${score}%. \nEl reporte ha sido guardado en su perfil.`);
+    customAlert('Práctica finalizada', `Calificación técnica: ${score}%. \nEl reporte ha sido guardado en tu perfil.`, 'success');
     
     document.getElementById('sim-view').classList.add('hidden');
     document.getElementById('dashboard-view').classList.remove('hidden');

@@ -32,10 +32,11 @@ with database.SessionLocal() as session:
 
 app = FastAPI(title="SECURITY CLOUD API")
 
+# --- CORRECCIÓN CRÍTICA DE CORS ---
 app.add_middleware(
     CORSMiddleware, 
     allow_origins=["*"], 
-    allow_credentials=True, 
+    allow_credentials=False, # <--- DEBE SER FALSE PARA QUE FUNCIONE CON ORIGINS=["*"]
     allow_methods=["*"], 
     allow_headers=["*"]
 )
@@ -130,7 +131,6 @@ def create_user(u: UserCreate, db: Session = Depends(database.get_db)):
     if db.query(models.User).filter_by(username=u.username).first():
         raise HTTPException(status_code=400, detail="El usuario ya existe")
         
-    # VALIDACIÓN INDEPENDIENTE DE LÍMITES
     if u.role in ["operator", "instructor"] and u.school_id:
         school = db.query(models.School).filter_by(id=u.school_id).first()
         if school:
