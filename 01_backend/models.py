@@ -30,17 +30,15 @@ class SimulationResult(Base):
     details = Column(String)
     feedback = Column(String, default="") 
 
-# --- NUEVAS TABLAS PARA EL SISTEMA DE EVALUACIONES ---
-
 class Quiz(Base):
     __tablename__ = "quizzes"
     id = Column(Integer, primary_key=True, index=True)
     school_id = Column(Integer, ForeignKey("schools.id"))
     instructor_id = Column(Integer, ForeignKey("users.id"))
     title = Column(String)
-    questions = Column(String) # Guardará un JSON estructurado
-    time_limit = Column(Integer) # Tiempo en minutos
-    assigned_operators = Column(String) # Arreglo JSON de IDs de operadores
+    questions = Column(String) # JSON estructurado
+    time_limit = Column(Integer) # Minutos
+    assigned_operators = Column(String) # JSON de IDs de operadores
     date_created = Column(String)
     is_active = Column(Boolean, default=True)
 
@@ -49,5 +47,5 @@ class QuizResult(Base):
     id = Column(Integer, primary_key=True, index=True)
     quiz_id = Column(Integer, ForeignKey("quizzes.id"))
     operator_id = Column(Integer, ForeignKey("users.id"))
-    score = Column(Float) # Calificación sobre 100
+    score = Column(Float) 
     date = Column(String)

@@ -29,7 +29,7 @@ with database.SessionLocal() as session:
         session.add_all([admin, academia, instructor, operador])
         session.commit()
 
-app = FastAPI(title="SECURITY CLOUD API V2.1")
+app = FastAPI(title="SECURITY CLOUD API V3")
 
 app.add_middleware(
     CORSMiddleware, 
@@ -47,7 +47,6 @@ class UserUpdate(BaseModel): username: str; password: str; school_id: int; role:
 class ResultCreate(BaseModel): user_id: int; simulator_type: str; score: float; details: str
 class FeedbackUpdate(BaseModel): feedback: str
 
-# Nuevos esquemas para Exámenes
 class QuizCreate(BaseModel): school_id: int; instructor_id: int; title: str; questions: str; time_limit: int; assigned_operators: str
 class AnswerItem(BaseModel): question_index: int; selected_option: int
 class QuizSubmit(BaseModel): quiz_id: int; operator_id: int; answers: list[AnswerItem]
@@ -92,7 +91,9 @@ def delete_school(school_id: int, db: Session = Depends(database.get_db)):
     users = db.query(models.User).filter_by(school_id=school_id).all()
     for u in users:
         db.query(models.SimulationResult).filter_by(user_id=u.id).delete()
+        db.query(models.QuizResult).filter_by(operator_id=u.id).delete()
         db.delete(u)
+    db.query(models.Quiz).filter_by(school_id=school_id).delete()
     db.delete(db_s)
     db.commit()
     return {"msg": "Escuela borrada"}
@@ -132,6 +133,7 @@ def delete_user(user_id: int, db: Session = Depends(database.get_db)):
     db_u = db.query(models.User).filter_by(id=user_id).first()
     if not db_u: raise HTTPException(status_code=404, detail="Usuario no encontrado")
     db.query(models.SimulationResult).filter_by(user_id=user_id).delete()
+    db.query(models.QuizResult).filter_by(operator_id=user_id).delete()
     db.delete(db_u)
     db.commit()
     return {"msg": "Usuario borrado"}
@@ -160,15 +162,9 @@ def add_feedback(result_id: int, f: FeedbackUpdate, db: Session = Depends(databa
     db.commit()
     return res
 
-# ================= RUTAS PARA EXÁMENES (QUIZZES) =================
-
 @app.post("/quizzes")
 def create_quiz(q: QuizCreate, db: Session = Depends(database.get_db)):
-    db_q = models.Quiz(
-        school_id=q.school_id, instructor_id=q.instructor_id, title=q.title,
-        questions=q.questions, time_limit=q.time_limit, assigned_operators=q.assigned_operators,
-        date_created=datetime.now().strftime("%Y-%m-%d")
-    )
+    db_q = models.Quiz(school_id=q.school_id, instructor_id=q.instructor_id, title=q.title, questions=q.questions, time_limit=q.time_limit, assigned_operators=q.assigned_operators, date_created=datetime.now().strftime("%Y-%m-%d"))
     db.add(db_q)
     db.commit()
     return {"msg": "Examen creado exitosamente"}
@@ -179,47 +175,26 @@ def get_school_quizzes(school_id: int, db: Session = Depends(database.get_db)):
 
 @app.post("/quizzes/submit")
 def submit_quiz(sub: QuizSubmit, db: Session = Depends(database.get_db)):
-    # 1. Traer la evaluación
     quiz = db.query(models.Quiz).filter_by(id=sub.quiz_id).first()
     if not quiz: raise HTTPException(404, "Examen no encontrado")
     
-    # 2. Deserializar preguntas y calcular puntaje exacto
     questions = json.loads(quiz.questions)
     score = 0.0
-    
-    # Mapear respuestas enviadas
     ans_map = { a.question_index: a.selected_option for a in sub.answers }
     
     for i, q in enumerate(questions):
-        # Si la opcion enviada por el alumno es igual a la opcion correcta que definió el instructor
         if i in ans_map and ans_map[i] == int(q['correct']):
             score += float(q['weight'])
             
-    # 3. Guardar el resultado en la base de datos
     result = models.QuizResult(quiz_id=quiz.id, operator_id=sub.operator_id, score=score, date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     db.add(result)
     db.commit()
-    
     return {"score": score}
 
 @app.get("/quizzes/results/{school_id}")
 def get_quiz_grades(school_id: int, db: Session = Depends(database.get_db)):
-    # Cruza Tablas: QuizResult + User + Quiz para ver quien hizo que
-    results = db.query(models.QuizResult, models.User, models.Quiz)\
-        .join(models.User, models.QuizResult.operator_id == models.User.id)\
-        .join(models.Quiz, models.QuizResult.quiz_id == models.Quiz.id)\
-        .filter(models.User.school_id == school_id)\
-        .order_by(models.QuizResult.id.desc()).all()
-    
-    return [
-        {
-            "id": r.QuizResult.id,
-            "operator_name": r.User.username,
-            "quiz_title": r.Quiz.title,
-            "score": r.QuizResult.score,
-            "date": r.QuizResult.date
-        } for r in results
-    ]
+    results = db.query(models.QuizResult, models.User, models.Quiz).join(models.User, models.QuizResult.operator_id == models.User.id).join(models.Quiz, models.QuizResult.quiz_id == models.Quiz.id).filter(models.User.school_id == school_id).order_by(models.QuizResult.id.desc()).all()
+    return [{"id": r.QuizResult.id, "operator_name": r.User.username, "quiz_title": r.Quiz.title, "score": r.QuizResult.score, "date": r.QuizResult.date } for r in results]
 
 class CertPDF(FPDF):
     def header(self):

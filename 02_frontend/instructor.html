@@ -12,7 +12,6 @@
 </head>
 <body class="bg-gray-50 text-gray-900 flex h-screen overflow-hidden">
 
-    <!-- MENÚ LATERAL -->
     <aside class="w-64 bg-white border-r border-gray-200 flex flex-col z-20 shadow-sm relative">
         <div class="absolute top-0 left-0 w-full h-1.5 bg-red-600"></div>
         <div class="h-20 flex items-center justify-center px-6 border-b border-gray-100 mt-1">
@@ -22,29 +21,24 @@
         <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
             <p class="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Simulación</p>
             <a href="#" onclick="switchView('dashboard')" class="nav-btn flex items-center px-4 py-3 bg-red-50 text-red-700 rounded-lg font-bold transition-colors border-l-4 border-red-600" id="nav-dash">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                Mis Ejercicios
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg> Mis Ejercicios
             </a>
             <a href="#" onclick="switchView('evaluations')" class="nav-btn flex items-center px-4 py-3 text-gray-600 hover:bg-gray-50 hover:text-black rounded-lg font-semibold transition-colors border-l-4 border-transparent" id="nav-eval">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                Auditar Alumnos
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg> Auditar Alumnos
             </a>
 
             <p class="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-6 mb-2">Gestión Académica</p>
             <a href="#" onclick="switchView('quiz-maker'); loadQuizMaker();" class="nav-btn flex items-center px-4 py-3 text-gray-600 hover:bg-gray-50 hover:text-black rounded-lg font-semibold transition-colors border-l-4 border-transparent" id="nav-quiz">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
-                Crear Exámenes
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg> Crear Exámenes
             </a>
             <a href="#" onclick="switchView('quiz-results'); loadQuizGrades();" class="nav-btn flex items-center px-4 py-3 text-gray-600 hover:bg-gray-50 hover:text-black rounded-lg font-semibold transition-colors border-l-4 border-transparent" id="nav-grades">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-                Calificaciones
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg> Calificaciones
             </a>
         </nav>
         
         <div class="p-4 border-t border-gray-100">
             <button onclick="logout()" class="flex items-center w-full px-4 py-3 text-gray-600 hover:bg-red-50 hover:text-red-700 rounded-lg font-bold transition-colors">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-                Cerrar Sesión
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg> Cerrar Sesión
             </button>
         </div>
     </aside>
@@ -64,7 +58,6 @@
             </div>
         </header>
 
-        <!-- VISTA: MIS EJERCICIOS (Simuladores) -->
         <main id="dashboard-view" class="main-view flex-1 overflow-y-auto p-8 flex flex-col items-center">
             <div class="w-full max-w-5xl space-y-10">
                 <div class="text-left border-b border-gray-200 pb-4">
@@ -79,7 +72,6 @@
             </div>
         </main>
 
-        <!-- VISTA: AUDITORIA DE ALUMNOS (Feedback a PDFs) -->
         <main id="evaluations-view" class="main-view flex-1 overflow-y-auto p-8 hidden">
             <div class="w-full max-w-5xl mx-auto bg-white p-8 rounded-2xl border border-gray-200 shadow-sm h-full flex flex-col">
                 <h2 class="text-2xl font-extrabold text-black border-b border-gray-100 pb-4 mb-4">Auditoría de Simulaciones Tácticas</h2>
@@ -87,55 +79,45 @@
             </div>
         </main>
 
-        <!-- VISTA: CREADOR DE EXAMENES (Quizzes) -->
         <main id="quiz-maker-view" class="main-view flex-1 overflow-y-auto p-8 hidden bg-gray-100">
             <div class="w-full max-w-4xl mx-auto">
                 <div class="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm mb-6">
                     <h2 class="text-2xl font-extrabold text-black mb-2">Diseñador de Exámenes</h2>
-                    <p class="text-sm text-gray-500 mb-6">Crea cuestionarios teóricos para evaluar a tus operadores. La suma del peso (%) de todas las preguntas debe ser exactamente 100%.</p>
+                    <p class="text-sm text-gray-500 mb-6">Crea cuestionarios teóricos. La suma del peso (%) de todas las preguntas debe ser exactamente 100%.</p>
                     
                     <div class="grid grid-cols-4 gap-4 mb-6">
                         <div class="col-span-3">
                             <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nombre de la Evaluación</label>
-                            <input type="text" id="quiz-title" placeholder="Ej: Protocolo de Rayos X Nivel 1" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-600 outline-none">
+                            <input type="text" id="quiz-title" placeholder="Ej: Protocolo de Rayos X Nivel 1" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm outline-none">
                         </div>
                         <div class="col-span-1">
-                            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Tiempo (Minutos)</label>
-                            <input type="number" id="quiz-time" value="15" min="1" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-600 outline-none">
+                            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Tiempo (Min)</label>
+                            <input type="number" id="quiz-time" value="15" min="1" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm outline-none">
                         </div>
                     </div>
 
-                    <div id="questions-container" class="space-y-6 border-t border-gray-100 pt-6">
-                        <!-- Preguntas añadidas dinámicamente -->
-                    </div>
+                    <div id="questions-container" class="space-y-6 border-t border-gray-100 pt-6"></div>
 
                     <div class="flex justify-center mt-6 border-b border-gray-100 pb-6">
-                        <button type="button" onclick="addQuestion()" class="bg-gray-100 hover:bg-gray-200 text-black font-bold py-2.5 px-6 rounded-lg text-sm transition-colors border border-gray-300 shadow-sm">
-                            + Agregar Otra Pregunta
-                        </button>
+                        <button type="button" onclick="addQuestion()" class="bg-gray-100 hover:bg-gray-200 text-black font-bold py-2.5 px-6 rounded-lg text-sm border border-gray-300 shadow-sm">+ Agregar Otra Pregunta</button>
                     </div>
 
                     <div class="mt-6">
                         <label class="block text-xs font-bold text-gray-700 uppercase mb-3">Asignar a los siguientes Operadores:</label>
-                        <div id="operators-assign-list" class="grid grid-cols-2 md:grid-cols-3 gap-3 bg-gray-50 p-4 rounded-lg border border-gray-200 max-h-48 overflow-y-auto">
-                            <!-- Checkboxes de operadores -->
-                        </div>
+                        <div id="operators-assign-list" class="grid grid-cols-2 md:grid-cols-3 gap-3 bg-gray-50 p-4 rounded-lg border border-gray-200 max-h-48 overflow-y-auto"></div>
                     </div>
 
                     <div class="mt-8 flex justify-between items-center">
                         <div class="text-sm font-bold text-gray-500">Peso Total Acumulado: <span id="quiz-total-weight" class="text-black text-lg">0%</span></div>
-                        <button type="button" onclick="saveQuiz()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-10 rounded-lg shadow-md transition-colors">
-                            Guardar y Activar Evaluación
-                        </button>
+                        <button type="button" onclick="saveQuiz()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-10 rounded-lg shadow-md transition-colors">Guardar y Activar Evaluación</button>
                     </div>
                 </div>
             </div>
         </main>
 
-        <!-- VISTA: CALIFICACIONES EN TIEMPO REAL -->
         <main id="quiz-results-view" class="main-view flex-1 overflow-y-auto p-8 hidden">
             <div class="w-full max-w-5xl mx-auto bg-white p-8 rounded-2xl border border-gray-200 shadow-sm h-full flex flex-col">
-                <h2 class="text-2xl font-extrabold text-black border-b border-gray-100 pb-4 mb-4">Libro de Calificaciones (Exámenes)</h2>
+                <h2 class="text-2xl font-extrabold text-black border-b border-gray-100 pb-4 mb-4">Libro de Calificaciones</h2>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm text-gray-600 border-collapse">
                         <thead class="bg-gray-100 text-gray-800 uppercase font-bold border-b border-gray-200">
@@ -146,22 +128,16 @@
                                 <th class="px-6 py-4 text-center rounded-tr-lg">Calificación Final</th>
                             </tr>
                         </thead>
-                        <tbody id="quiz-grades-tbody" class="divide-y divide-gray-100 bg-white">
-                            <!-- Resultados inyectados por JS -->
-                        </tbody>
+                        <tbody id="quiz-grades-tbody" class="divide-y divide-gray-100 bg-white"></tbody>
                     </table>
                 </div>
             </div>
         </main>
 
-        <!-- SIMULADOR 3D -->
         <div id="sim-view" class="hidden absolute inset-0 bg-white z-50 flex flex-col">
-            <div class="bg-black p-4 flex justify-between items-center shadow-lg z-10 border-b-4 border-red-600">
-                <div class="flex items-center space-x-3">
-                    <div class="w-3 h-3 bg-red-600 rounded-full animate-pulse"></div>
-                    <h3 id="sim-title" class="font-bold text-white tracking-widest text-sm uppercase">Simulador Activo</h3>
-                </div>
-                <button onclick="finishSim()" class="bg-red-600 hover:bg-red-700 px-6 py-2 rounded text-white font-bold text-xs uppercase tracking-wider transition-colors shadow-lg">Terminar</button>
+            <div class="bg-black p-4 flex justify-between items-center shadow-lg border-b-4 border-red-600 z-10">
+                <h3 id="sim-title" class="font-bold text-white uppercase text-sm">Simulador</h3>
+                <button onclick="finishSim()" class="bg-red-600 hover:bg-red-700 px-6 py-2 rounded text-white font-bold text-xs uppercase">Terminar</button>
             </div>
             <div class="flex-1 flex items-center justify-center bg-gray-100"><p>Loading Engine...</p></div>
         </div>
@@ -173,7 +149,7 @@
             <h3 class="text-xl font-bold text-black mb-2">Comentario Forense</h3>
             <form onsubmit="saveFeedback(event)">
                 <input type="hidden" id="feed-result-id">
-                <textarea id="feed-text" rows="4" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-600 outline-none" placeholder="Escribe tu corrección táctica..."></textarea>
+                <textarea id="feed-text" rows="4" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm outline-none" placeholder="Escribe tu corrección táctica..."></textarea>
                 <div class="flex justify-end space-x-3 mt-4"><button type="button" onclick="closeFeedbackModal()" class="px-5 py-2 rounded-lg font-bold bg-gray-100">Cancelar</button><button type="submit" class="px-5 py-2 rounded-lg font-bold bg-red-600 text-white">Guardar</button></div>
             </form>
         </div>
@@ -184,7 +160,7 @@
             <div id="alert-icon-container" class="mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-4"></div>
             <h3 id="alert-title" class="text-lg font-bold text-black mb-2">Mensaje</h3>
             <p id="alert-message" class="text-sm text-gray-600 mb-6"></p>
-            <button onclick="closeAlertModal()" class="w-full bg-black text-white py-2.5 rounded-lg font-bold hover:bg-red-600">Aceptar</button>
+            <button onclick="closeAlertModal()" class="w-full bg-black text-white py-2.5 rounded-lg font-bold hover:bg-red-600 transition-colors">Aceptar</button>
         </div>
     </div>
 
