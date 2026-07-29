@@ -17,7 +17,7 @@ models.Base.metadata.create_all(bind=database.engine)
 # Crear Usuarios de Prueba (Seed)
 with database.SessionLocal() as session:
     if session.query(models.User).count() == 0:
-        school_test = models.School(name="Academia Central Guardias", subscription_type="Mensual", max_operators=100)
+        school_test = models.School(name="Academia Central Guardias", subscription_type="Mensual", max_operators=100, max_instructors=20)
         session.add(school_test)
         session.commit()
         session.refresh(school_test)
@@ -52,12 +52,14 @@ class SchoolCreate(BaseModel):
     username: str
     password: str
     max_operators: int
+    max_instructors: int = 10
     icon_url: str = ""
 
 class SchoolUpdate(BaseModel):
     name: str
     subscription_type: str
     max_operators: int
+    max_instructors: int = 10
     icon_url: str = ""
 
 class UserCreate(BaseModel): username: str; password: str; role: str; school_id: int = None
@@ -80,7 +82,7 @@ def create_school(s: SchoolCreate, db: Session = Depends(database.get_db)):
     if db.query(models.User).filter_by(username=s.username).first():
         raise HTTPException(status_code=400, detail="El usuario ya existe")
     
-    db_s = models.School(name=s.name, subscription_type=s.subscription_type, max_operators=s.max_operators, icon_url=s.icon_url)
+    db_s = models.School(name=s.name, subscription_type=s.subscription_type, max_operators=s.max_operators, max_instructors=s.max_instructors, icon_url=s.icon_url)
     db.add(db_s)
     db.commit()
     db.refresh(db_s)
@@ -99,6 +101,7 @@ def update_school(school_id: int, s: SchoolUpdate, db: Session = Depends(databas
     db_s.name = s.name
     db_s.subscription_type = s.subscription_type
     db_s.max_operators = s.max_operators
+    db_s.max_instructors = s.max_instructors
     db_s.icon_url = s.icon_url
     
     db.commit()
@@ -127,14 +130,18 @@ def create_user(u: UserCreate, db: Session = Depends(database.get_db)):
     if db.query(models.User).filter_by(username=u.username).first():
         raise HTTPException(status_code=400, detail="El usuario ya existe")
         
+    # VALIDACIÓN INDEPENDIENTE DE LÍMITES
     if u.role in ["operator", "instructor"] and u.school_id:
         school = db.query(models.School).filter_by(id=u.school_id).first()
-        current_ops = db.query(models.User).filter(
-            models.User.school_id == u.school_id,
-            models.User.role.in_(["operator", "instructor"])
-        ).count()
-        if school and current_ops >= school.max_operators:
-            raise HTTPException(status_code=400, detail=f"Límite de personal ({school.max_operators}) alcanzado para esta escuela.")
+        if school:
+            if u.role == "operator":
+                current_ops = db.query(models.User).filter_by(school_id=u.school_id, role="operator").count()
+                if current_ops >= school.max_operators:
+                    raise HTTPException(status_code=400, detail=f"Límite de Operadores ({school.max_operators}) alcanzado para esta escuela.")
+            elif u.role == "instructor":
+                current_inst = db.query(models.User).filter_by(school_id=u.school_id, role="instructor").count()
+                if current_inst >= school.max_instructors:
+                    raise HTTPException(status_code=400, detail=f"Límite de Instructores ({school.max_instructors}) alcanzado para esta escuela.")
 
     db_u = models.User(**u.dict())
     db.add(db_u)
@@ -170,7 +177,6 @@ def delete_user(user_id: int, db: Session = Depends(database.get_db)):
 def get_results(user_id: int, db: Session = Depends(database.get_db)):
     return db.query(models.SimulationResult).filter_by(user_id=user_id).order_by(models.SimulationResult.id.desc()).all()
 
-# NUEVO: Obtener todo el historial de una academia (operadores e instructores)
 @app.get("/school-results/{school_id}")
 def get_school_results(school_id: int, db: Session = Depends(database.get_db)):
     results = db.query(models.SimulationResult, models.User)\

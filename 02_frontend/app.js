@@ -241,7 +241,7 @@ async function fetchSchools() {
                             ${iconoHTML}
                             <div class="ml-4">
                                 <span class="block font-bold text-black text-lg">${s.name}</span>
-                                <span class="block text-sm text-gray-500">Plan: <b>${s.subscription_type}</b> | Límite Ops/Inst: <b>${s.max_operators}</b></span>
+                                <span class="block text-sm text-gray-500">Plan: <b>${s.subscription_type}</b> | Límite Ops: <b>${s.max_operators}</b> | Límite Inst: <b>${s.max_instructors}</b></span>
                             </div>
                         </div>
                         <div class="flex space-x-3 ml-4">
@@ -274,12 +274,13 @@ async function createSchool(e) {
     const username = document.getElementById('school-username').value;
     const pass = document.getElementById('school-password').value;
     const limit = document.getElementById('school-limit').value;
+    const limitInst = document.getElementById('school-limit-inst').value;
     const iconUrl = document.getElementById('school-icon').value;
     
     try {
         const res = await fetch(`${API_URL}/schools`, { 
             method: 'POST', headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify({name, subscription_type: sub, username: username, password: pass, max_operators: parseInt(limit), icon_url: iconUrl}) 
+            body: JSON.stringify({name, subscription_type: sub, username: username, password: pass, max_operators: parseInt(limit), max_instructors: parseInt(limitInst), icon_url: iconUrl}) 
         });
         if(res.ok) {
             customAlert('Creación Exitosa', 'La escuela y su usuario de acceso fueron creados exitosamente.', 'success');
@@ -302,6 +303,7 @@ function openEditSchoolModal(id) {
         document.getElementById('edit-school-name').value = school.name;
         document.getElementById('edit-school-plan').value = school.subscription_type;
         document.getElementById('edit-school-limit').value = school.max_operators;
+        document.getElementById('edit-school-limit-inst').value = school.max_instructors || 10;
         document.getElementById('edit-school-icon').value = school.icon_url || '';
         document.getElementById('edit-school-modal').classList.remove('hidden');
     }
@@ -317,12 +319,13 @@ async function saveEditSchool(e) {
     const name = document.getElementById('edit-school-name').value;
     const sub = document.getElementById('edit-school-plan').value;
     const limit = document.getElementById('edit-school-limit').value;
+    const limitInst = document.getElementById('edit-school-limit-inst').value;
     const iconUrl = document.getElementById('edit-school-icon').value;
 
     try {
         const res = await fetch(`${API_URL}/schools/${id}`, {
             method: 'PUT', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({name: name, subscription_type: sub, max_operators: parseInt(limit), icon_url: iconUrl})
+            body: JSON.stringify({name: name, subscription_type: sub, max_operators: parseInt(limit), max_instructors: parseInt(limitInst), icon_url: iconUrl})
         });
         if(res.ok) {
             customAlert('Éxito', 'Escuela actualizada correctamente.', 'success');
@@ -462,8 +465,8 @@ function deleteOperator(id) {
 /* ================== LÓGICA ESCUELA DASHBOARD ================== */
 async function loadSchoolDashboard() {
     const res = await fetch(`${API_URL}/users`);
-    const users = await res.json();
-    const personnel = users.filter(u => u.school_id === currentUser.school_id && (u.role === 'operator' || u.role === 'instructor'));
+    allUsers = await res.json(); // Actualizamos variables globales para editar
+    const personnel = allUsers.filter(u => u.school_id === currentUser.school_id && (u.role === 'operator' || u.role === 'instructor'));
     
     const list = document.getElementById('operator-list');
     if(list) {
@@ -481,6 +484,11 @@ async function loadSchoolDashboard() {
                         <span class="font-bold text-gray-800">${p.username.toUpperCase()}</span> 
                         ${badge}
                     </div>
+                    <div class="flex space-x-3 ml-4 items-center">
+                        <button onclick="openSchoolPersonnelModal(${p.id})" class="text-blue-600 font-bold hover:underline text-xs">Editar</button>
+                        <button onclick="deleteSchoolPersonnel(${p.id})" class="text-red-600 font-bold hover:underline text-xs">Borrar</button>
+                        <button onclick="viewOperatorResults(${p.id})" class="bg-black text-white text-xs px-3 py-1 rounded shadow-sm hover:bg-gray-800 transition-colors" title="Ver PDFs">Resultados</button>
+                    </div>
                 </li>
             `}).join('');
         }
@@ -492,7 +500,7 @@ async function createPersonnel(e) {
     e.preventDefault();
     const username = document.getElementById('op-username').value;
     const role = document.getElementById('op-role').value;
-    const password = document.getElementById('op-password').value; // AHORA LEE LA CONTRASEÑA
+    const password = document.getElementById('op-password').value; 
 
     try {
         const res = await fetch(`${API_URL}/users`, { 
@@ -500,15 +508,65 @@ async function createPersonnel(e) {
             body: JSON.stringify({username, password: password, role: role, school_id: currentUser.school_id}) 
         });
         if(res.ok){
-            alert(`✅ ${role === 'instructor' ? 'Instructor' : 'Operador'} creado exitosamente`);
+            customAlert('Éxito', `✅ ${role === 'instructor' ? 'Instructor' : 'Operador'} creado exitosamente`, 'success');
             document.getElementById('op-username').value = '';
-            document.getElementById('op-password').value = ''; // LIMPIA EL CAMPO
+            document.getElementById('op-password').value = ''; 
             loadSchoolDashboard();
         } else {
             const err = await res.json();
-            alert(`⚠️ Error: ${err.detail}`);
+            customAlert('Alerta de Límite', err.detail, 'error');
         }
-    } catch(err) { alert('Error creando usuario'); }
+    } catch(err) { customAlert('Error', 'Problema creando usuario', 'error'); }
+}
+
+function openSchoolPersonnelModal(id) {
+    document.getElementById('sp-modal-form').reset();
+    document.getElementById('sp-id').value = id || '';
+    
+    if(id) {
+        const p = allUsers.find(u => u.id === id);
+        if(p) {
+            document.getElementById('sp-username').value = p.username;
+            document.getElementById('sp-role').value = p.role;
+        }
+    }
+    document.getElementById('school-personnel-modal').classList.remove('hidden');
+}
+
+function closeSchoolPersonnelModal() {
+    document.getElementById('school-personnel-modal').classList.add('hidden');
+}
+
+async function saveSchoolPersonnel(e) {
+    e.preventDefault();
+    const id = document.getElementById('sp-id').value;
+    const username = document.getElementById('sp-username').value;
+    const pass = document.getElementById('sp-password').value;
+    const role = document.getElementById('sp-role').value;
+
+    try {
+        const res = await fetch(`${API_URL}/users/${id}`, {
+            method: 'PUT', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({username, password: pass, school_id: currentUser.school_id, role})
+        });
+        if(res.ok) { 
+            customAlert('Actualizado', 'Datos actualizados correctamente.', 'success'); 
+            closeSchoolPersonnelModal(); 
+            loadSchoolDashboard(); 
+        } else { 
+            const data = await res.json();
+            customAlert('Error', data.detail, 'error'); 
+        }
+    } catch(err) { customAlert('Error', 'Error de conexión', 'error'); }
+}
+
+function deleteSchoolPersonnel(id) {
+    customConfirm('Borrar Personal', '¿Estás seguro de borrar este usuario y sus resultados?', async () => {
+        try {
+            const res = await fetch(`${API_URL}/users/${id}`, { method: 'DELETE' });
+            if(res.ok) loadSchoolDashboard();
+        } catch(err) { customAlert('Error', 'Error al borrar', 'error'); }
+    });
 }
 
 async function loadSchoolGeneralResults() {
@@ -527,6 +585,29 @@ async function loadSchoolGeneralResults() {
         <div class="mb-3 p-3 border-l-4 border-red-600 bg-white rounded-r-lg flex justify-between items-center shadow-sm">
             <div>
                 <p class="font-bold text-sm text-gray-900">${r.simulator_type} <span class="text-xs text-gray-500 font-normal ml-2">por ${r.username.toUpperCase()} (${r.role === 'instructor' ? 'Instructor' : 'Operador'})</span></p>
+                <p class="text-xs text-gray-600">Score: ${r.score}% | ${r.date.split(' ')[0]}</p>
+            </div>
+            <a href="${API_URL}/generate_pdf/${r.id}" target="_blank" class="text-red-600 hover:text-red-800 bg-red-50 p-2 rounded-full" title="Ver Informe PDF">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            </a>
+        </div>
+    `).join('');
+}
+
+async function viewOperatorResults(userId) {
+    const res = await fetch(`${API_URL}/results/${userId}`);
+    const results = await res.json();
+    const display = document.getElementById('school-results-display');
+    
+    if(results.length === 0) {
+        display.innerHTML = '<p class="text-sm text-gray-500 italic text-center mt-8">Este usuario aún no tiene simulaciones registradas.</p>';
+        return;
+    }
+    
+    display.innerHTML = results.map(r => `
+        <div class="mb-3 p-3 border-l-4 border-red-600 bg-white rounded-r-lg flex justify-between items-center shadow-sm">
+            <div>
+                <p class="font-bold text-sm text-gray-900">${r.simulator_type}</p>
                 <p class="text-xs text-gray-600">Score: ${r.score}% | ${r.date.split(' ')[0]}</p>
             </div>
             <a href="${API_URL}/generate_pdf/${r.id}" target="_blank" class="text-red-600 hover:text-red-800 bg-red-50 p-2 rounded-full" title="Ver Informe PDF">

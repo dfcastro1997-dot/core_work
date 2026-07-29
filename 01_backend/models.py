@@ -7,6 +7,7 @@ class School(Base):
     name = Column(String, index=True)
     subscription_type = Column(String) 
     max_operators = Column(Integer, default=50)
+    max_instructors = Column(Integer, default=10) # <--- NUEVO LÍMITE INDEPENDIENTE
     icon_url = Column(String, default="") 
 
 class User(Base):

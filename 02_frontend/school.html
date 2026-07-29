@@ -109,6 +109,61 @@
         </main>
     </div>
 
+    <!-- Modales para la Escuela -->
+    <div id="school-personnel-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50">
+        <div class="bg-white w-full max-w-md rounded-2xl p-8 shadow-2xl border border-gray-200">
+            <h3 class="text-xl font-bold text-black mb-4 border-b border-gray-100 pb-3" id="sp-modal-title">Editar Personal</h3>
+            <form id="sp-modal-form" onsubmit="saveSchoolPersonnel(event)" class="space-y-4">
+                <input type="hidden" id="sp-id">
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Rol</label>
+                    <select id="sp-role" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-600 outline-none cursor-pointer">
+                        <option value="operator">Operador</option>
+                        <option value="instructor">Instructor</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nombre Usuario / ID</label>
+                    <input type="text" id="sp-username" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-600 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Contraseña</label>
+                    <input type="text" id="sp-password" placeholder="(Opcional para actualizar)" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-600 outline-none">
+                </div>
+                <div class="flex justify-end space-x-3 pt-4 border-t border-gray-100">
+                    <button type="button" onclick="closeSchoolPersonnelModal()" class="px-5 py-2.5 bg-gray-100 text-gray-800 rounded-lg font-bold hover:bg-gray-200">Cancelar</button>
+                    <button type="submit" class="px-5 py-2.5 bg-black text-white rounded-lg font-bold hover:bg-red-600 transition-colors">Guardar Datos</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Alerta Personalizada -->
+    <div id="alert-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden flex items-center justify-center z-[100]">
+        <div class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl border border-gray-200 text-center">
+            <div id="alert-icon-container" class="mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-4"></div>
+            <h3 id="alert-title" class="text-lg font-bold text-black mb-2">Mensaje</h3>
+            <p id="alert-message" class="text-sm text-gray-600 mb-6"></p>
+            <button onclick="closeAlertModal()" class="w-full bg-black text-white py-2.5 rounded-lg font-bold hover:bg-red-600 transition-colors">Aceptar</button>
+        </div>
+    </div>
+
+    <!-- Modal Confirmación -->
+    <div id="confirm-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden flex items-center justify-center z-[100]">
+        <div class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl border border-gray-200 text-center">
+            <div class="mx-auto w-12 h-12 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mb-4">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            </div>
+            <h3 id="confirm-title" class="text-lg font-bold text-black mb-2">¿Estás seguro?</h3>
+            <p id="confirm-message" class="text-sm text-gray-600 mb-6"></p>
+            <div class="flex justify-center space-x-3">
+                <button onclick="closeConfirmModal(false)" class="px-5 py-2.5 bg-gray-100 text-gray-800 rounded-lg font-bold hover:bg-gray-200">Cancelar</button>
+                <button onclick="closeConfirmModal(true)" class="px-5 py-2.5 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700">Sí, continuar</button>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>
