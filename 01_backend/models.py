@@ -14,7 +14,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
     password = Column(String)
-    role = Column(String) # 'admin', 'school', 'operator'
+    role = Column(String) # 'admin', 'school', 'instructor', 'operator'
     school_id = Column(Integer, ForeignKey("schools.id"), nullable=True)
 
 class SimulationResult(Base):

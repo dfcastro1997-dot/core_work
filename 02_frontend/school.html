@@ -14,8 +14,8 @@
 
     <aside class="w-64 bg-white border-r border-gray-200 flex flex-col z-20 shadow-sm relative">
         <div class="absolute top-0 left-0 w-full h-1.5 bg-black"></div>
-        <div class="h-20 flex items-center px-6 border-b border-gray-100 mt-1">
-            <img id="sidebar-logo" src="https://i.ibb.co/DHmrYHsN/Group-339.png" alt="Logo Academia" class="h-8 max-w-[150px] object-contain">
+        <div class="h-20 flex items-center justify-center px-6 border-b border-gray-100 mt-1">
+            <img src="https://i.ibb.co/DHmrYHsN/Group-339.png" alt="Security Cloud Logo" class="h-8 object-contain">
         </div>
         
         <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
@@ -28,16 +28,6 @@
             <a href="#" class="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-50 hover:text-black rounded-lg font-semibold transition-colors">
                 <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                 Personal Registrado
-            </a>
-            
-            <p class="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-6 mb-2">Simulación</p>
-            <a href="#" class="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-50 hover:text-black rounded-lg font-semibold transition-colors">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                Ejercicios
-            </a>
-            <a href="#" class="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-50 hover:text-black rounded-lg font-semibold transition-colors">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                Pruebas
             </a>
         </nav>
         
@@ -58,7 +48,10 @@
                     <span id="user-role" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider"></span>
                     <span id="user-welcome" class="block text-sm font-bold text-black"></span>
                 </div>
-                <div class="w-10 h-10 bg-red-600 text-white rounded-full flex items-center justify-center font-bold shadow-md">AC</div>
+                <div id="top-right-logo-container" class="w-10 h-10 bg-red-600 text-white rounded-full flex items-center justify-center font-bold shadow-md overflow-hidden shrink-0">
+                    <span id="top-right-initials">AC</span>
+                    <img id="top-right-logo" src="" alt="Logo Academia" class="hidden w-full h-full object-cover bg-white">
+                </div>
             </div>
         </header>
 
@@ -72,28 +65,38 @@
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
                             </div>
                             <div>
-                                <h2 class="text-lg font-bold text-black">Inscribir Operador</h2>
-                                <p class="text-xs text-gray-500">Genera accesos para tus alumnos.</p>
+                                <h2 class="text-lg font-bold text-black">Inscribir Personal</h2>
+                                <p class="text-xs text-gray-500">Genera accesos para tus instructores y alumnos.</p>
                             </div>
                         </div>
-                        <form onsubmit="createOperator(event)" class="space-y-4">
-                            <input type="text" id="op-username" placeholder="Cédula o Nombre del Alumno" required class="w-full bg-gray-50 p-3.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none">
+                        <form onsubmit="createPersonnel(event)" class="space-y-4">
+                            <div class="grid grid-cols-3 gap-3">
+                                <div class="col-span-1">
+                                    <select id="op-role" required class="w-full bg-gray-50 p-3.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none cursor-pointer">
+                                        <option value="operator">Operador</option>
+                                        <option value="instructor">Instructor</option>
+                                    </select>
+                                </div>
+                                <div class="col-span-2">
+                                    <input type="text" id="op-username" placeholder="Identificador / Usuario" required class="w-full bg-gray-50 p-3.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none">
+                                </div>
+                            </div>
                             <button type="submit" class="w-full bg-black hover:bg-gray-800 text-white p-3.5 rounded-lg font-bold shadow-md transition-colors">
                                 Generar Acceso
                             </button>
                         </form>
                     </div>
                     
-                    <div class="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm">
-                        <h2 class="text-lg font-bold mb-4 text-black border-b border-gray-100 pb-2">Auditoría de Certificados</h2>
-                        <div id="school-results-display" class="bg-gray-50 border border-gray-200 p-4 rounded-lg min-h-[150px] overflow-y-auto max-h-64 mt-4">
-                            <p class="text-sm text-gray-500 italic text-center mt-8">Selecciona "Ver Reportes" en un alumno de la lista.</p>
+                    <div class="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm flex flex-col h-[400px]">
+                        <h2 class="text-lg font-bold mb-4 text-black border-b border-gray-100 pb-2">Historial General de Simulaciones</h2>
+                        <div id="school-general-results" class="bg-gray-50 border border-gray-200 p-4 rounded-lg flex-1 overflow-y-auto mt-2">
+                            <!-- Los resultados globales de instructores y operadores se cargan aquí -->
                         </div>
                     </div>
                 </div>
 
-                <div class="lg:col-span-7 bg-white p-8 rounded-2xl border border-gray-200 shadow-sm flex flex-col h-[700px]">
-                    <h2 class="text-lg font-bold mb-2 text-black border-b border-gray-100 pb-4">Nómina de Estudiantes Activos</h2>
+                <div class="lg:col-span-7 bg-white p-8 rounded-2xl border border-gray-200 shadow-sm flex flex-col h-[750px]">
+                    <h2 class="text-lg font-bold mb-2 text-black border-b border-gray-100 pb-4">Nómina de Personal Activo</h2>
                     <ul id="operator-list" class="flex-1 overflow-y-auto mt-4 space-y-3 pr-2"></ul>
                 </div>
             </div>

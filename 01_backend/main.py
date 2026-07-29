@@ -24,9 +24,10 @@ with database.SessionLocal() as session:
 
         admin = models.User(username="admin", password="123", role="admin")
         academia = models.User(username="academia", password="123", role="school", school_id=school_test.id)
+        instructor = models.User(username="instructor_jefe", password="123", role="instructor", school_id=school_test.id)
         operador = models.User(username="operador", password="123", role="operator", school_id=school_test.id)
         
-        session.add_all([admin, academia, operador])
+        session.add_all([admin, academia, instructor, operador])
         session.commit()
 
 app = FastAPI(title="SECURITY CLOUD API")
@@ -60,7 +61,7 @@ class SchoolUpdate(BaseModel):
     icon_url: str = ""
 
 class UserCreate(BaseModel): username: str; password: str; role: str; school_id: int = None
-class UserUpdate(BaseModel): username: str; password: str; school_id: int
+class UserUpdate(BaseModel): username: str; password: str; school_id: int; role: str
 class ResultCreate(BaseModel): user_id: int; simulator_type: str; score: float; details: str
 
 # --- Endpoints ---
@@ -126,11 +127,14 @@ def create_user(u: UserCreate, db: Session = Depends(database.get_db)):
     if db.query(models.User).filter_by(username=u.username).first():
         raise HTTPException(status_code=400, detail="El usuario ya existe")
         
-    if u.role == "operator" and u.school_id:
+    if u.role in ["operator", "instructor"] and u.school_id:
         school = db.query(models.School).filter_by(id=u.school_id).first()
-        current_ops = db.query(models.User).filter_by(school_id=u.school_id, role="operator").count()
+        current_ops = db.query(models.User).filter(
+            models.User.school_id == u.school_id,
+            models.User.role.in_(["operator", "instructor"])
+        ).count()
         if school and current_ops >= school.max_operators:
-            raise HTTPException(status_code=400, detail=f"Límite alcanzado.")
+            raise HTTPException(status_code=400, detail=f"Límite de personal ({school.max_operators}) alcanzado para esta escuela.")
 
     db_u = models.User(**u.dict())
     db.add(db_u)
@@ -149,6 +153,7 @@ def update_user(user_id: int, u: UserUpdate, db: Session = Depends(database.get_
     db_u.username = u.username
     if u.password: db_u.password = u.password
     db_u.school_id = u.school_id
+    db_u.role = u.role
     db.commit()
     return db_u
 
@@ -164,6 +169,27 @@ def delete_user(user_id: int, db: Session = Depends(database.get_db)):
 @app.get("/results/{user_id}")
 def get_results(user_id: int, db: Session = Depends(database.get_db)):
     return db.query(models.SimulationResult).filter_by(user_id=user_id).order_by(models.SimulationResult.id.desc()).all()
+
+# NUEVO: Obtener todo el historial de una academia (operadores e instructores)
+@app.get("/school-results/{school_id}")
+def get_school_results(school_id: int, db: Session = Depends(database.get_db)):
+    results = db.query(models.SimulationResult, models.User)\
+        .join(models.User, models.SimulationResult.user_id == models.User.id)\
+        .filter(models.User.school_id == school_id)\
+        .order_by(models.SimulationResult.id.desc()).all()
+    
+    return [
+        {
+            "id": r.SimulationResult.id,
+            "user_id": r.SimulationResult.user_id,
+            "username": r.User.username,
+            "role": r.User.role,
+            "simulator_type": r.SimulationResult.simulator_type,
+            "score": r.SimulationResult.score,
+            "date": r.SimulationResult.date,
+            "details": r.SimulationResult.details
+        } for r in results
+    ]
 
 @app.post("/results")
 def save_result(r: ResultCreate, db: Session = Depends(database.get_db)):
@@ -204,8 +230,9 @@ def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
     pdf.add_page()
     pdf.set_font("Arial", 'B', 14)
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 10, f"OPERADOR EVALUADO: {user.username.upper()}", 0, 1)
+    pdf.cell(0, 10, f"PERSONAL EVALUADO: {user.username.upper()}", 0, 1)
     pdf.set_font("Arial", '', 12)
+    pdf.cell(0, 8, f"Rol: {user.role.capitalize()}", 0, 1)
     pdf.cell(0, 8, f"Plataforma de Simulacion: {res.simulator_type}", 0, 1)
     pdf.cell(0, 8, f"Fecha de Certificacion: {res.date}", 0, 1)
     pdf.ln(5)
