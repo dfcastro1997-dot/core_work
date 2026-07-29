@@ -13,13 +13,13 @@
 <body class="bg-gray-50 text-gray-900 flex h-screen overflow-hidden">
 
     <aside class="w-64 bg-white border-r border-gray-200 flex flex-col z-20 shadow-sm relative">
-        <div class="absolute top-0 left-0 w-full h-1.5 bg-blue-600"></div>
+        <div class="absolute top-0 left-0 w-full h-1.5 bg-red-600"></div>
         <div class="h-20 flex items-center justify-center px-6 border-b border-gray-100 mt-1">
             <img src="https://i.ibb.co/DHmrYHsN/Group-339.png" alt="Security Cloud Logo" class="h-8 object-contain">
         </div>
         
         <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-            <a href="#" class="flex items-center px-4 py-3 bg-blue-50 text-blue-800 rounded-lg font-bold transition-colors border-l-4 border-blue-600">
+            <a href="#" class="flex items-center px-4 py-3 bg-red-50 text-red-700 rounded-lg font-bold transition-colors border-l-4 border-red-600">
                 <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                 Mi Perfil (Instructor)
             </a>
@@ -30,7 +30,7 @@
         </nav>
         
         <div class="p-4 border-t border-gray-100">
-            <button onclick="logout()" class="flex items-center w-full px-4 py-3 text-gray-600 hover:bg-blue-50 hover:text-blue-800 rounded-lg font-bold transition-colors">
+            <button onclick="logout()" class="flex items-center w-full px-4 py-3 text-gray-600 hover:bg-red-50 hover:text-red-700 rounded-lg font-bold transition-colors">
                 <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
                 Cerrar Sesión
             </button>
@@ -42,7 +42,7 @@
             <h2 class="text-xl font-extrabold text-black tracking-tight">Portal de Instructor</h2>
             <div class="flex items-center space-x-4">
                 <div class="text-right">
-                    <span id="user-role" class="block text-[10px] font-bold text-blue-600 uppercase tracking-wider"></span>
+                    <span id="user-role" class="block text-[10px] font-bold text-red-600 uppercase tracking-wider"></span>
                     <span id="user-welcome" class="block text-sm font-bold text-black"></span>
                 </div>
                 <div id="top-right-logo-container" class="w-10 h-10 bg-gray-200 border-2 border-gray-300 text-gray-600 rounded-full flex items-center justify-center font-bold overflow-hidden shrink-0">
@@ -62,13 +62,13 @@
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div class="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm hover:shadow-xl hover:border-blue-600 transition-all cursor-pointer group flex flex-col" onclick="startSim('DENSITY')">
-                        <div class="w-14 h-14 bg-gray-100 text-black rounded-xl flex items-center justify-center mb-6 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                    <div class="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm hover:shadow-xl hover:border-red-600 transition-all cursor-pointer group flex flex-col" onclick="startSim('DENSITY')">
+                        <div class="w-14 h-14 bg-gray-100 text-black rounded-xl flex items-center justify-center mb-6 group-hover:bg-red-600 group-hover:text-white transition-colors">
                             <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                         </div>
                         <h3 class="text-2xl font-bold text-black mb-2">DENSITY</h3>
                         <p class="text-sm text-gray-500 mb-8 flex-1 leading-relaxed">Simulación 3D avanzada para inspección de equipajes por Rayos X.</p>
-                        <button class="w-full bg-black text-white py-3.5 rounded-lg font-bold group-hover:bg-blue-600 transition-colors shadow-sm">Entrar al Módulo</button>
+                        <button class="w-full bg-black text-white py-3.5 rounded-lg font-bold group-hover:bg-red-600 transition-colors shadow-sm">Entrar al Módulo</button>
                     </div>
 
                     <div class="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm hover:shadow-xl hover:border-black transition-all cursor-pointer group flex flex-col" onclick="startSim('VMS-X')">
@@ -83,8 +83,8 @@
 
                 <div class="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm mt-8">
                     <div class="flex items-center mb-6 border-b border-gray-100 pb-4">
-                        <div class="bg-blue-50 p-2 rounded-lg mr-3">
-                            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        <div class="bg-red-50 p-2 rounded-lg mr-3">
+                            <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                         </div>
                         <h3 class="text-xl font-bold text-black">Mis Certificaciones PDF</h3>
                     </div>
@@ -94,12 +94,12 @@
         </main>
 
         <div id="sim-view" class="hidden absolute inset-0 bg-white z-50 flex flex-col">
-            <div class="bg-black p-4 flex justify-between items-center shadow-lg z-10 border-b-4 border-blue-600">
+            <div class="bg-black p-4 flex justify-between items-center shadow-lg z-10 border-b-4 border-red-600">
                 <div class="flex items-center space-x-3">
-                    <div class="w-3 h-3 bg-blue-600 rounded-full animate-pulse"></div>
+                    <div class="w-3 h-3 bg-red-600 rounded-full animate-pulse"></div>
                     <h3 id="sim-title" class="font-bold text-white tracking-widest text-sm uppercase">Simulador Activo</h3>
                 </div>
-                <button onclick="finishSim()" class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded text-white font-bold text-xs uppercase tracking-wider transition-colors shadow-lg">
+                <button onclick="finishSim()" class="bg-red-600 hover:bg-red-700 px-6 py-2 rounded text-white font-bold text-xs uppercase tracking-wider transition-colors shadow-lg">
                     Terminar y Emitir Informe
                 </button>
             </div>
@@ -107,7 +107,7 @@
             <div class="flex-1 flex flex-col items-center justify-center bg-gray-100 relative overflow-hidden">
                 <div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(#000 1px, transparent 1px); background-size: 20px 20px;"></div>
                 <div class="z-10 text-center bg-white p-8 rounded-2xl shadow-2xl border border-gray-200">
-                    <svg class="w-16 h-16 mx-auto mb-6 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <svg class="w-16 h-16 mx-auto mb-6 animate-spin text-red-600" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                     <p class="font-mono text-black font-bold tracking-widest uppercase mb-1">CONECTANDO MOTOR GRAFICO</p>
                     <p class="font-mono text-gray-500 text-xs">Security Cloud 3D Engine is loading...</p>
                 </div>

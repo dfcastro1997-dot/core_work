@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (path.endsWith('admin.html') && currentUser.role === 'admin') loadAdminDashboard();
         else if (path.endsWith('school.html') && currentUser.role === 'school') loadSchoolDashboard();
         else if (path.endsWith('operator.html') && currentUser.role === 'operator') loadOperatorDashboard();
-        else if (path.endsWith('instructor.html') && currentUser.role === 'instructor') loadOperatorDashboard(); // Usa la misma función que operador
+        else if (path.endsWith('instructor.html') && currentUser.role === 'instructor') loadOperatorDashboard(); 
         else if (path.endsWith('index.html') || path === '/') redirectUserByRole();
         
     } else {
@@ -376,7 +376,7 @@ function renderOperatorsTable() {
         const sch = allSchools.find(s => s.id === o.school_id);
         const schName = sch ? sch.name : 'Desconocida';
         const roleBadge = o.role === 'instructor' 
-            ? `<span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded">Instructor</span>` 
+            ? `<span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded">Instructor</span>` 
             : `<span class="bg-gray-100 text-gray-800 text-xs font-bold px-2 py-1 rounded">Operador</span>`;
 
         return `
@@ -472,7 +472,7 @@ async function loadSchoolDashboard() {
         } else {
             list.innerHTML = personnel.map(p => {
                 const badge = p.role === 'instructor' 
-                    ? `<span class="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded ml-2 uppercase tracking-wider">Instructor</span>` 
+                    ? `<span class="bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded ml-2 uppercase tracking-wider">Instructor</span>` 
                     : `<span class="bg-gray-100 text-gray-800 text-[10px] font-bold px-2 py-0.5 rounded ml-2 uppercase tracking-wider">Operador</span>`;
                 
                 return `
@@ -492,14 +492,17 @@ async function createPersonnel(e) {
     e.preventDefault();
     const username = document.getElementById('op-username').value;
     const role = document.getElementById('op-role').value;
+    const password = document.getElementById('op-password').value; // AHORA LEE LA CONTRASEÑA
+
     try {
         const res = await fetch(`${API_URL}/users`, { 
             method: 'POST', headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify({username, password: '123', role: role, school_id: currentUser.school_id}) 
+            body: JSON.stringify({username, password: password, role: role, school_id: currentUser.school_id}) 
         });
         if(res.ok){
-            alert(`✅ ${role === 'instructor' ? 'Instructor' : 'Operador'} creado exitosamente (Pass: 123)`);
+            alert(`✅ ${role === 'instructor' ? 'Instructor' : 'Operador'} creado exitosamente`);
             document.getElementById('op-username').value = '';
+            document.getElementById('op-password').value = ''; // LIMPIA EL CAMPO
             loadSchoolDashboard();
         } else {
             const err = await res.json();
