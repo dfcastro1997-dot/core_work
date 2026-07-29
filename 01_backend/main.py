@@ -88,15 +88,24 @@ def update_school(school_id: int, s: SchoolUpdate, db: Session = Depends(databas
 def delete_school(school_id: int, db: Session = Depends(database.get_db)):
     db_s = db.query(models.School).filter_by(id=school_id).first()
     if not db_s: raise HTTPException(status_code=404, detail="Escuela no encontrada")
+    
+    # 1. Borrar Quizzes y sus Resultados asociados a esta escuela ANTES de borrar a los usuarios
+    quizzes = db.query(models.Quiz).filter_by(school_id=school_id).all()
+    for q in quizzes:
+        db.query(models.QuizResult).filter_by(quiz_id=q.id).delete()
+        db.delete(q)
+    
+    # 2. Borrar Usuarios, Simulaciones y resultados residuales
     users = db.query(models.User).filter_by(school_id=school_id).all()
     for u in users:
         db.query(models.SimulationResult).filter_by(user_id=u.id).delete()
         db.query(models.QuizResult).filter_by(operator_id=u.id).delete()
         db.delete(u)
-    db.query(models.Quiz).filter_by(school_id=school_id).delete()
+        
+    # 3. Borrar la Escuela
     db.delete(db_s)
     db.commit()
-    return {"msg": "Escuela borrada"}
+    return {"msg": "Escuela borrada exitosamente"}
 
 @app.get("/users")
 def get_users(db: Session = Depends(database.get_db)):
