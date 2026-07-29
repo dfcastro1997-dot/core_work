@@ -51,6 +51,7 @@ class SchoolCreate(BaseModel):
     username: str
     password: str
     max_operators: int
+    icon_url: str = ""  # <--- AÑADE ESTA LÍNEA
 
 class UserCreate(BaseModel): username: str; password: str; role: str; school_id: int = None
 class UserUpdate(BaseModel): username: str; password: str; school_id: int
@@ -72,8 +73,8 @@ def create_school(s: SchoolCreate, db: Session = Depends(database.get_db)):
     if db.query(models.User).filter_by(username=s.username).first():
         raise HTTPException(status_code=400, detail="El usuario ya existe")
     
-    # 1. Crear Escuela
-    db_s = models.School(name=s.name, subscription_type=s.subscription_type, max_operators=s.max_operators)
+    # <--- AÑADE s.icon_url AQUÍ ABAJO
+    db_s = models.School(name=s.name, subscription_type=s.subscription_type, max_operators=s.max_operators, icon_url=s.icon_url) 
     db.add(db_s)
     db.commit()
     db.refresh(db_s)

@@ -1,16 +1,59 @@
-// Si ejecutas backend localmente, cambia esto a: const API_URL = 'http://localhost:8000';
-const API_URL = 'https://core-work-api.onrender.com'; 
+const API_URL = 'https://core-work-api.onrender.com';
 let currentUser = null;
 let allSchools = [];
 let allUsers = [];
 
-// Mapa de roles para la interfaz
 const ROLE_LABELS = {
     'admin': 'Administrador',
     'school': 'Escuela / Academia',
     'operator': 'Operador'
 };
 
+/* ================== SISTEMA DE MODALES (SOLO ADMIN) ================== */
+function customAlert(title, message, type = 'success') {
+    const modal = document.getElementById('alert-modal');
+    if (modal) {
+        document.getElementById('alert-title').innerText = title;
+        document.getElementById('alert-message').innerText = message;
+        const icon = document.getElementById('alert-icon-container');
+        if (type === 'success') {
+            icon.innerHTML = `<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`;
+            icon.className = "mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4";
+        } else {
+            icon.innerHTML = `<svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>`;
+            icon.className = "mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4";
+        }
+        modal.classList.remove('hidden');
+    } else {
+        alert(title + ": " + message);
+    }
+}
+
+function closeAlertModal() {
+    const modal = document.getElementById('alert-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+let pendingConfirmAction = null;
+function customConfirm(title, message, callback) {
+    const modal = document.getElementById('confirm-modal');
+    if (modal) {
+        document.getElementById('confirm-title').innerText = title;
+        document.getElementById('confirm-message').innerText = message;
+        pendingConfirmAction = callback;
+        modal.classList.remove('hidden');
+    } else {
+        if(confirm(title + " - " + message)) callback();
+    }
+}
+
+function closeConfirmModal(proceed) {
+    const modal = document.getElementById('confirm-modal');
+    if (modal) modal.classList.add('hidden');
+    if (proceed && pendingConfirmAction) pendingConfirmAction();
+}
+
+/* ================== INICIALIZACIÓN ================== */
 document.addEventListener('DOMContentLoaded', () => {
     const savedUser = localStorage.getItem('securityCloudUser');
     const path = window.location.pathname;
@@ -34,12 +77,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-function setupHeader() {
+async function setupHeader() {
     const welcomeEl = document.getElementById('user-welcome');
     const roleEl = document.getElementById('user-role');
     
     if(welcomeEl) welcomeEl.innerText = currentUser.username.toUpperCase();
     if(roleEl) roleEl.innerText = ROLE_LABELS[currentUser.role];
+
+    // LÓGICA DE LOGO DINÁMICO
+    if (currentUser.role === 'school' || currentUser.role === 'operator') {
+        try {
+            const res = await fetch(`${API_URL}/schools`);
+            if (res.ok) {
+                const schools = await res.json();
+                const userSchool = schools.find(s => s.id === currentUser.school_id);
+                if (userSchool && userSchool.icon_url) {
+                    const logoEl = document.getElementById('sidebar-logo');
+                    if (logoEl) logoEl.src = userSchool.icon_url;
+                }
+            }
+        } catch(e) { console.error("No se pudo cargar el logo de la academia."); }
+    }
 }
 
 function redirectUserByRole() {
@@ -54,22 +112,18 @@ async function login(e) {
     const u = document.getElementById('username').value;
     const p = document.getElementById('password').value;
     
-    // --- LÓGICA DE UI Y BARRA DE PROGRESO ---
     const btn = document.getElementById('btn-ingresar');
     const loadingUi = document.getElementById('loading-ui');
     const progressBar = document.getElementById('progress-bar');
     const loadingText = document.getElementById('loading-text');
     
-    btn.classList.add('hidden'); // Ocultar el botón
-    loadingUi.classList.remove('hidden'); // Mostrar los componentes de carga
+    btn.classList.add('hidden'); 
+    loadingUi.classList.remove('hidden'); 
     progressBar.style.width = '0%';
+    loadingText.classList.remove('text-red-600', 'text-green-600');
+    loadingText.classList.add('text-gray-500', 'animate-pulse');
     
-    // Array de textos dinámicos
-    const textos = [
-        "Estableciendo conexión segura...", 
-        "Validando credenciales del usuario...", 
-        "Preparando despliegue de entorno LMS..."
-    ];
+    const textos = ["Estableciendo conexión...", "Validando credenciales...", "Desplegando entorno..."];
     let txtIndex = 0;
     loadingText.innerText = textos[0];
     const textInterval = setInterval(() => {
@@ -77,11 +131,10 @@ async function login(e) {
         loadingText.innerText = textos[txtIndex];
     }, 800);
 
-    // Falsificar progreso visual (hasta llegar al 90%)
     let progress = 0;
     const progInterval = setInterval(() => {
         progress += Math.floor(Math.random() * 15) + 5;
-        if(progress > 90) progress = 90; // Espera hasta que el servidor devuelva respuesta
+        if(progress > 90) progress = 90; 
         progressBar.style.width = progress + '%';
     }, 300);
 
@@ -91,7 +144,6 @@ async function login(e) {
             body: JSON.stringify({role: r, username: u, password: p})
         });
         
-        // Limpiar animaciones visuales
         clearInterval(textInterval);
         clearInterval(progInterval);
         
@@ -99,29 +151,24 @@ async function login(e) {
             progressBar.style.width = '100%';
             loadingText.innerText = "¡Acceso Autorizado!";
             loadingText.classList.remove('text-gray-500', 'animate-pulse');
-            loadingText.classList.add('text-green-600'); // Letras verdes para indicar éxito
+            // MODIFICACIÓN A TEXTO ROJO:
+            loadingText.classList.add('text-red-600'); 
             
             currentUser = await res.json();
             localStorage.setItem('securityCloudUser', JSON.stringify(currentUser));
-            
-            // Retraso de un segundo para que el usuario logre apreciar la barra llena antes de irse
-            setTimeout(() => {
-                redirectUserByRole();
-            }, 800);
+            setTimeout(() => { redirectUserByRole(); }, 800);
             
         } else {
-            // Revertir UI
             btn.classList.remove('hidden');
             loadingUi.classList.add('hidden');
             alert('❌ Credenciales o Tipo de Ingreso incorrectos');
         }
     } catch(err) { 
-        // Revertir UI por error de conexión local/servidor caído
         clearInterval(textInterval);
         clearInterval(progInterval);
         btn.classList.remove('hidden');
         loadingUi.classList.add('hidden');
-        alert('❌ Error de conexión: Servidor inaccesible. Verifica tu API_URL o el estado del backend.'); 
+        alert('❌ Error de conexión con el Servidor'); 
     }
 }
 
@@ -131,14 +178,11 @@ function logout() {
     window.location.href = 'index.html';
 }
 
-/* =========================================================================
-   LOGICA ADMIN 
-========================================================================= */
+/* ================== LÓGICA ADMIN ================== */
 
 function showAdminTab(sectionId, element) {
     document.getElementById('schools-section').classList.add('hidden');
     document.getElementById('operators-section').classList.add('hidden');
-    
     document.getElementById(sectionId).classList.remove('hidden');
     
     document.querySelectorAll('.admin-tab').forEach(tab => {
@@ -154,7 +198,6 @@ function showAdminTab(sectionId, element) {
         'operators-section': 'Directorio de Operadores'
     };
     document.getElementById('header-title').innerText = titulos[sectionId];
-    
     if(sectionId === 'operators-section') fetchAndRenderOperators();
 }
 
@@ -164,27 +207,38 @@ async function loadAdminDashboard() {
 }
 
 async function fetchSchools() {
-    const res = await fetch(`${API_URL}/schools`);
-    allSchools = await res.json();
-    
-    const list = document.getElementById('school-list');
-    if(list) {
-        list.innerHTML = allSchools.map(s => `
-            <li class="p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-sm mb-3 flex flex-col hover:border-red-300 transition-colors">
-                <span class="font-bold text-black text-lg">${s.name}</span>
-                <span class="text-sm text-gray-500">Plan: <b>${s.subscription_type}</b> | Límite Ops: <b>${s.max_operators}</b> | ID: ${s.id}</span>
-            </li>
-        `).join('');
-    }
-    
-    const filterSelect = document.getElementById('filter-school');
-    const modalSelect = document.getElementById('op-school-id');
-    
-    if(filterSelect && modalSelect) {
-        let optionsHtml = allSchools.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-        filterSelect.innerHTML = `<option value="all">Todas las escuelas</option>` + optionsHtml;
-        modalSelect.innerHTML = optionsHtml;
-    }
+    try {
+        const res = await fetch(`${API_URL}/schools`);
+        allSchools = await res.json();
+        
+        const list = document.getElementById('school-list');
+        if(list) {
+            list.innerHTML = allSchools.map(s => {
+                const iconoHTML = s.icon_url 
+                    ? `<img src="${s.icon_url}" class="w-12 h-12 rounded-lg object-contain bg-white border border-gray-200">`
+                    : `<div class="w-12 h-12 bg-gray-200 text-gray-500 rounded-lg flex items-center justify-center font-bold text-xl">${s.name.charAt(0).toUpperCase()}</div>`;
+                
+                return `
+                <li class="p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-sm mb-3 flex items-center hover:border-red-300 transition-colors">
+                    ${iconoHTML}
+                    <div class="ml-4">
+                        <span class="block font-bold text-black text-lg">${s.name}</span>
+                        <span class="block text-sm text-gray-500">Plan: <b>${s.subscription_type}</b> | Límite Ops: <b>${s.max_operators}</b></span>
+                    </div>
+                </li>
+                `;
+            }).join('');
+        }
+        
+        const filterSelect = document.getElementById('filter-school');
+        const modalSelect = document.getElementById('op-school-id');
+        
+        if(filterSelect && modalSelect) {
+            let optionsHtml = allSchools.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            filterSelect.innerHTML = `<option value="all">Todas las escuelas</option>` + optionsHtml;
+            modalSelect.innerHTML = optionsHtml;
+        }
+    } catch(e) {}
 }
 
 async function createSchool(e) {
@@ -194,41 +248,42 @@ async function createSchool(e) {
     const username = document.getElementById('school-username').value;
     const pass = document.getElementById('school-password').value;
     const limit = document.getElementById('school-limit').value;
+    const iconUrl = document.getElementById('school-icon').value; // NUEVO
     
     try {
         const res = await fetch(`${API_URL}/schools`, { 
             method: 'POST', headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify({name, subscription_type: sub, username: username, password: pass, max_operators: parseInt(limit)}) 
+            body: JSON.stringify({name, subscription_type: sub, username: username, password: pass, max_operators: parseInt(limit), icon_url: iconUrl}) 
         });
         if(res.ok) {
-            alert(`✅ Escuela y su usuario de acceso creados exitosamente.`);
+            customAlert('Creación Exitosa', 'La escuela y su usuario de acceso LMS fueron creados exitosamente.', 'success');
             document.getElementById('school-name').value = '';
             document.getElementById('school-username').value = '';
             document.getElementById('school-password').value = '';
+            document.getElementById('school-icon').value = '';
             fetchSchools();
         } else {
             const err = await res.json();
-            alert(`⚠️ Error: ${err.detail}`);
+            customAlert('Error de Validación', err.detail, 'error');
         }
-    } catch(err) { alert("Error de conexión"); }
+    } catch(err) { customAlert('Error', 'Problema de conexión con el servidor.', 'error'); }
 }
 
 async function fetchAndRenderOperators() {
-    const res = await fetch(`${API_URL}/users`);
-    allUsers = await res.json();
-    renderOperatorsTable();
+    try {
+        const res = await fetch(`${API_URL}/users`);
+        allUsers = await res.json();
+        renderOperatorsTable();
+    } catch(e) {}
 }
 
 function renderOperatorsTable() {
     const tbody = document.getElementById('operators-tbody');
     const filterId = document.getElementById('filter-school').value;
-    
     if(!tbody) return;
     
     let ops = allUsers.filter(u => u.role === 'operator');
-    if(filterId !== 'all') {
-        ops = ops.filter(u => u.school_id == filterId);
-    }
+    if(filterId !== 'all') ops = ops.filter(u => u.school_id == filterId);
     
     if(ops.length === 0) {
         tbody.innerHTML = `<tr><td colspan="3" class="text-center py-6 text-gray-500 italic">No hay operadores registrados en este filtro.</td></tr>`;
@@ -283,34 +338,39 @@ async function saveOperator(e) {
                 method: 'PUT', headers: {'Content-Type':'application/json'},
                 body: JSON.stringify({username, password: pass, school_id})
             });
-            if(res.ok) { alert('✅ Actualizado'); closeOperatorModal(); fetchAndRenderOperators(); }
-            else { alert('⚠️ Error al actualizar'); }
+            if(res.ok) { 
+                customAlert('Actualizado', 'Datos del operador actualizados.', 'success'); 
+                closeOperatorModal(); 
+                fetchAndRenderOperators(); 
+            } else { customAlert('Error', 'No se pudo actualizar.', 'error'); }
         } else { 
-            if(!pass) return alert("La contraseña es obligatoria para nuevos.");
+            if(!pass) { customAlert('Aviso', 'La contraseña es obligatoria.', 'error'); return; }
             const res = await fetch(`${API_URL}/users`, {
                 method: 'POST', headers: {'Content-Type':'application/json'},
                 body: JSON.stringify({username, password: pass, role: 'operator', school_id})
             });
-            if(res.ok) { alert('✅ Creado'); closeOperatorModal(); fetchAndRenderOperators(); }
-            else { 
+            if(res.ok) { 
+                customAlert('Creado', 'Operador creado exitosamente.', 'success'); 
+                closeOperatorModal(); 
+                fetchAndRenderOperators(); 
+            } else { 
                 const data = await res.json();
-                alert(`⚠️ ${data.detail}`); 
+                customAlert('Error', data.detail, 'error'); 
             }
         }
-    } catch(err) { alert('Error de conexión'); }
+    } catch(err) { customAlert('Error', 'Error de conexión', 'error'); }
 }
 
-async function deleteOperator(id) {
-    if(!confirm("¿Estás seguro de borrar este operador y todos sus historiales PDF?")) return;
-    try {
-        const res = await fetch(`${API_URL}/users/${id}`, { method: 'DELETE' });
-        if(res.ok) fetchAndRenderOperators();
-    } catch(err) { alert("Error al borrar"); }
+function deleteOperator(id) {
+    customConfirm('Borrar Registro', '¿Estás seguro de borrar este operador y sus resultados?', async () => {
+        try {
+            const res = await fetch(`${API_URL}/users/${id}`, { method: 'DELETE' });
+            if(res.ok) fetchAndRenderOperators();
+        } catch(err) { customAlert('Error', 'Error al borrar', 'error'); }
+    });
 }
 
-/* =========================================================================
-   LOGICA ESCUELA 
-========================================================================= */
+/* ================== LÓGICA ESCUELA ================== */
 async function loadSchoolDashboard() {
     const res = await fetch(`${API_URL}/users`);
     const users = await res.json();
@@ -368,9 +428,7 @@ async function viewOperatorResults(userId) {
     `).join('');
 }
 
-/* =========================================================================
-   LOGICA OPERADOR 
-========================================================================= */
+/* ================== LÓGICA OPERADOR ================== */
 let activeSim = '';
 async function loadOperatorDashboard() {
     const res = await fetch(`${API_URL}/results/${currentUser.id}`);

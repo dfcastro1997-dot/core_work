@@ -12,10 +12,9 @@
 </head>
 <body class="bg-gray-50 text-gray-900 flex h-screen overflow-hidden">
 
-    <!-- ================= MENÚ LATERAL IZQUIERDO ================= -->
+    <!-- MENÚ LATERAL IZQUIERDO -->
     <aside class="w-72 bg-white border-r border-gray-200 flex flex-col z-20 shadow-sm relative">
         <div class="absolute top-0 left-0 w-full h-1.5 bg-red-600"></div>
-        <!-- Logo Centrado Profesionalmente -->
         <div class="h-28 flex items-center justify-center border-b border-gray-100 mt-1">
             <img src="https://i.ibb.co/DHmrYHsN/Group-339.png" alt="Security Cloud Logo" class="h-10 object-contain">
         </div>
@@ -41,9 +40,8 @@
         </div>
     </aside>
 
-    <!-- ================= CONTENIDO PRINCIPAL ================= -->
+    <!-- CONTENIDO PRINCIPAL -->
     <div class="flex-1 flex flex-col h-screen overflow-hidden bg-gray-50">
-        
         <header class="h-20 bg-white border-b border-gray-200 shadow-sm px-8 flex justify-between items-center z-10">
             <h2 class="text-xl font-extrabold text-black tracking-tight" id="header-title">Gestión de Escuelas</h2>
             <div class="flex items-center space-x-4">
@@ -51,17 +49,13 @@
                     <span id="user-role" class="block text-[10px] font-bold text-red-600 uppercase tracking-wider"></span>
                     <span id="user-welcome" class="block text-sm font-bold text-black"></span>
                 </div>
-                <div class="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center font-bold shadow-md">
-                    AD
-                </div>
+                <div class="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center font-bold shadow-md">AD</div>
             </div>
         </header>
 
         <main class="flex-1 overflow-y-auto p-8 relative">
-            
-            <!-- SECCION: ESCUELAS REGISTRADAS -->
+            <!-- ESCUELAS REGISTRADAS -->
             <div id="schools-section" class="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                <!-- Formulario Alta -->
                 <div class="lg:col-span-5 bg-white p-8 rounded-2xl border border-gray-200 shadow-sm">
                     <h2 class="text-lg font-bold text-black border-b border-gray-100 pb-3 mb-5">Alta de Academias</h2>
                     <form onsubmit="createSchool(event)" class="space-y-4">
@@ -92,22 +86,24 @@
                                 <input type="number" id="school-limit" value="50" min="1" required class="w-full bg-gray-50 border border-gray-300 p-3 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none">
                             </div>
                         </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">URL Logo de la Escuela (Opcional)</label>
+                            <input type="url" id="school-icon" placeholder="https://ejemplo.com/logo.png" class="w-full bg-gray-50 border border-gray-300 p-3 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none">
+                        </div>
                         <button type="submit" class="w-full bg-black text-white p-3.5 rounded-lg font-bold shadow-md hover:bg-red-600 transition-colors mt-2">
                             Crear Entorno LMS
                         </button>
                     </form>
                 </div>
                 
-                <!-- Lista de Escuelas -->
-                <div class="lg:col-span-7 bg-white p-8 rounded-2xl border border-gray-200 shadow-sm flex flex-col h-[550px]">
+                <div class="lg:col-span-7 bg-white p-8 rounded-2xl border border-gray-200 shadow-sm flex flex-col h-[600px]">
                     <h2 class="text-lg font-bold mb-2 text-black border-b border-gray-100 pb-4">Academias Operativas</h2>
                     <ul id="school-list" class="flex-1 overflow-y-auto pr-2 mt-4 space-y-3"></ul>
                 </div>
             </div>
 
-            <!-- SECCION: PERSONAL REGISTRADO -->
+            <!-- PERSONAL REGISTRADO -->
             <div id="operators-section" class="hidden w-full max-w-6xl mx-auto flex flex-col space-y-6">
-                <!-- Filtro y Botón -->
                 <div class="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex justify-between items-center">
                     <div class="flex items-center space-x-4 w-1/2">
                         <label class="text-sm font-bold text-gray-700 whitespace-nowrap">Filtrar por Escuela:</label>
@@ -119,8 +115,6 @@
                         + Nuevo Operador
                     </button>
                 </div>
-
-                <!-- Tabla de Operadores -->
                 <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                     <table class="w-full text-left text-sm text-gray-600">
                         <thead class="bg-gray-100 text-gray-800 uppercase font-bold border-b border-gray-200">
@@ -130,17 +124,15 @@
                                 <th class="px-6 py-4 text-center">Acciones Tácticas</th>
                             </tr>
                         </thead>
-                        <tbody id="operators-tbody" class="divide-y divide-gray-100 bg-white">
-                            <!-- JS Injects here -->
-                        </tbody>
+                        <tbody id="operators-tbody" class="divide-y divide-gray-100 bg-white"></tbody>
                     </table>
                 </div>
             </div>
-            
         </main>
     </div>
 
-    <!-- MODAL CREAR/EDITAR OPERADOR -->
+    <!-- MODALES PERSONALIZADOS -->
+    <!-- Modal Operador -->
     <div id="operator-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50">
         <div class="bg-white w-full max-w-md rounded-2xl p-8 shadow-2xl border border-gray-200">
             <h3 class="text-xl font-bold text-black mb-4 border-b border-gray-100 pb-3" id="op-modal-title">Gestión de Operador</h3>
@@ -163,6 +155,31 @@
                     <button type="submit" class="px-5 py-2.5 bg-black text-white rounded-lg font-bold hover:bg-red-600 transition-colors">Guardar Datos</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Modal Alerta Personalizada (Éxito/Error) -->
+    <div id="alert-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden flex items-center justify-center z-[100]">
+        <div class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl border border-gray-200 text-center">
+            <div id="alert-icon-container" class="mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-4"></div>
+            <h3 id="alert-title" class="text-lg font-bold text-black mb-2">Mensaje</h3>
+            <p id="alert-message" class="text-sm text-gray-600 mb-6"></p>
+            <button onclick="closeAlertModal()" class="w-full bg-black text-white py-2.5 rounded-lg font-bold hover:bg-red-600 transition-colors">Aceptar</button>
+        </div>
+    </div>
+
+    <!-- Modal Confirmación -->
+    <div id="confirm-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden flex items-center justify-center z-[100]">
+        <div class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl border border-gray-200 text-center">
+            <div class="mx-auto w-12 h-12 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mb-4">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            </div>
+            <h3 id="confirm-title" class="text-lg font-bold text-black mb-2">¿Estás seguro?</h3>
+            <p id="confirm-message" class="text-sm text-gray-600 mb-6"></p>
+            <div class="flex justify-center space-x-3">
+                <button onclick="closeConfirmModal(false)" class="px-5 py-2.5 bg-gray-100 text-gray-800 rounded-lg font-bold hover:bg-gray-200">Cancelar</button>
+                <button onclick="closeConfirmModal(true)" class="px-5 py-2.5 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700">Sí, continuar</button>
+            </div>
         </div>
     </div>
 

@@ -6,7 +6,8 @@ class School(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     subscription_type = Column(String) 
-    max_operators = Column(Integer, default=50) # Nuevo: Límite de personal
+    max_operators = Column(Integer, default=50)
+    icon_url = Column(String, default="") # <--- AÑADE ESTA LÍNEA
 
 class User(Base):
     __tablename__ = "users"
