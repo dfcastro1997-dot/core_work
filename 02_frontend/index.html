@@ -57,9 +57,20 @@
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-1 tracking-wider">Contraseña</label>
                     <input type="password" id="password" required placeholder="••••••" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent transition-shadow">
                 </div>
-                <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-lg shadow-md hover:shadow-lg transition-all mt-4">
+                
+                <button type="submit" id="btn-ingresar" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-lg shadow-md hover:shadow-lg transition-all mt-4">
                     Ingresar al Sistema
                 </button>
+
+                <!-- ================= BARRA DE PROGRESO DE INGRESO ================= -->
+                <div id="loading-ui" class="hidden mt-4 flex flex-col items-center justify-center space-y-3">
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div id="progress-bar" class="bg-red-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <p id="loading-text" class="text-xs font-bold text-gray-500 uppercase tracking-widest text-center animate-pulse">
+                        Iniciando conexión...
+                    </p>
+                </div>
             </form>
         </div>
     </main>
@@ -84,9 +95,6 @@
             </div>
         </div>
     </footer>
-
-
-
 
     <!-- Script para Reloj y Login -->
     <script src="app.js"></script>

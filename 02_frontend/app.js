@@ -1,4 +1,5 @@
-const API_URL = 'https://core-work-api.onrender.com';
+// Si ejecutas backend localmente, cambia esto a: const API_URL = 'http://localhost:8000';
+const API_URL = 'https://core-work-api.onrender.com'; 
 let currentUser = null;
 let allSchools = [];
 let allUsers = [];
@@ -52,19 +53,76 @@ async function login(e) {
     const r = document.getElementById('role').value;
     const u = document.getElementById('username').value;
     const p = document.getElementById('password').value;
+    
+    // --- LÓGICA DE UI Y BARRA DE PROGRESO ---
+    const btn = document.getElementById('btn-ingresar');
+    const loadingUi = document.getElementById('loading-ui');
+    const progressBar = document.getElementById('progress-bar');
+    const loadingText = document.getElementById('loading-text');
+    
+    btn.classList.add('hidden'); // Ocultar el botón
+    loadingUi.classList.remove('hidden'); // Mostrar los componentes de carga
+    progressBar.style.width = '0%';
+    
+    // Array de textos dinámicos
+    const textos = [
+        "Estableciendo conexión segura...", 
+        "Validando credenciales del usuario...", 
+        "Preparando despliegue de entorno LMS..."
+    ];
+    let txtIndex = 0;
+    loadingText.innerText = textos[0];
+    const textInterval = setInterval(() => {
+        txtIndex = (txtIndex + 1) % textos.length;
+        loadingText.innerText = textos[txtIndex];
+    }, 800);
+
+    // Falsificar progreso visual (hasta llegar al 90%)
+    let progress = 0;
+    const progInterval = setInterval(() => {
+        progress += Math.floor(Math.random() * 15) + 5;
+        if(progress > 90) progress = 90; // Espera hasta que el servidor devuelva respuesta
+        progressBar.style.width = progress + '%';
+    }, 300);
+
     try {
         const res = await fetch(`${API_URL}/login`, {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({role: r, username: u, password: p})
         });
+        
+        // Limpiar animaciones visuales
+        clearInterval(textInterval);
+        clearInterval(progInterval);
+        
         if(res.ok) {
+            progressBar.style.width = '100%';
+            loadingText.innerText = "¡Acceso Autorizado!";
+            loadingText.classList.remove('text-gray-500', 'animate-pulse');
+            loadingText.classList.add('text-green-600'); // Letras verdes para indicar éxito
+            
             currentUser = await res.json();
             localStorage.setItem('securityCloudUser', JSON.stringify(currentUser));
-            redirectUserByRole();
+            
+            // Retraso de un segundo para que el usuario logre apreciar la barra llena antes de irse
+            setTimeout(() => {
+                redirectUserByRole();
+            }, 800);
+            
         } else {
+            // Revertir UI
+            btn.classList.remove('hidden');
+            loadingUi.classList.add('hidden');
             alert('❌ Credenciales o Tipo de Ingreso incorrectos');
         }
-    } catch(err) { alert('❌ Error conectando con el servidor'); }
+    } catch(err) { 
+        // Revertir UI por error de conexión local/servidor caído
+        clearInterval(textInterval);
+        clearInterval(progInterval);
+        btn.classList.remove('hidden');
+        loadingUi.classList.add('hidden');
+        alert('❌ Error de conexión: Servidor inaccesible. Verifica tu API_URL o el estado del backend.'); 
+    }
 }
 
 function logout() {
@@ -78,14 +136,11 @@ function logout() {
 ========================================================================= */
 
 function showAdminTab(sectionId, element) {
-    // Esconder todas
     document.getElementById('schools-section').classList.add('hidden');
     document.getElementById('operators-section').classList.add('hidden');
     
-    // Mostrar la elegida
     document.getElementById(sectionId).classList.remove('hidden');
     
-    // Cambiar estilos del menú
     document.querySelectorAll('.admin-tab').forEach(tab => {
         tab.classList.remove('bg-red-50', 'text-red-700', 'border-red-600');
         tab.classList.add('text-gray-600', 'border-transparent');
@@ -94,14 +149,12 @@ function showAdminTab(sectionId, element) {
     element.classList.remove('text-gray-600', 'border-transparent');
     element.classList.add('bg-red-50', 'text-red-700', 'border-red-600');
     
-    // Cambiar titulo
     const titulos = {
         'schools-section': 'Gestión de Escuelas',
         'operators-section': 'Directorio de Operadores'
     };
     document.getElementById('header-title').innerText = titulos[sectionId];
     
-    // Recargar datos si es necesario
     if(sectionId === 'operators-section') fetchAndRenderOperators();
 }
 
@@ -114,7 +167,6 @@ async function fetchSchools() {
     const res = await fetch(`${API_URL}/schools`);
     allSchools = await res.json();
     
-    // Render list
     const list = document.getElementById('school-list');
     if(list) {
         list.innerHTML = allSchools.map(s => `
@@ -125,7 +177,6 @@ async function fetchSchools() {
         `).join('');
     }
     
-    // Fill selects
     const filterSelect = document.getElementById('filter-school');
     const modalSelect = document.getElementById('op-school-id');
     
@@ -227,14 +278,14 @@ async function saveOperator(e) {
     const school_id = parseInt(document.getElementById('op-school-id').value);
 
     try {
-        if(id) { // Editar
+        if(id) { 
             const res = await fetch(`${API_URL}/users/${id}`, {
                 method: 'PUT', headers: {'Content-Type':'application/json'},
                 body: JSON.stringify({username, password: pass, school_id})
             });
             if(res.ok) { alert('✅ Actualizado'); closeOperatorModal(); fetchAndRenderOperators(); }
             else { alert('⚠️ Error al actualizar'); }
-        } else { // Crear
+        } else { 
             if(!pass) return alert("La contraseña es obligatoria para nuevos.");
             const res = await fetch(`${API_URL}/users`, {
                 method: 'POST', headers: {'Content-Type':'application/json'},
