@@ -103,13 +103,10 @@
             </div>
         </div>
 
-        <!-- SIMULADOR 3D -->
-        <div id="sim-view" class="hidden absolute inset-0 bg-white z-50 flex flex-col">
-            <div class="bg-black p-4 flex justify-between items-center shadow-lg border-b-4 border-red-600 z-10">
-                <h3 id="sim-title" class="font-bold text-white uppercase text-sm">Simulador Activo</h3>
-                <button onclick="finishSim()" class="bg-red-600 hover:bg-red-700 px-6 py-2 rounded text-white font-bold text-xs uppercase">Terminar</button>
-            </div>
-            <div class="flex-1 flex items-center justify-center bg-gray-100"><p>Loading Engine...</p></div>
+        <!-- SIMULADOR 3D INCRUSTADO -->
+        <div id="sim-view" class="hidden absolute inset-0 bg-black z-50 flex flex-col">
+            <!-- El simulador de arriba se cargará aquí dentro -->
+            <iframe id="sim-iframe" src="" class="w-full h-full border-0"></iframe>
         </div>
     </div>
 

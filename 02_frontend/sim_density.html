@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DENSITY | X-RAY Web Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Consolas&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #F9FAFB; overflow: hidden; }
+        .console-font { font-family: 'Consolas', monospace; }
+        
+        /* FILTRO BASE RAYOS X: Contraste extremo para dar volumen 3D a imágenes planas */
+        .base-xray { 
+            filter: grayscale(100%) contrast(200%) brightness(1.2) drop-shadow(0 0 8px rgba(255,255,255,0.15)); 
+            mix-blend-mode: screen; 
+        }
+
+        /* ESPECTROMETRÍA DE COLOR: Colores suavizados al 50% (Saturación y contraste reducidos) */
+        .filter-organic { 
+            filter: sepia(100%) hue-rotate(5deg) saturate(250%) brightness(0.95) contrast(150%) drop-shadow(0 0 8px rgba(217, 119, 6, 0.3)); 
+            mix-blend-mode: screen; 
+        }
+        .filter-metals { 
+            filter: sepia(100%) hue-rotate(200deg) saturate(300%) brightness(0.9) contrast(180%) drop-shadow(0 0 8px rgba(37, 99, 235, 0.35)); 
+            mix-blend-mode: screen; 
+        }
+        .filter-mixed { 
+            filter: sepia(100%) hue-rotate(90deg) saturate(200%) brightness(1.0) contrast(140%) drop-shadow(0 0 8px rgba(22, 163, 74, 0.3)); 
+            mix-blend-mode: screen; 
+        }
+        .filter-bw { 
+            filter: grayscale(100%) contrast(180%) brightness(1.2) drop-shadow(0 0 8px rgba(255, 255, 255, 0.3)); 
+            mix-blend-mode: screen; 
+        }
+        .filter-normal { 
+            filter: grayscale(100%) contrast(150%) brightness(1.1); 
+            mix-blend-mode: screen; 
+        }
+        
+        /* OCULTAMIENTO FÍSICO DE MATERIALES (Ajustado para la nueva suavidad) */
+        .mat-hidden-metal { 
+            filter: brightness(0.2) grayscale(100%) contrast(200%); 
+            opacity: 0.9 !important; 
+            mix-blend-mode: multiply !important; 
+        }
+        .mat-hidden-organic { 
+            opacity: 0.2 !important; 
+            filter: blur(1.5px) contrast(120%); 
+        }
+
+        .z-scan-layer { transition: opacity 0.1s linear; }
+
+        /* Contenedor del Canvas de Rayos X (Banda Oscura con leves scanlines) */
+        #xray-viewport {
+            background-color: #020202;
+            background-image: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.015) 2px, rgba(255,255,255,0.015) 4px);
+            position: relative;
+        }
+
+        /* EFECTO DE GRANULADO (RUIDO FRACTAL) PARA REALISMO DE ESCÁNER */
+        #xray-viewport::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.12'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 40;
+            mix-blend-mode: screen;
+        }
+
+        /* Cinta transportadora oscura en el fondo */
+        .conveyor-belt {
+            position: absolute;
+            bottom: 5%;
+            width: 100%;
+            height: 50px;
+            background: repeating-linear-gradient(90deg, #0a0a0a, #0a0a0a 30px, #111 30px, #111 60px);
+            border-top: 2px solid #222;
+            border-bottom: 8px solid #000;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.9);
+            z-index: 5;
+        }
+
+        /* Objeto simulado moviéndose por la banda */
+        .luggage-item {
+            position: absolute;
+            cursor: crosshair;
+            z-index: 10;
+        }
+
+        /* Marcador Forense Anclado */
+        .forensic-marker {
+            position: absolute;
+            border: 2px solid #DC2626;
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px rgba(220, 38, 38, 0.8), inset 0 0 5px rgba(220, 38, 38, 0.5);
+            z-index: 50;
+        }
+        .forensic-label {
+            position: absolute;
+            background: rgba(255,255,255,0.95);
+            color: #DC2626;
+            font-size: 10px;
+            font-weight: bold;
+            padding: 2px 5px;
+            border-radius: 3px;
+            border: 1px solid #DC2626;
+            pointer-events: none;
+            z-index: 50;
+            white-space: nowrap;
+        }
+
+        /* UI Estilos */
+        .settings-tab-active { background-color: #fef2f2; color: #DC2626; border-left-width: 4px; border-color: #DC2626; }
+        .settings-tab-inactive { color: #4B5563; border-left-width: 4px; border-color: transparent; }
+        .settings-tab-inactive:hover { background-color: #f3f4f6; color: #111827; }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+    </style>
+</head>
+<body class="text-gray-900 flex flex-col h-screen">
+
+    <!-- ========================================== -->
+    <!-- TOP BAR (TELEMETRÍA)                       -->
+    <!-- ========================================== -->
+    <header class="h-16 bg-white border-b border-gray-200 flex justify-between items-center px-6 shrink-0 relative z-40 shadow-sm">
+        <div class="flex items-center space-x-6">
+            <img src="https://i.ibb.co/mVh9kScZ/logofb.png" alt="DENSITY Logo" class="h-10 object-contain">
+            <div class="border-l border-gray-200 h-10"></div>
+            <div class="flex items-center space-x-2 text-gray-500 text-xs font-bold tracking-widest bg-gray-50 px-4 py-2 rounded-lg border border-gray-100 shadow-inner">
+                <div class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]"></div>
+                <span id="sys-status">SISTEMA: EN LÍNEA</span>
+            </div>
+        </div>
+        
+        <div class="flex items-center space-x-6">
+            <button onclick="openAdminAuthModal()" class="text-gray-600 hover:text-red-600 font-bold text-xs uppercase tracking-wider flex items-center transition-colors px-4 py-2.5 rounded-lg hover:bg-red-50 border border-transparent hover:border-red-100 shadow-sm bg-white">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                Ajustes
+            </button>
+            
+            <div class="border-l border-gray-200 h-8"></div>
+
+            <div class="text-right">
+                <p class="text-[9px] text-gray-500 font-bold uppercase tracking-widest">Operador Activo</p>
+                <p class="text-sm font-black text-black uppercase tracking-wide" id="op-name">CARGANDO...</p>
+            </div>
+            
+            <button onclick="cerrarSimulador()" class="bg-red-600 hover:bg-black text-white text-xs font-bold px-8 py-3 rounded-lg shadow-md uppercase tracking-widest transition-colors border border-transparent">
+                Finalizar Práctica
+            </button>
+        </div>
+    </header>
+
+
+
+    <!-- ========================================== -->
+    <!-- SHADER MATEMÁTICO DE BORDES (EDGE DETECTION) -->
+    <!-- ========================================== -->
+    <svg style="width:0; height:0; position:absolute;" aria-hidden="true" focusable="false">
+        <filter id="edge-shader">
+            <!-- La matriz de convolución anula el relleno y extrae solo las diferencias de píxeles (bordes) -->
+            <feConvolveMatrix order="3 3" kernelMatrix="-1 -1 -1 -1 8 -1 -1 -1 -1" preserveAlpha="true" result="edges"/>
+        </filter>
+    </svg>
+
+
+
+
+
+    <!-- ========================================== -->
+    <!-- MAIN WORKSPACE (X-RAY VIEWPORT Y CCTV)     -->
+    <!-- ========================================== -->
+    <div class="flex-1 flex relative overflow-hidden bg-white">
+        
+        <!-- Viewport principal (NEGRO TÁCTICO) donde pasa la maleta -->
+        <div id="xray-viewport" class="flex-1 relative overflow-hidden flex items-center shadow-inner" onclick="agregarMarcadorForense(event)">
+            <div class="conveyor-belt" id="belt-visual"></div>
+            
+            <!-- CONTENEDOR MAESTRO DE LA MALETA (Viaja en bloque) -->
+            <div id="luggage-group" class="absolute z-10 transition-opacity duration-200" style="left: -1000px; top: 15%;">
+                <img id="luggage-base" src="" class="w-full h-full object-fill absolute inset-0 base-xray transition-all duration-300" alt="Base">
+                <img id="luggage-threat" src="" class="absolute object-fill base-xray transition-all duration-300" style="opacity: 0;" alt="Threat">
+            </div>
+        </div>
+
+        <!-- PANEL LATERAL DERECHO (CCTV MULTIVISTA) -->
+        <div id="cctv-panel" class="w-80 bg-white border-l border-gray-200 flex flex-col shrink-0 z-20 shadow-[-10px_0_20px_-5px_rgba(0,0,0,0.1)]">
+            <div class="h-56 bg-gray-100 relative border-b border-gray-200 flex flex-col overflow-hidden">
+                <div class="absolute top-3 left-3 bg-red-600 text-white text-[9px] font-bold px-2 py-1 rounded tracking-widest z-10 shadow-sm flex items-center">
+                    <div class="w-1.5 h-1.5 bg-white rounded-full mr-1.5 animate-pulse"></div> REC
+                </div>
+                <div class="absolute top-3 right-3 text-black bg-white/80 px-2 py-1 rounded text-[10px] font-bold tracking-widest z-10 console-font backdrop-blur-sm border border-gray-300" id="cctv-time">00:00:00</div>
+                
+                <div class="flex-1 flex items-center justify-center relative bg-gradient-to-b from-gray-200 to-gray-300">
+                    <img id="cctv-avatar" src="" alt="Passenger" class="h-[90%] object-contain opacity-90 mix-blend-multiply">
+                    <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9InRyYW5zcGFyZW50Ii8+PGxpbmUgeDE9IjAiIHkxPSIyIiB4Mj0iNCIgeTI9IjIiIHN0cm9rZT0icmdiYSgwLDAsMCwwLjA1KSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9zdmc+')] pointer-events-none"></div> 
+                    <div class="absolute bottom-2 left-2 text-green-700 font-bold console-font text-[9px] opacity-80 bg-white/50 px-1 rounded">CAM-04 TERMINAL A</div>
+                </div>
+            </div>
+
+            <div class="p-5 border-b border-gray-200 bg-gray-50">
+                <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Identificación de Sujeto</h3>
+                <div class="space-y-3 text-xs">
+                    <p class="flex justify-between items-center"><span class="text-gray-500 font-bold uppercase text-[10px]">Nombre:</span> <span class="text-black font-extrabold" id="p-name">JOHN DOE</span></p>
+                    <p class="flex justify-between items-center"><span class="text-gray-500 font-bold uppercase text-[10px]">ID / Cédula:</span> <span class="text-black font-extrabold console-font bg-white px-2 py-1 border border-gray-200 rounded shadow-sm" id="p-cedula">000000000</span></p>
+                    <p class="flex justify-between items-center"><span class="text-gray-500 font-bold uppercase text-[10px]">Género:</span> <span class="text-black font-extrabold" id="p-gender">MASCULINO</span></p>
+                </div>
+            </div>
+
+            <div class="flex-1 p-5 flex flex-col min-h-0 bg-white">
+                <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Auditoría de Sistema</h3>
+                <div id="system-log" class="flex-1 overflow-y-auto console-font text-[10px] space-y-2 text-gray-700 pr-2 pb-2 bg-gray-50 border border-gray-100 rounded-lg p-3 shadow-inner">
+                    <p class="text-gray-400">> Iniciando motor Unity WebGL...</p>
+                    <p class="text-gray-400">> Calibrando sensores de densidad...</p>
+                    <p class="font-bold text-green-600">> SISTEMA PREPARADO.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- PANEL DE CONTROL INFERIOR                  -->
+    <!-- ========================================== -->
+    <div class="h-36 bg-white border-t border-gray-200 shrink-0 flex items-stretch p-4 space-x-6 z-20 relative shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)]">
+        
+        <!-- BLOQUE: ESPECTROMETRIA (SIN ICONOS, DISEÑO TÁCTICO) -->
+        <div class="flex-[1.5] flex flex-col justify-between pl-2">
+            <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Espectrometría de Materiales</h3>
+            <div class="grid grid-cols-5 gap-2 flex-1">
+                <button onclick="setFilter('organic')" class="bg-gray-50 hover:bg-orange-50 text-gray-800 hover:text-orange-600 text-xs font-bold rounded-lg border border-gray-200 hover:border-orange-300 transition-all shadow-sm">
+                    ORGÁNICO
+                </button>
+                <button onclick="setFilter('mixed')" class="bg-gray-50 hover:bg-green-50 text-gray-800 hover:text-green-600 text-xs font-bold rounded-lg border border-gray-200 hover:border-green-300 transition-all shadow-sm">
+                    MIXTO
+                </button>
+                <button onclick="setFilter('metals')" class="bg-gray-50 hover:bg-blue-50 text-gray-800 hover:text-blue-600 text-xs font-bold rounded-lg border border-gray-200 hover:border-blue-300 transition-all shadow-sm">
+                    METALES
+                </button>
+                <button onclick="setFilter('bw')" class="bg-gray-50 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-lg border border-gray-200 transition-all shadow-sm">
+                    B / W
+                </button>
+                <button onclick="setFilter('normal')" class="bg-black hover:bg-gray-800 text-white text-xs font-bold rounded-lg border border-transparent transition-colors shadow-md">
+                    NORMAL
+                </button>
+            </div>
+        </div>
+
+        <div class="w-px bg-gray-200 mx-4"></div>
+
+        <!-- BLOQUE: Z-SCAN (PROFUNDIDAD) -->
+        <div class="w-64 flex flex-col justify-between">
+            <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex justify-between items-center">
+                <span>Z-Scan Layer</span>
+                <span id="z-val-display" class="text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-100 font-mono font-black">0.00</span>
+            </h3>
+            <div class="flex-1 bg-gray-50 border border-gray-200 rounded-xl flex flex-col justify-center px-4 shadow-inner">
+                <div class="flex space-x-2 w-full h-10">
+                    <button onmousedown="startZScan(-1)" onmouseup="stopZScan()" onmouseleave="stopZScan()" class="flex-1 bg-white hover:bg-red-50 text-gray-800 hover:text-red-600 font-bold rounded-lg text-lg border border-gray-300 shadow-sm transition-colors">-</button>
+                    <button onmousedown="startZScan(1)" onmouseup="stopZScan()" onmouseleave="stopZScan()" class="flex-1 bg-white hover:bg-red-50 text-gray-800 hover:text-red-600 font-bold rounded-lg text-lg border border-gray-300 shadow-sm transition-colors">+</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-px bg-gray-200 mx-4"></div>
+
+        <!-- BLOQUE: CONTROL DE BANDA (CINTA) -->
+        <div class="flex-[1.5] flex flex-col justify-between pr-2">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Belt Control (Cinta)</h3>
+                <span id="belt-progress" class="text-xs font-black text-black bg-gray-100 px-2 py-0.5 rounded border border-gray-200">0%</span>
+            </div>
+            <div class="flex space-x-2 flex-1 h-10">
+                <button onmousedown="manualBelt(-1)" onmouseup="manualBelt(0)" onmouseleave="manualBelt(0)" class="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-800 text-[11px] font-bold rounded-xl border border-gray-300 shadow-sm transition-colors">◄◄ REV</button>
+                <button id="btn-auto-belt" onclick="toggleAutoBelt()" class="flex-[2.5] bg-black hover:bg-gray-800 text-white text-xs font-bold rounded-xl shadow-md uppercase tracking-wider transition-colors border border-transparent">
+                    Auto Forward
+                </button>
+                <button onmousedown="manualBelt(1)" onmouseup="manualBelt(0)" onmouseleave="manualBelt(0)" class="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-800 text-[11px] font-bold rounded-xl border border-gray-300 shadow-sm transition-colors">FWD ►►</button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL DE LOGIN ADMIN (ANTES DE AJUSTES)    -->
+    <!-- ========================================== -->
+    <div id="admin-login-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center z-[110]">
+        <div class="bg-white w-full max-w-sm rounded-2xl p-8 shadow-2xl">
+            <h3 class="text-xl font-bold text-black mb-2 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                Acceso Restringido
+            </h3>
+            <p class="text-xs text-gray-500 mb-6">Ingrese credenciales de administrador de la academia para modificar librerías.</p>
+            <form onsubmit="verifyAdminAuth(event)" class="space-y-4">
+                <input type="text" id="admin-usr" placeholder="Usuario (Ej: admin)" class="w-full bg-gray-50 border border-gray-300 p-3 rounded-lg text-sm outline-none focus:ring-1 focus:ring-red-600" required>
+                <input type="password" id="admin-pwd" placeholder="Contraseña (Ej: 123)" class="w-full bg-gray-50 border border-gray-300 p-3 rounded-lg text-sm outline-none focus:ring-1 focus:ring-red-600" required>
+                <div class="flex justify-end space-x-3 pt-4">
+                    <button type="button" onclick="document.getElementById('admin-login-modal').classList.add('hidden')" class="px-5 py-2.5 bg-gray-100 text-gray-800 rounded-lg font-bold text-sm">Cancelar</button>
+                    <button type="submit" class="px-5 py-2.5 bg-red-600 text-white rounded-lg font-bold text-sm hover:bg-red-700">Autorizar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL LIBRERÍA / AJUSTES ADMIN (PANTALLA)  -->
+    <!-- ========================================== -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center z-[100]">
+        <div class="bg-white w-full max-w-6xl h-[90vh] rounded-2xl shadow-2xl flex overflow-hidden">
+            <!-- Sidebar Navegacion -->
+            <div class="w-64 bg-gray-50 border-r border-gray-200 flex flex-col shrink-0">
+                <div class="p-6 border-b border-gray-200">
+                    <h2 class="font-black text-lg text-black uppercase tracking-wider">Librerías</h2>
+                    <p class="text-xs text-gray-500 mt-1">Configuración del Simulador</p>
+                </div>
+                <nav class="flex-1 p-4 space-y-2">
+                    <button onclick="switchSettingsTab('tab-luggage')" id="btn-tab-luggage" class="w-full flex items-center px-4 py-3 text-sm font-bold rounded-lg transition-colors settings-tab-active">Maletas Base</button>
+                    <button onclick="switchSettingsTab('tab-threats')" id="btn-tab-threats" class="w-full flex items-center px-4 py-3 text-sm font-bold rounded-lg transition-colors settings-tab-inactive">Objetos y Amenazas</button>
+                    <button onclick="switchSettingsTab('tab-passengers')" id="btn-tab-passengers" class="w-full flex items-center px-4 py-3 text-sm font-bold rounded-lg transition-colors settings-tab-inactive">Avatares Pasajeros</button>
+                </nav>
+            </div>
+            
+            <!-- Contenido Pestañas -->
+            <div class="flex-1 flex flex-col bg-white overflow-hidden">
+                <div class="flex-1 overflow-y-auto p-8">
+                    
+                    <!-- TAB 1: MALETAS -->
+                    <div id="tab-luggage" class="settings-content block">
+                        <h3 class="text-xl font-bold text-black mb-2">Librería de Maletas Base</h3>
+                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6">
+                            <div class="grid grid-cols-12 gap-3 items-end">
+                                <div class="col-span-6">
+                                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">URL Imagen Base</label>
+                                    <input type="url" id="bag-url" class="w-full border border-gray-300 rounded p-2 text-sm outline-none" placeholder="https://...">
+                                </div>
+                                <div class="col-span-2">
+                                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Ancho px</label>
+                                    <input type="number" id="bag-w" value="500" class="w-full border border-gray-300 rounded p-2 text-sm outline-none">
+                                </div>
+                                <div class="col-span-2">
+                                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Alto px</label>
+                                    <input type="number" id="bag-h" value="350" class="w-full border border-gray-300 rounded p-2 text-sm outline-none">
+                                </div>
+                                <div class="col-span-2">
+                                    <button onclick="addBagToLibrary()" class="w-full bg-red-600 text-white font-bold py-2 rounded shadow-sm hover:bg-red-700 transition-colors text-sm">Añadir</button>
+                                </div>
+                            </div>
+                        </div>
+                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 border-b border-gray-100 pb-2">Colección Actual</h4>
+                        <ul id="bags-list-render" class="space-y-3"></ul>
+                    </div>
+
+                    <!-- TAB 2: AMENAZAS CON VISTA PREVIA EN TIEMPO REAL -->
+                    <div id="tab-threats" class="settings-content hidden">
+                        <h3 class="text-xl font-bold text-black mb-2">Librería de Objetos y Amenazas</h3>
+                        <p class="text-sm text-gray-500 mb-4">Ajusta los valores para ver la posición y tamaño real dentro de la maleta.</p>
+                        
+                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6">
+                            <div class="grid grid-cols-12 gap-3 mb-4">
+                                <div class="col-span-6">
+                                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">URL Imagen Objeto</label>
+                                    <input type="url" id="th-url" class="w-full border border-gray-300 rounded p-2 text-sm outline-none" oninput="updateAreaPreview()">
+                                </div>
+                                <div class="col-span-3">
+                                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Ancho px</label>
+                                    <input type="number" id="th-w" value="150" class="w-full border border-gray-300 rounded p-2 text-sm outline-none text-center" oninput="updateAreaPreview()">
+                                </div>
+                                <div class="col-span-3">
+                                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Alto px</label>
+                                    <input type="number" id="th-h" value="100" class="w-full border border-gray-300 rounded p-2 text-sm outline-none text-center" oninput="updateAreaPreview()">
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-12 gap-3 mb-4">
+                                <div class="col-span-4">
+                                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Tipo Identificación</label>
+                                    <select id="th-type" class="w-full border border-gray-300 rounded p-2 text-sm outline-none cursor-pointer">
+                                        <option value="ARMA DE FUEGO">Arma de Fuego / Munición</option>
+                                        <option value="ARMA BLANCA">Arma Blanca / Cortopunzante</option>
+                                        <option value="EXPLOSIVO">Artefacto Explosivo (IED)</option>
+                                        <option value="DROGAS">Sustancia Orgánica Sospechosa</option>
+                                        <option value="CONTRABANDO">Mercancía Restringida</option>
+                                        <option value="INOFENSIVO">Objeto Inofensivo (Test)</option>
+                                    </select>
+                                </div>
+                                <div class="col-span-4">
+                                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Material (Filtro)</label>
+                                    <select id="th-mat" class="w-full border border-gray-300 rounded p-2 text-sm outline-none cursor-pointer">
+                                        <option value="metals">Metal</option>
+                                        <option value="organic">Orgánico</option>
+                                        <option value="mixed">Mixto</option>
+                                    </select>
+                                </div>
+                                <div class="col-span-2">
+                                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Eje X px</label>
+                                    <input type="number" id="th-x" value="100" class="w-full border border-gray-300 rounded p-2 text-sm outline-none text-center" oninput="updateAreaPreview()">
+                                </div>
+                                <div class="col-span-2">
+                                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Eje Y px</label>
+                                    <input type="number" id="th-y" value="80" class="w-full border border-gray-300 rounded p-2 text-sm outline-none text-center" oninput="updateAreaPreview()">
+                                </div>
+                            </div>
+
+                            <!-- CONTENEDOR VISUAL DE AREA -->
+                            <div class="border-t border-gray-300 pt-4 mt-2">
+                                <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Seleccionar Maleta y Dibujar Área de Aparición</label>
+                                <select id="th-bag-selector" onchange="updateAreaPreview()" class="w-full border border-gray-300 rounded p-2 text-sm outline-none cursor-pointer mb-2"></select>
+                                
+                                <div class="bg-gray-100 border border-gray-300 relative w-full h-[250px] select-none flex items-center justify-center overflow-hidden cursor-crosshair shadow-inner" id="area-selector-container">
+                                    <div id="preview-wrapper" class="relative">
+                                        <img id="area-preview-base" src="" class="w-full h-full object-contain pointer-events-none opacity-50">
+                                        <!-- Imagen de amenaza inyectada encima en tiempo real -->
+                                        <img id="area-preview-threat" src="" class="absolute object-fill z-30 pointer-events-none drop-shadow-md" style="display:none;">
+                                        <div id="selection-box" class="absolute border-2 border-red-500 bg-red-500/20 hidden pointer-events-none shadow-[0_0_10px_#ef4444] z-20"></div>
+                                    </div>
+                                </div>
+                                <p class="text-[10px] mt-1 text-gray-500 font-bold">Haz clic y arrastra sobre la silueta para definir el área. Modifica Ancho/Alto/X/Y arriba para mover la vista previa en vivo.</p>
+                                
+                                <input type="hidden" id="th-area-x" value="0.1">
+                                <input type="hidden" id="th-area-y" value="0.1">
+                                <input type="hidden" id="th-area-w" value="0.8">
+                                <input type="hidden" id="th-area-h" value="0.8">
+                            </div>
+
+                            <button onclick="addThreatToLibrary()" class="w-full bg-red-600 text-white font-bold py-2.5 rounded shadow-sm hover:bg-red-700 transition-colors text-sm mt-4">Añadir Objeto a Librería</button>
+                        </div>
+                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 border-b border-gray-100 pb-2">Colección Actual</h4>
+                        <ul id="threats-list-render" class="space-y-3"></ul>
+                    </div>
+
+                    <!-- Tab Passengers -->
+                    <div id="tab-passengers" class="settings-content hidden">
+                        <h3 class="text-xl font-bold text-black mb-2">Avatares de Pasajeros</h3>
+                        <div class="space-y-5">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 uppercase mb-2">URL Avatar Femenino</label>
+                                <input type="url" id="cfg-url-female" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-red-600">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 uppercase mb-2">URL Avatar Masculino</label>
+                                <input type="url" id="cfg-url-male" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-red-600">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Footer Modal -->
+                <div class="p-6 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3 shrink-0">
+                    <button onclick="closeSettingsModal()" class="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-bold hover:bg-gray-100 transition-colors shadow-sm">Descartar</button>
+                    <button onclick="saveSettings()" class="px-8 py-2.5 bg-black text-white rounded-lg font-bold hover:bg-red-600 transition-colors shadow-md">Guardar Librerías</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL DE CLASIFICACIÓN DE AMENAZAS (TIP)   -->
+    <!-- ========================================== -->
+    <div id="tip-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center z-[110]">
+        <div class="bg-white border border-gray-200 w-full max-w-md rounded-2xl p-8 shadow-2xl">
+            <h3 class="text-xl font-extrabold text-black mb-2 uppercase tracking-wide border-b border-gray-100 pb-3">Registro Forense</h3>
+            <p class="text-xs text-gray-500 mb-6">Clasifique el objeto detectado.</p>
+            
+            <form onsubmit="guardarMarcador(event)" class="space-y-5">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-2 tracking-widest">Tipo de Identificación</label>
+                    <select id="tip-type" required class="w-full bg-gray-50 border border-gray-300 text-black p-3.5 rounded-lg outline-none text-sm cursor-pointer shadow-sm">
+                        <option value="ARMA DE FUEGO">Arma de Fuego / Munición</option>
+                        <option value="ARMA BLANCA">Arma Blanca / Cortopunzante</option>
+                        <option value="EXPLOSIVO">Artefacto Explosivo (IED)</option>
+                        <option value="DROGAS">Sustancia Orgánica Sospechosa</option>
+                        <option value="CONTRABANDO">Mercancía Restringida / Contrabando</option>
+                        <option value="INOFENSIVO">Objeto Inofensivo (Test)</option>
+                    </select>
+                </div>
+                <div class="flex justify-end space-x-3 pt-4 border-t border-gray-100 mt-2">
+                    <button type="button" onclick="cancelarMarcador()" class="px-6 py-3 bg-gray-100 text-gray-800 rounded-lg font-bold text-xs hover:bg-gray-200 uppercase tracking-wider transition-colors border border-gray-200 shadow-sm">Descartar</button>
+                    <button type="submit" class="px-6 py-3 bg-red-600 text-white rounded-lg font-bold text-xs hover:bg-red-700 shadow-md uppercase tracking-wider transition-colors">Asegurar Evidencia</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Alerta Genérica -->
+    <div id="alert-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden flex items-center justify-center z-[120]">
+        <div class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl text-center">
+            <div id="alert-icon-container" class="mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-4"></div>
+            <h3 id="alert-title" class="text-lg font-bold text-black mb-2">Mensaje</h3>
+            <p id="alert-message" class="text-sm text-gray-600 mb-6"></p>
+            <button onclick="closeAlertModal()" class="w-full bg-black text-white py-2.5 rounded-lg font-bold hover:bg-red-600">Aceptar</button>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // VARIABLES GLOBALES (Motor Físico)
+        // ==========================================
+        let beltPos = -700; 
+        let beltProgress = 0; 
+        let beltAutoMode = false;
+        let beltManualDir = 0;
+        let beltSpeedAuto = 2; 
+        let beltSpeedManual = 5;
+        let beltInterval = null;
+
+        let zScanValue = 0.5; // Escaner (0.0 a 1.0)
+        let bagZ = 0.5; // La maleta esta en la capa intermedia
+        let threatZ = 0.5; // Profundidad Z aleatoria de la amenaza
+        let currentFilter = 'normal'; 
+
+        let currentClickX = 0;
+        let currentClickY = 0;
+        let totalAmenazasMarcadas = 0;
+
+        const luggageGroup = document.getElementById('luggage-group');
+        const imgBase = document.getElementById('luggage-base');
+        const imgThreat = document.getElementById('luggage-threat');
+        const logContainer = document.getElementById('system-log');
+
+        const nombresM = ["Alejandro", "Carlos", "Javier", "Diego", "Andrés", "Mateo", "Sebastián", "Gabriel"];
+        const nombresF = ["María", "Fernanda", "Lucía", "Sofía", "Valentina", "Camila", "Isabella", "Mariana"];
+        const apellidos = ["García", "Martínez", "Rodríguez", "López", "Hernández", "González", "Pérez", "Sánchez"];
+
+        // ==========================================
+        // LIBRERÍA DE OBJETOS (CONFIG DEFAULT)
+        // ==========================================
+        const defaultSettings = {
+            bags: [
+                { url: "https://i.ibb.co/XzBpxXy/maleta-base.png", w: 500, h: 350 }
+            ],
+            threats: [
+                { url: "https://i.ibb.co/m0fPpxc/arma-xray.png", type: "ARMA DE FUEGO", mat: "metals", w: 180, h: 90, bagIdx: 0, aX: 0.1, aY: 0.1, aW: 0.8, aH: 0.8 }
+            ],
+            maleAv: "https://ui-avatars.com/api/?name=Hombre&background=random&color=fff",
+            femaleAv: "https://ui-avatars.com/api/?name=Mujer&background=random&color=fff",
+        };
+
+        let tempBags = [];
+        let tempThreats = [];
+        let activeThreatData = null; 
+
+        function getSafeSettings() {
+            let saved;
+            try {
+                saved = JSON.parse(localStorage.getItem('densitySettings'));
+                if (!saved || !Array.isArray(saved.bags) || !Array.isArray(saved.threats)) saved = defaultSettings;
+            } catch(e) { saved = defaultSettings; }
+            return saved;
+        }
+
+        // ==========================================
+        // INIT & CARGA
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedUser = localStorage.getItem('securityCloudUser');
+            if (savedUser) {
+                const u = JSON.parse(savedUser);
+                document.getElementById('op-name').innerText = u.username;
+            }
+            
+            setInterval(() => {
+                const now = new Date();
+                document.getElementById('cctv-time').innerText = now.toLocaleTimeString('en-US', {hour12: false});
+            }, 1000);
+
+            setupAreaSelector();
+
+            addLog("Módulo conectado a Servidor Central.");
+            addLog("Generando equipaje de perfil aleatorio...");
+            applySettingsToEngine();
+            toggleAutoBelt(); 
+        });
+
+        // ==========================================
+        // SISTEMA DE MODALES ALERTAS
+        // ==========================================
+        function customAlert(title, message, type = 'success') {
+            const modal = document.getElementById('alert-modal');
+            if (modal) {
+                document.getElementById('alert-title').innerText = title;
+                document.getElementById('alert-message').innerText = message;
+                const icon = document.getElementById('alert-icon-container');
+                if (type === 'success') {
+                    icon.innerHTML = `<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`;
+                    icon.className = "mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4";
+                } else {
+                    icon.innerHTML = `<svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>`;
+                    icon.className = "mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4";
+                }
+                modal.classList.remove('hidden');
+            } else { alert(title + ": " + message); }
+        }
+        function closeAlertModal() { document.getElementById('alert-modal').classList.add('hidden'); }
+
+        // ==========================================
+        // LÓGICA DE PANEL ADMINISTRATIVO (AJUSTES)
+        // ==========================================
+        function openAdminAuthModal() {
+            document.getElementById('admin-login-modal').classList.remove('hidden');
+            document.getElementById('admin-usr').value = '';
+            document.getElementById('admin-pwd').value = '';
+        }
+
+        function verifyAdminAuth(e) {
+            e.preventDefault();
+            const u = document.getElementById('admin-usr').value;
+            const p = document.getElementById('admin-pwd').value;
+            if(u === 'admin' && p === '123') {
+                document.getElementById('admin-login-modal').classList.add('hidden');
+                loadSettingsToUI();
+                document.getElementById('settings-modal').classList.remove('hidden');
+            } else {
+                alert("Credenciales incorrectas.");
+            }
+        }
+
+        function closeSettingsModal() { document.getElementById('settings-modal').classList.add('hidden'); }
+
+        function switchSettingsTab(tabId) {
+            document.querySelectorAll('.settings-content').forEach(c => c.classList.add('hidden'));
+            document.getElementById(tabId).classList.remove('hidden');
+            
+            document.querySelectorAll('[id^="btn-tab-"]').forEach(btn => {
+                btn.classList.remove('settings-tab-active');
+                btn.classList.add('settings-tab-inactive');
+            });
+            
+            const activeBtn = document.getElementById('btn-' + tabId);
+            activeBtn.classList.remove('settings-tab-inactive');
+            activeBtn.classList.add('settings-tab-active');
+        }
+
+        function loadSettingsToUI() {
+            const saved = getSafeSettings();
+            tempBags = [...saved.bags];
+            tempThreats = [...saved.threats];
+            
+            document.getElementById('cfg-url-male').value = saved.maleAv;
+            document.getElementById('cfg-url-female').value = saved.femaleAv;
+            
+            renderBagsList();
+            renderThreatsList();
+        }
+
+        function saveSettings() {
+            if(tempBags.length === 0) return alert("Debes tener al menos 1 maleta en la librería.");
+            const cfg = {
+                bags: tempBags,
+                threats: tempThreats,
+                maleAv: document.getElementById('cfg-url-male').value || defaultSettings.maleAv,
+                femaleAv: document.getElementById('cfg-url-female').value || defaultSettings.femaleAv
+            };
+            localStorage.setItem('densitySettings', JSON.stringify(cfg));
+            closeSettingsModal();
+            applySettingsToEngine(); 
+            addLog("⚙️ Librerías sincronizadas con éxito.");
+        }
+
+        function addBagToLibrary() {
+            const url = document.getElementById('bag-url').value;
+            const w = document.getElementById('bag-w').value;
+            const h = document.getElementById('bag-h').value;
+            if(!url) return alert("Ingresa URL");
+            tempBags.push({url: url, w: parseInt(w), h: parseInt(h)});
+            document.getElementById('bag-url').value = '';
+            renderBagsList();
+        }
+
+        function removeBag(index) {
+            tempBags.splice(index, 1);
+            renderBagsList();
+        }
+
+        function renderBagsList() {
+            const list = document.getElementById('bags-list-render');
+            if (list) {
+                list.innerHTML = tempBags.map((b, i) => `
+                    <li class="flex justify-between items-center bg-white border border-gray-200 p-3 rounded shadow-sm">
+                        <div class="flex items-center space-x-4">
+                            <img src="${b.url}" class="w-12 h-12 object-contain bg-gray-50 border border-gray-100 rounded" onerror="this.src='https://placehold.co/50x50/EEE/31343C?text=X'">
+                            <div class="text-xs text-gray-500">
+                                <p class="font-bold text-black truncate w-48">${b.url}</p>
+                                <p>Tamaño: ${b.w}x${b.h}px</p>
+                            </div>
+                        </div>
+                        <button onclick="removeBag(${i})" class="text-red-500 hover:text-red-700 font-bold text-xs bg-red-50 px-2 py-1 rounded">X</button>
+                    </li>
+                `).join('');
+            }
+            
+            const selector = document.getElementById('th-bag-selector');
+            if (selector) {
+                selector.innerHTML = tempBags.map((b, i) => `<option value="${i}">Maleta #${i+1} (${b.w}x${b.h})</option>`).join('');
+                updateAreaPreview();
+            }
+        }
+
+        function updateAreaPreview() {
+            const sel = document.getElementById('th-bag-selector');
+            if(!sel || sel.value === "" || tempBags.length === 0) return;
+            
+            const bag = tempBags[parseInt(sel.value)];
+            if(!bag) return;
+
+            const previewBase = document.getElementById('area-preview-base');
+            const previewThreat = document.getElementById('area-preview-threat');
+            const wrapper = document.getElementById('preview-wrapper');
+            
+            if(previewBase) previewBase.src = bag.url;
+            
+            if(wrapper) {
+                const ratio = bag.w / bag.h;
+                wrapper.style.width = (250 * ratio) + 'px';
+                wrapper.style.height = '250px';
+            }
+
+            const thUrl = document.getElementById('th-url');
+            const thW = document.getElementById('th-w');
+            const thH = document.getElementById('th-h');
+            const thX = document.getElementById('th-x');
+            const thY = document.getElementById('th-y');
+
+            if(thUrl && thUrl.value && previewThreat) {
+                previewThreat.style.display = 'block';
+                previewThreat.src = thUrl.value;
+                
+                const wVal = parseInt(thW.value) || 0;
+                const hVal = parseInt(thH.value) || 0;
+                const xVal = parseInt(thX.value) || 0;
+                const yVal = parseInt(thY.value) || 0;
+
+                previewThreat.style.width = `${(wVal / bag.w) * 100}%`;
+                previewThreat.style.height = `${(hVal / bag.h) * 100}%`;
+                previewThreat.style.left = `${(xVal / bag.w) * 100}%`;
+                previewThreat.style.top = `${(yVal / bag.h) * 100}%`;
+                previewThreat.style.zIndex = '30';
+                previewThreat.style.transform = 'none';
+            } else if (previewThreat) {
+                previewThreat.style.display = 'none';
+            }
+        }
+
+        function updateThreatPreview() {
+            updateAreaPreview();
+        }
+
+        // ==========================================
+        // SELECTOR DE ÁREA DE APARICIÓN
+        // ==========================================
+        let isDrawing = false;
+        let startX, startY;
+
+        function setupAreaSelector() {
+            const wrapper = document.getElementById('preview-wrapper');
+            const selBox = document.getElementById('selection-box');
+
+            if (!wrapper || !selBox) return;
+
+            wrapper.addEventListener('mousedown', (e) => {
+                const rect = wrapper.getBoundingClientRect();
+                startX = e.clientX - rect.left;
+                startY = e.clientY - rect.top;
+                isDrawing = true;
+                selBox.style.left = startX + 'px';
+                selBox.style.top = startY + 'px';
+                selBox.style.width = '0px';
+                selBox.style.height = '0px';
+                selBox.classList.remove('hidden');
+            });
+
+            wrapper.addEventListener('mousemove', (e) => {
+                if(!isDrawing) return;
+                const rect = wrapper.getBoundingClientRect();
+                let currentX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+                let currentY = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+
+                let width = Math.abs(currentX - startX);
+                let height = Math.abs(currentY - startY);
+                let left = Math.min(startX, currentX);
+                let top = Math.min(startY, currentY);
+
+                selBox.style.left = left + 'px';
+                selBox.style.top = top + 'px';
+                selBox.style.width = width + 'px';
+                selBox.style.height = height + 'px';
+
+                document.getElementById('th-area-x').value = left / rect.width;
+                document.getElementById('th-area-y').value = top / rect.height;
+                document.getElementById('th-area-w').value = width / rect.width;
+                document.getElementById('th-area-h').value = height / rect.height;
+            });
+
+            wrapper.addEventListener('mouseup', () => isDrawing = false);
+            wrapper.addEventListener('mouseleave', () => isDrawing = false);
+        }
+
+        function addThreatToLibrary() {
+            const url = document.getElementById('th-url').value;
+            const type = document.getElementById('th-type').value;
+            const mat = document.getElementById('th-mat').value;
+            const w = document.getElementById('th-w').value;
+            const h = document.getElementById('th-h').value;
+            const x = document.getElementById('th-x').value;
+            const y = document.getElementById('th-y').value;
+            const bagIdx = document.getElementById('th-bag-selector').value;
+            
+            const ax = parseFloat(document.getElementById('th-area-x').value);
+            const ay = parseFloat(document.getElementById('th-area-y').value);
+            const aw = parseFloat(document.getElementById('th-area-w').value);
+            const ah = parseFloat(document.getElementById('th-area-h').value);
+            
+            if(!url || bagIdx === "") return alert("Faltan datos de la imagen o no has seleccionado maleta base.");
+            
+            tempThreats.push({url, type, mat, w: parseInt(w), h: parseInt(h), x: parseInt(x), y: parseInt(y), bagIdx: parseInt(bagIdx), aX: ax, aY: ay, aW: aw, aH: ah});
+            document.getElementById('th-url').value = '';
+            document.getElementById('selection-box').classList.add('hidden');
+            renderThreatsList();
+        }
+
+        function removeThreat(index) {
+            tempThreats.splice(index, 1);
+            renderThreatsList();
+        }
+
+        function renderThreatsList() {
+            const list = document.getElementById('threats-list-render');
+            list.innerHTML = tempThreats.map((t, i) => `
+                <li class="flex justify-between items-center bg-white border border-gray-200 p-3 rounded shadow-sm">
+                    <div class="flex items-center space-x-4">
+                        <img src="${t.url}" class="w-12 h-12 object-contain bg-gray-50 border border-gray-100 rounded" onerror="this.src='https://placehold.co/50x50/EEE/31343C?text=X'">
+                        <div class="text-xs text-gray-500">
+                            <p class="font-bold text-black">${t.type} <span class="text-red-500">(${t.mat.toUpperCase()})</span></p>
+                            <p>Size: ${t.w}x${t.h}px | Maleta #${t.bagIdx + 1}</p>
+                        </div>
+                    </div>
+                    <button onclick="removeThreat(${i})" class="text-red-500 hover:text-red-700 font-bold text-xs bg-red-50 px-2 py-1 rounded">X</button>
+                </li>
+            `).join('');
+        }
+
+        // ==========================================
+        // MOTOR DE SIMULACIÓN Y CONSTRUCCIÓN DE ESCENA
+        // ==========================================
+        let activeThreatsData = []; // NUEVO: Array para manejar múltiples objetos
+
+        function applySettingsToEngine() {
+            const saved = getSafeSettings();
+            
+            beltPos = -800; // Empieza afuera de la banda izquierda
+            beltProgress = 0;
+            // Limpia los marcadores y los objetos inyectados de la maleta anterior
+            document.querySelectorAll('.forensic-marker, .forensic-label, .dynamic-threat').forEach(e => e.remove());
+            totalAmenazasMarcadas = 0;
+            activeThreatsData = [];
+            
+            // Ocultamos la imagen estática antigua que ya no usaremos
+            const oldThreat = document.getElementById('luggage-threat');
+            if(oldThreat) oldThreat.style.display = 'none'; 
+
+            const beltBar = document.getElementById('belt-bar');
+            if(beltBar) beltBar.style.width = `0%`;
+            
+            const beltProg = document.getElementById('belt-progress');
+            if(beltProg) beltProg.innerText = `0%`;
+            
+            currentFilter = 'normal'; 
+            zScanValue = 0.5; // Resetea profundidad escáner
+
+            if(saved.bags.length > 0) {
+                // 1. Escoger Maleta Base Aleatoria
+                const idx = Math.floor(Math.random() * saved.bags.length);
+                const selectedBag = saved.bags[idx];
+                
+                luggageGroup.style.width = selectedBag.w + 'px';
+                luggageGroup.style.height = selectedBag.h + 'px';
+                
+                imgBase.src = selectedBag.url;
+
+                const possibleThreats = saved.threats.filter(t => t.bagIdx === idx);
+                
+                // Probabilidad de inyectar objetos (70% de probabilidad de que haya algo)
+                if(possibleThreats.length > 0 && Math.random() > 0.3) {
+                    // Determinar aleatoriamente la cantidad de objetos a inyectar (de 1 a 3)
+                    let numObjects = Math.floor(Math.random() * 3) + 1; 
+                    
+                    for(let i = 0; i < numObjects; i++) {
+                        const t = possibleThreats[Math.floor(Math.random() * possibleThreats.length)];
+                        
+                        // Creación dinámica de la imagen
+                        let tImg = document.createElement('img');
+                        tImg.src = t.url;
+                        tImg.className = `dynamic-threat absolute object-contain transition-all duration-300`;
+                        
+                        tImg.style.width = `${(t.w / selectedBag.w) * 100}%`;
+                        tImg.style.height = `${(t.h / selectedBag.h) * 100}%`;
+                        
+                        // Posición aleatoria dentro del área permitida
+                        const randX = t.aX + (Math.random() * t.aW);
+                        const randY = t.aY + (Math.random() * t.aH);
+                        
+                        tImg.style.left = `calc(${randX * 100}% - ${(t.w/2)/selectedBag.w * 100}%)`;
+                        tImg.style.top = `calc(${randY * 100}% - ${(t.h/2)/selectedBag.h * 100}%)`;
+                        
+                        // Rotación y Profundidad Z independiente para cada objeto
+                        const rot = Math.floor(Math.random() * 360);
+                        tImg.style.transform = `rotate(${rot}deg)`;
+                        let tZ = Math.random(); 
+                        
+                        // Guardar referencia
+                        activeThreatsData.push({ data: t, element: tImg, z: tZ });
+                        luggageGroup.appendChild(tImg);
+                        
+                        addLog(`Sistema inyectó objeto anómalo [${t.type}] (Profundidad Z: ${tZ.toFixed(2)}).`);
+                    }
+                } else {
+                    addLog(`Equipaje evaluado como aparentemente limpio por el sistema.`);
+                }
+            }
+            
+            applyFiltersToImages();
+            generarPasajeroAleatorio(saved);
+        }
+
+        function generarPasajeroAleatorio(savedCfg) {
+            const isMale = Math.random() > 0.5;
+            const nomArray = isMale ? nombresM : nombresF;
+            const n1 = nomArray[Math.floor(Math.random() * nomArray.length)];
+            const ap1 = apellidos[Math.floor(Math.random() * apellidos.length)];
+            const ap2 = apellidos[Math.floor(Math.random() * apellidos.length)];
+            const cedula = Math.floor(Math.random() * 90000000) + 10000000;
+
+            document.getElementById('p-name').innerText = `${n1} ${ap1} ${ap2}`.toUpperCase();
+            document.getElementById('p-cedula').innerText = cedula;
+            document.getElementById('p-gender').innerText = isMale ? "MASCULINO" : "FEMENINO";
+
+            const cctvImg = document.getElementById('cctv-avatar');
+            cctvImg.src = isMale ? savedCfg.maleAv : savedCfg.femaleAv;
+        }
+
+        // ==========================================
+        // MOTOR DE CINTA TRANSPORTADORA
+        // ==========================================
+        function toggleAutoBelt() {
+            beltAutoMode = !beltAutoMode;
+            const btn = document.getElementById('btn-auto-belt');
+            
+            if (beltAutoMode) {
+                btn.classList.replace('bg-black', 'bg-red-600');
+                btn.classList.replace('hover:bg-gray-800', 'hover:bg-red-700');
+                btn.innerText = "PARADA EMERGENCIA";
+                addLog("Cinta: MODO AUTOMÁTICO ENGANCHADO.");
+                if (!beltInterval) startBeltLoop();
+            } else {
+                btn.classList.replace('bg-red-600', 'bg-black');
+                btn.classList.replace('hover:bg-red-700', 'hover:bg-gray-800');
+                btn.innerText = "AUTO FORWARD";
+                addLog("Cinta: DETENIDA.");
+            }
+        }
+
+        function manualBelt(dir) {
+            beltManualDir = dir;
+            if (dir !== 0) {
+                beltAutoMode = false;
+                const btn = document.getElementById('btn-auto-belt');
+                btn.classList.replace('bg-red-600', 'bg-black');
+                btn.classList.replace('hover:bg-red-700', 'hover:bg-gray-800');
+                btn.innerText = "AUTO FORWARD";
+                addLog(`Cinta: MODO MANUAL (${dir > 0 ? 'AVANCE' : 'RETROCESO'}).`);
+                if (!beltInterval) startBeltLoop();
+            } else { addLog("Cinta: DETENIDA."); }
+        }
+
+        function startBeltLoop() {
+            beltInterval = setInterval(() => {
+                if (!beltAutoMode && beltManualDir === 0) {
+                    clearInterval(beltInterval);
+                    beltInterval = null;
+                    return;
+                }
+
+                let speed = beltAutoMode ? beltSpeedAuto : beltSpeedManual;
+                let direction = beltAutoMode ? 1 : beltManualDir;
+
+                beltPos += (speed * direction);
+                
+                let screenWidth = window.innerWidth;
+                beltProgress = Math.max(0, Math.min(100, ((beltPos + 800) / (screenWidth + 400)) * 100));
+
+                luggageGroup.style.left = `${beltPos}px`;
+
+                const beltBar = document.getElementById('belt-bar');
+                if (beltBar) beltBar.style.width = `${beltProgress}%`;
+                
+                const beltProg = document.getElementById('belt-progress');
+                if(beltProg) beltProg.innerText = `${Math.floor(beltProgress)}%`;
+
+                if (beltProgress >= 100) {
+                    clearInterval(beltInterval);
+                    beltInterval = null;
+                    beltAutoMode = false;
+                    const btn = document.getElementById('btn-auto-belt');
+                    btn.innerText = "FIN DE BANDA";
+                    btn.className = "flex-[2.5] bg-gray-200 text-gray-500 font-bold rounded-xl uppercase tracking-wider cursor-not-allowed border border-gray-300 flex items-center justify-center";
+                    addLog("🚨 EQUIPAJE HA LLEGADO AL FINAL DEL ESCÁNER.");
+                    setTimeout(() => finalizarMaletaAuto(), 1000);
+                }
+
+            }, 30); 
+        }
+
+        // ==========================================
+        // ESPECTROMETRÍA (FILTROS LÓGICOS)
+        // ==========================================
+        function setFilter(type) {
+            currentFilter = type; // normal, organic, metals, mixed, bw
+            applyFiltersToImages();
+            addLog(`FILTRO ESPECTROMÉTRICO: ${type.toUpperCase()}`);
+        }
+
+        function applyFiltersToImages() {
+            // La maleta base SIEMPRE se mantiene en su estado radiológico
+            imgBase.className = `w-full h-full object-fill absolute inset-0 base-xray transition-all duration-300`;
+            // Forzamos al sistema Z-Scan a re-calcular el shader y el color de los bordes del objeto
+            updateZScanUI();
+        }
+
+        // ==========================================
+        // Z-SCAN (SISTEMA DE PROFUNDIDAD FÍSICA Y SHADER DE BORDES)
+        // ==========================================
+        function updateZScanUI() {
+            const zBar = document.getElementById('z-bar');
+            if (zBar) zBar.style.width = `${zScanValue * 100}%`;
+            
+            let shaderParam = (zScanValue * 1.6) - 0.8;
+            
+            const zVal = document.getElementById('z-val-display');
+            if (zVal) zVal.innerText = shaderParam.toFixed(2);
+
+            let penetracion = Math.abs(shaderParam);
+            let baseOp = 1.0 - (penetracion * 1.1);
+            imgBase.style.opacity = Math.max(0.15, baseOp);
+
+            // Iteramos todos los objetos generados dinámicamente en la maleta
+            activeThreatsData.forEach(threat => {
+                let threatShaderParam = (threat.z * 1.6) - 0.8; 
+                let distanceToFocus = Math.abs(shaderParam - threatShaderParam);
+                
+                let threatOp = 0.6 - (distanceToFocus * 1.2); 
+                threatOp = Math.max(0.0, Math.min(0.6, threatOp)); 
+                
+                let mat = threat.data.mat;
+                if (currentFilter === 'metals' && mat === 'organic') {
+                    threatOp = 0; 
+                } else if (currentFilter === 'organic' && mat === 'metals') {
+                    threatOp = 0.05; 
+                }
+
+                threat.element.style.opacity = threatOp;
+                
+                let colorFilter = "";
+                if (currentFilter === 'organic') colorFilter = "sepia(100%) hue-rotate(5deg) saturate(250%)";
+                else if (currentFilter === 'metals') colorFilter = "sepia(100%) hue-rotate(200deg) saturate(300%)";
+                else if (currentFilter === 'mixed') colorFilter = "sepia(100%) hue-rotate(90deg) saturate(200%)";
+                else if (currentFilter === 'bw') colorFilter = "grayscale(100%) contrast(180%)";
+                else colorFilter = "grayscale(100%) contrast(150%)"; 
+                
+                threat.element.style.mixBlendMode = "screen";
+
+                if (distanceToFocus < 0.2) {
+                    threat.element.style.filter = `${colorFilter} url(#edge-shader) brightness(2.0) blur(0px)`;
+                } else {
+                    threat.element.style.filter = `${colorFilter} url(#edge-shader) brightness(1.2) blur(${distanceToFocus * 4}px)`;
+                }
+            });
+        }
+
+        function startZScan(dir) {
+            zScanInterval = setInterval(() => {
+                zScanValue += (dir * 0.015);
+                zScanValue = Math.max(0, Math.min(1, zScanValue)); 
+                updateZScanUI();
+            }, 30);
+        }
+
+        function stopZScan() {
+            if(zScanInterval) {
+                clearInterval(zScanInterval);
+                zScanInterval = null;
+            }
+        }
+
+        // ==========================================
+        // SISTEMA FORENSE (MARCADORES RELATIVOS)
+        // ==========================================
+        function agregarMarcadorForense(e) {
+            if (beltProgress < 5 || beltProgress > 95) return;
+            if (beltAutoMode) toggleAutoBelt();
+
+            const rect = luggageGroup.getBoundingClientRect();
+            currentClickX = e.clientX - rect.left;
+            currentClickY = e.clientY - rect.top;
+
+            if(currentClickX < 0 || currentClickY < 0 || currentClickX > rect.width || currentClickY > rect.height) return;
+
+            document.getElementById('tip-modal').classList.remove('hidden');
+        }
+
+        function cancelarMarcador() {
+            document.getElementById('tip-modal').classList.add('hidden');
+            addLog("Análisis forense cancelado.");
+        }
+
+        function guardarMarcador(e) {
+            e.preventDefault();
+            const tipo = document.getElementById('tip-type').value;
+            const id = Date.now();
+            
+            const marker = document.createElement('div');
+            marker.id = `m-${id}`;
+            marker.className = 'forensic-marker w-16 h-16';
+            marker.style.left = `${currentClickX}px`;
+            marker.style.top = `${currentClickY}px`;
+            
+            const label = document.createElement('div');
+            label.id = `l-${id}`;
+            label.className = 'forensic-label';
+            label.innerText = `► ${tipo}`;
+            label.style.left = `${currentClickX + 25}px`;
+            label.style.top = `${currentClickY - 15}px`;
+
+            luggageGroup.appendChild(marker);
+            luggageGroup.appendChild(label);
+
+            totalAmenazasMarcadas++;
+            
+            // Verificamos si la clasificación coincide con ALGUNO de los objetos activos
+            let match = activeThreatsData.find(th => th.data.type === tipo);
+            
+            if(match) {
+                addLog(`✔️ DETECCIÓN CONFIRMADA: [${tipo}]`);
+            } else if(activeThreatsData.length > 0) {
+                addLog(`⚠️ CLASIFICACIÓN ERRÓNEA: Se marcó [${tipo}] pero no coincide con los objetos presentes.`);
+            } else {
+                addLog(`⚠️ FALSO POSITIVO: Se marcó [${tipo}] pero el equipaje está limpio.`);
+            }
+
+            document.getElementById('tip-modal').classList.add('hidden');
+        }
+
+        // ==========================================
+        // FINALIZACIÓN Y CONEXIÓN
+        // ==========================================
+        function finalizarMaletaAuto() {
+            addLog("EVALUACIÓN AUTOMÁTICA EN PROGRESO...");
+            
+            let finalScore = 100;
+            let totalInyectadas = activeThreatsData.length;
+            
+            if(totalInyectadas > 0 && totalAmenazasMarcadas >= totalInyectadas) finalScore = 100;
+            else if(totalInyectadas > 0 && totalAmenazasMarcadas > 0) finalScore = 50; 
+            else if(totalInyectadas > 0 && totalAmenazasMarcadas === 0) finalScore = 0;
+            else if(totalInyectadas === 0 && totalAmenazasMarcadas > 0) finalScore = 50; 
+            else if(totalInyectadas === 0 && totalAmenazasMarcadas === 0) finalScore = 100; 
+            
+            customAlert(`🚨 ANÁLISIS TÁCTICO COMPLETADO`, `Amenazas Reales: ${totalInyectadas}\nMarcas Realizadas: ${totalAmenazasMarcadas}\nEfectividad: ${finalScore}%\n\nGuardando reporte en la nube...`, 'success');
+            
+            setTimeout(() => cerrarSimulador(finalScore), 2000);
+        }
+
+        function cerrarSimulador(overrideScore = null) {
+            let scoreToSend = overrideScore !== null ? overrideScore : (totalAmenazasMarcadas > 0 ? 100 : 0);
+            if (window.parent && typeof window.parent.finishSim === "function") {
+                window.parent.finishSim(scoreToSend, totalAmenazasMarcadas);
+            } else {
+                sessionStorage.setItem('tempSimScore', scoreToSend);
+                window.location.href = "operator.html"; 
+            }
+        }
+
+        function addLog(msg) {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('en-US', {hour12: false});
+            const p = document.createElement('p');
+            p.innerHTML = `<span class="text-gray-400">[${timeStr}]</span> <span class="text-green-500 font-bold">> ${msg}</span>`;
+            logContainer.appendChild(p);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+    </script>
+</body>
+</html>

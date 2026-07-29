@@ -1098,24 +1098,38 @@ async function loadOperatorDashboard() {
 
 function startSim(type) {
     activeSim = type;
-    document.getElementById('sim-title').innerText = `Entorno Activo: ${type} WEB`;
     document.getElementById('dashboard-view').classList.add('hidden');
-    document.getElementById('sim-view').classList.remove('hidden');
+    
+    const simView = document.getElementById('sim-view');
+    simView.classList.remove('hidden');
+    
+    // Carga el archivo HTML del simulador que acabamos de crear
+    // Nota: Debes guardar el HTML anterior con el nombre 'sim_density.html' en la misma carpeta.
+    document.getElementById('sim-iframe').src = "sim_density.html"; 
 }
 
-async function finishSim() {
-    const score = Math.floor(Math.random() * 20) + 80; 
+// Modificamos finishSim para que reciba datos del iframe
+window.finishSim = async function(score, amenazas) {
+    // Si viene vacio porque cerro a la fuerza, asigna 0
+    const finalScore = score !== undefined ? score : 0;
+    const itemsMarcados = amenazas !== undefined ? amenazas : 0;
+
     await fetch(`${API_URL}/results`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-            user_id: currentUser.id, simulator_type: activeSim, score: score, 
-            details: `[SISTEMA AUTOMATIZADO]\nEl personal completó el protocolo de inspección.\nTasa de Acierto: ${score}%.\nTiempo de Reacción Promedio: 4.2s.`
+            user_id: currentUser.id, 
+            simulator_type: activeSim, 
+            score: finalScore, 
+            details: `[SISTEMA AUTOMATIZADO - DENSITY WEB]\nInspección completada por operador.\nAmenazas tácticas marcadas en sesión: ${itemsMarcados}.\nTasa de Efectividad: ${finalScore}%.`
         })
     });
     
-    customAlert('Práctica finalizada', `Calificación técnica: ${score}%. \nEl reporte ha sido guardado.`, 'success');
+    customAlert('Práctica finalizada', `Auditoría forense guardada.\nCalificación técnica: ${finalScore}%.`, 'success');
+    
     document.getElementById('sim-view').classList.add('hidden');
+    document.getElementById('sim-iframe').src = ""; // Limpiar memoria iframe
     document.getElementById('dashboard-view').classList.remove('hidden');
+    
     loadOperatorDashboard();
     if(currentUser.role === 'instructor') loadSchoolGeneralResults();
 }
