@@ -7,7 +7,7 @@ class School(Base):
     name = Column(String, index=True)
     subscription_type = Column(String) 
     max_operators = Column(Integer, default=50)
-    icon_url = Column(String, default="") # <--- AÑADE ESTA LÍNEA
+    icon_url = Column(String, default="") 
 
 class User(Base):
     __tablename__ = "users"

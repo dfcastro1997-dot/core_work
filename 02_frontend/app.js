@@ -167,7 +167,7 @@ async function login(e) {
         clearInterval(progInterval);
         btn.classList.remove('hidden');
         loadingUi.classList.add('hidden');
-        alert('❌ Error de conexión con el Servidor'); 
+        alert('❌ Error de conexión con el Servidor. Revisa que Render esté activo.'); 
     }
 }
 
@@ -205,16 +205,16 @@ async function loadAdminDashboard() {
     fetchAndRenderOperators();
 }
 
-/* ================== LÓGICA ESCUELAS (CREAR, LEER, EDITAR, BORRAR) ================== */
+/* ================== LÓGICA ESCUELAS ================== */
 
 async function fetchSchools() {
     try {
         const res = await fetch(`${API_URL}/schools`);
+        if (!res.ok) throw new Error("Error fetching");
         allSchools = await res.json();
         
         const list = document.getElementById('school-list');
         if(list) {
-            // Renderiza la lista con el diseño mejorado y botones de acción
             if(allSchools.length === 0) {
                 list.innerHTML = `<li class="text-center py-6 text-gray-500 italic">No hay escuelas registradas.</li>`;
             } else {
@@ -242,7 +242,6 @@ async function fetchSchools() {
             }
         }
         
-        // Rellenar selects
         const filterSelect = document.getElementById('filter-school');
         const modalSelect = document.getElementById('op-school-id');
         if(filterSelect && modalSelect) {
@@ -252,6 +251,7 @@ async function fetchSchools() {
         }
     } catch(e) {
         console.error(e);
+        customAlert('Error de Red', 'Problema de conexión con el servidor al cargar escuelas. Verifica tu red o el estado de Render.', 'error');
     }
 }
 
@@ -315,7 +315,7 @@ async function saveEditSchool(e) {
         if(res.ok) {
             customAlert('Éxito', 'Escuela actualizada correctamente.', 'success');
             closeEditSchoolModal();
-            fetchSchools(); // Refrescar lista
+            fetchSchools(); 
         } else {
             customAlert('Error', 'No se pudo actualizar la escuela.', 'error');
         }
@@ -440,7 +440,7 @@ function deleteOperator(id) {
     });
 }
 
-/* ================== LÓGICA ESCUELA DASHBOARD ================== */
+/* ================== LÓGICA ESCUELA ================== */
 async function loadSchoolDashboard() {
     const res = await fetch(`${API_URL}/users`);
     const users = await res.json();
@@ -498,7 +498,7 @@ async function viewOperatorResults(userId) {
     `).join('');
 }
 
-/* ================== LÓGICA OPERADOR DASHBOARD ================== */
+/* ================== LÓGICA OPERADOR ================== */
 let activeSim = '';
 async function loadOperatorDashboard() {
     const res = await fetch(`${API_URL}/results/${currentUser.id}`);

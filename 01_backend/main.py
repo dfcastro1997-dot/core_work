@@ -53,7 +53,6 @@ class SchoolCreate(BaseModel):
     max_operators: int
     icon_url: str = ""
 
-# Nuevo esquema para actualizar la escuela sin tocar la contraseña/usuario
 class SchoolUpdate(BaseModel):
     name: str
     subscription_type: str
@@ -80,20 +79,17 @@ def create_school(s: SchoolCreate, db: Session = Depends(database.get_db)):
     if db.query(models.User).filter_by(username=s.username).first():
         raise HTTPException(status_code=400, detail="El usuario ya existe")
     
-    # 1. Crear Escuela
     db_s = models.School(name=s.name, subscription_type=s.subscription_type, max_operators=s.max_operators, icon_url=s.icon_url)
     db.add(db_s)
     db.commit()
     db.refresh(db_s)
     
-    # 2. Crear Usuario de Acceso para la Escuela
     db_u = models.User(username=s.username, password=s.password, role="school", school_id=db_s.id)
     db.add(db_u)
     db.commit()
     
     return db_s
 
-# NUEVO: Editar Escuela
 @app.put("/schools/{school_id}")
 def update_school(school_id: int, s: SchoolUpdate, db: Session = Depends(database.get_db)):
     db_s = db.query(models.School).filter_by(id=school_id).first()
@@ -107,13 +103,11 @@ def update_school(school_id: int, s: SchoolUpdate, db: Session = Depends(databas
     db.commit()
     return db_s
 
-# NUEVO: Borrar Escuela
 @app.delete("/schools/{school_id}")
 def delete_school(school_id: int, db: Session = Depends(database.get_db)):
     db_s = db.query(models.School).filter_by(id=school_id).first()
     if not db_s: raise HTTPException(status_code=404, detail="Escuela no encontrada")
     
-    # Buscar y borrar todos los usuarios y resultados asociados a esta escuela para no dejar basura
     users = db.query(models.User).filter_by(school_id=school_id).all()
     for u in users:
         db.query(models.SimulationResult).filter_by(user_id=u.id).delete()
@@ -136,7 +130,7 @@ def create_user(u: UserCreate, db: Session = Depends(database.get_db)):
         school = db.query(models.School).filter_by(id=u.school_id).first()
         current_ops = db.query(models.User).filter_by(school_id=u.school_id, role="operator").count()
         if school and current_ops >= school.max_operators:
-            raise HTTPException(status_code=400, detail=f"Límite de operadores ({school.max_operators}) alcanzado para esta escuela.")
+            raise HTTPException(status_code=400, detail=f"Límite alcanzado.")
 
     db_u = models.User(**u.dict())
     db.add(db_u)
@@ -231,7 +225,6 @@ def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
     pdf.output(temp_file.name)
     return FileResponse(temp_file.name, media_type='application/pdf', filename=f"Certificado_{user.username}.pdf")
 
-# (Ruta de reseteo para desarrollo temporal si la necesitas)
 @app.get("/reset-db")
 def reset_database():
     models.Base.metadata.drop_all(bind=database.engine)

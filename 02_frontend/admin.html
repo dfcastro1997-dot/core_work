@@ -12,7 +12,6 @@
 </head>
 <body class="bg-gray-50 text-gray-900 flex h-screen overflow-hidden">
 
-    <!-- MENÚ LATERAL IZQUIERDO -->
     <aside class="w-72 bg-white border-r border-gray-200 flex flex-col z-20 shadow-sm relative">
         <div class="absolute top-0 left-0 w-full h-1.5 bg-red-600"></div>
         <div class="h-28 flex items-center justify-center border-b border-gray-100 mt-1">
@@ -40,7 +39,6 @@
         </div>
     </aside>
 
-    <!-- CONTENIDO PRINCIPAL -->
     <div class="flex-1 flex flex-col h-screen overflow-hidden bg-gray-50">
         <header class="h-20 bg-white border-b border-gray-200 shadow-sm px-8 flex justify-between items-center z-10">
             <h2 class="text-xl font-extrabold text-black tracking-tight" id="header-title">Gestión de Escuelas</h2>
@@ -55,10 +53,7 @@
 
         <main class="flex-1 overflow-y-auto p-8 relative">
             
-            <!-- ESCUELAS REGISTRADAS -->
             <div id="schools-section" class="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                
-                <!-- Formulario de Creación de Escuela -->
                 <div class="lg:col-span-5 bg-white p-8 rounded-2xl border border-gray-200 shadow-sm">
                     <h2 class="text-lg font-bold text-black border-b border-gray-100 pb-3 mb-5">Alta de Academias</h2>
                     <form onsubmit="createSchool(event)" class="space-y-4">
@@ -99,14 +94,12 @@
                     </form>
                 </div>
                 
-                <!-- Listado Dinámico de Escuelas (Ahora con Botones) -->
                 <div class="lg:col-span-7 bg-white p-8 rounded-2xl border border-gray-200 shadow-sm flex flex-col h-[600px]">
                     <h2 class="text-lg font-bold mb-2 text-black border-b border-gray-100 pb-4">Academias Operativas</h2>
                     <ul id="school-list" class="flex-1 overflow-y-auto pr-2 mt-4 space-y-3"></ul>
                 </div>
             </div>
 
-            <!-- PERSONAL REGISTRADO -->
             <div id="operators-section" class="hidden w-full max-w-6xl mx-auto flex flex-col space-y-6">
                 <div class="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex justify-between items-center">
                     <div class="flex items-center space-x-4 w-1/2">
@@ -135,11 +128,7 @@
         </main>
     </div>
 
-    <!-- ========================================== -->
-    <!-- MODALES PERSONALIZADOS (LÓGICA MEJORADA)   -->
-    <!-- ========================================== -->
-
-    <!-- Modal Editar ESCUELA -->
+    <!-- Modales -->
     <div id="edit-school-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50">
         <div class="bg-white w-full max-w-md rounded-2xl p-8 shadow-2xl border border-gray-200">
             <h3 class="text-xl font-bold text-black mb-4 border-b border-gray-100 pb-3">Editar Escuela</h3>
@@ -174,7 +163,6 @@
         </div>
     </div>
 
-    <!-- Modal Operador -->
     <div id="operator-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50">
         <div class="bg-white w-full max-w-md rounded-2xl p-8 shadow-2xl border border-gray-200">
             <h3 class="text-xl font-bold text-black mb-4 border-b border-gray-100 pb-3" id="op-modal-title">Gestión de Operador</h3>
@@ -200,7 +188,6 @@
         </div>
     </div>
 
-    <!-- Modal Alerta Personalizada (Éxito/Error) -->
     <div id="alert-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden flex items-center justify-center z-[100]">
         <div class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl border border-gray-200 text-center">
             <div id="alert-icon-container" class="mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-4"></div>
@@ -210,7 +197,6 @@
         </div>
     </div>
 
-    <!-- Modal Confirmación (Usado para borrar cosas) -->
     <div id="confirm-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden flex items-center justify-center z-[100]">
         <div class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl border border-gray-200 text-center">
             <div class="mx-auto w-12 h-12 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mb-4">
