@@ -1,11 +1,17 @@
-// Cambia a http://localhost:8000 si pruebas en local
+// ATENCION: Cambia a http://localhost:8000 si pruebas en local
 const API_URL = 'https://core-work-api.onrender.com';
 let currentUser = null;
 let allSchools = [];
 let allUsers = [];
 let schoolDataResults = []; 
+let bankQuizzes = []; // Cache de exámenes creados por el instructor
 
-const ROLE_LABELS = { 'admin': 'Administrador', 'school': 'Escuela / Academia', 'instructor': 'Instructor', 'operator': 'Operador' };
+const ROLE_LABELS = {
+    'admin': 'Administrador',
+    'school': 'Escuela / Academia',
+    'instructor': 'Instructor',
+    'operator': 'Operador'
+};
 
 /* ================== SISTEMA DE MODALES ================== */
 function customAlert(title, message, type = 'success') {
@@ -50,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (savedUser) {
         currentUser = JSON.parse(savedUser);
-        if(!path.endsWith('index.html') && path !== '/') setupHeader();
+        if(!path.endsWith('index.html') && path !== '/') { setupHeader(); }
 
         if (path.endsWith('admin.html') && currentUser.role === 'admin') loadAdminDashboard();
         else if (path.endsWith('school.html') && currentUser.role === 'school') loadSchoolDashboard();
@@ -74,6 +80,7 @@ async function setupHeader() {
             if (res.ok) {
                 const schools = await res.json();
                 const userSchool = schools.find(s => s.id === currentUser.school_id);
+                
                 if (userSchool && userSchool.icon_url) {
                     const container = document.getElementById('top-right-logo-container');
                     const initialsEl = document.getElementById('top-right-initials');
@@ -143,6 +150,7 @@ async function login(e) {
     const btn = document.getElementById('btn-ingresar');
     const loadingUi = document.getElementById('loading-ui');
     const progressBar = document.getElementById('progress-bar');
+    const loadingText = document.getElementById('loading-text');
     
     btn.classList.add('hidden'); loadingUi.classList.remove('hidden'); progressBar.style.width = '0%';
     
@@ -168,12 +176,12 @@ async function login(e) {
         } else {
             const err = await res.json();
             btn.classList.remove('hidden'); loadingUi.classList.add('hidden');
-            alert(`❌ ${err.detail}`);
+            customAlert('Denegado', err.detail, 'error');
         }
     } catch(err) { 
         clearInterval(progInterval);
         btn.classList.remove('hidden'); loadingUi.classList.add('hidden');
-        alert('❌ Error de conexión. El servidor backend no responde.'); 
+        customAlert('Error', 'Fallo de conexión. El servidor no responde.', 'error');
     }
 }
 
@@ -418,7 +426,7 @@ async function loadSchoolDashboard() {
         }
     }
     loadSchoolGeneralResults();
-    loadSchoolQuizGrades(); // Cargar también los quices para la escuela
+    loadSchoolQuizGrades(); 
 }
 
 async function createPersonnel(e) {
@@ -589,6 +597,32 @@ async function saveFeedback(e) {
 /* ================== SISTEMA DE EVALUACIONES (QUIZZES) ================== */
 let questionCount = 0;
 
+// Renderizar el Banco de Exámenes (Reutilizar)
+async function renderQuizBank() {
+    try {
+        const res = await fetch(`${API_URL}/quizzes/school/${currentUser.school_id}`);
+        const allQuizzes = await res.json();
+        bankQuizzes = allQuizzes.filter(q => q.instructor_id === currentUser.id);
+        
+        const tbody = document.getElementById('quiz-bank-tbody');
+        if(!tbody) return;
+        if(bankQuizzes.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-gray-500 italic">Aún no has creado exámenes en el banco.</td></tr>`;
+        } else {
+            tbody.innerHTML = bankQuizzes.map(q => `
+                <tr class="hover:bg-gray-50 border-b border-gray-100">
+                    <td class="px-6 py-4 font-bold text-gray-400">#${q.id}</td>
+                    <td class="px-6 py-4 font-bold text-black">${q.title}</td>
+                    <td class="px-6 py-4 text-gray-600">${q.time_limit} min</td>
+                    <td class="px-6 py-4 text-center">
+                        <button onclick="openAssignQuizModal(${q.id})" class="text-red-600 font-bold hover:underline bg-red-50 px-3 py-1 border border-red-100 rounded shadow-sm transition-colors">Reutilizar / Asignar</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+    } catch(e){}
+}
+
 async function loadQuizMaker() {
     document.getElementById('quiz-title').value = '';
     document.getElementById('quiz-time').value = '15';
@@ -603,7 +637,7 @@ async function loadQuizMaker() {
     
     const list = document.getElementById('operators-assign-list');
     if (ops.length === 0) {
-        list.innerHTML = '<p class="text-xs text-gray-500 italic col-span-3">No hay operadores en la academia.</p>';
+        list.innerHTML = '<p class="text-xs text-gray-500 italic col-span-3">No hay operadores en la academia para asignar.</p>';
     } else {
         list.innerHTML = ops.map(o => `
             <label class="flex items-center space-x-2 cursor-pointer bg-white p-2 rounded border border-gray-200 shadow-sm hover:border-red-300">
@@ -612,6 +646,7 @@ async function loadQuizMaker() {
             </label>
         `).join('');
     }
+    await renderQuizBank();
 }
 
 function addQuestion() {
@@ -621,7 +656,7 @@ function addQuestion() {
     div.className = "bg-white border border-gray-200 rounded-xl p-6 relative shadow-sm question-block";
     div.innerHTML = `
         <div class="absolute -top-3 -left-3 w-8 h-8 bg-black text-white rounded-full flex items-center justify-center font-bold text-sm shadow-md">${id}</div>
-        <button type="button" onclick="this.parentElement.remove(); updateTotalWeight();" class="absolute top-4 right-4 text-red-500 hover:text-red-700 font-bold text-xs bg-red-50 px-2 py-1 rounded">X Eliminar</button>
+        <button type="button" onclick="this.parentElement.remove(); updateTotalWeight();" class="absolute top-4 right-4 text-red-500 hover:text-red-700 font-bold text-xs bg-red-50 px-2 py-1 rounded border border-red-200 transition-colors">X Eliminar</button>
         
         <div class="mb-4 pr-20">
             <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Enunciado de la Pregunta</label>
@@ -673,6 +708,8 @@ async function saveQuiz() {
     if(sum !== 100) return customAlert('Matemática Inválida', 'La suma del peso de todas las preguntas debe ser exactamente 100%.', 'error');
 
     const blocks = document.querySelectorAll('.question-block');
+    if(blocks.length === 0) return customAlert('Aviso', 'Debes añadir al menos una pregunta.', 'error');
+    
     const questionsArray = [];
     for(let block of blocks) {
         const text = block.querySelector('.q-text').value.trim();
@@ -685,8 +722,6 @@ async function saveQuiz() {
     }
 
     const checkboxes = document.querySelectorAll('.chk-assign:checked');
-    if(checkboxes.length === 0) return customAlert('Aviso', 'Asigna el examen a por lo menos 1 operador.', 'error');
-    
     const assignedIds = Array.from(checkboxes).map(c => parseInt(c.value));
     
     const payload = {
@@ -694,14 +729,91 @@ async function saveQuiz() {
         questions: JSON.stringify(questionsArray), time_limit: parseInt(time), assigned_operators: JSON.stringify(assignedIds)
     };
 
+    // Modal de Barra de Progreso
+    const savingModal = document.getElementById('quiz-saving-modal');
+    const savingProgress = document.getElementById('quiz-saving-progress');
+    savingModal.classList.remove('hidden');
+    savingProgress.style.width = '0%';
+    
+    let progress = 0;
+    const progInterval = setInterval(() => {
+        progress += 20;
+        if(progress > 90) progress = 90; 
+        savingProgress.style.width = progress + '%';
+    }, 200);
+
     try {
         const res = await fetch(`${API_URL}/quizzes`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+        clearInterval(progInterval);
+        savingProgress.style.width = '100%';
+        
+        setTimeout(() => {
+            savingModal.classList.add('hidden');
+            if(res.ok) {
+                customAlert('Evaluación Desplegada', 'El examen ha sido guardado en el banco y activado exitosamente.', 'success');
+                loadQuizMaker(); 
+            } else customAlert('Error', 'No se pudo crear la evaluación.', 'error');
+        }, 500);
+        
+    } catch(e) { 
+        clearInterval(progInterval);
+        savingModal.classList.add('hidden');
+        customAlert('Error', 'Fallo de conexión.', 'error'); 
+    }
+}
+
+async function openAssignQuizModal(quiz_id) {
+    const q = bankQuizzes.find(x => x.id === quiz_id);
+    if(!q) return;
+    document.getElementById('assign-quiz-id').value = q.id;
+    document.getElementById('assign-quiz-title-lbl').innerText = `Examen Seleccionado: ${q.title}`;
+    
+    let assignedAlready = [];
+    try { assignedAlready = JSON.parse(q.assigned_operators); } catch(e){}
+
+    const res = await fetch(`${API_URL}/users`);
+    const users = await res.json();
+    const ops = users.filter(u => u.school_id === currentUser.school_id && u.role === 'operator');
+    
+    const list = document.getElementById('assign-operators-list');
+    if (ops.length === 0) {
+        list.innerHTML = '<p class="text-xs text-gray-500 col-span-2">No hay operadores en la academia.</p>';
+    } else {
+        list.innerHTML = ops.map(o => {
+            const isAssigned = assignedAlready.includes(o.id);
+            const disabledStr = isAssigned ? 'disabled checked' : '';
+            const colorStr = isAssigned ? 'text-gray-400 opacity-50' : 'text-gray-700';
+            const tagStr = isAssigned ? '<span class="ml-1 text-[9px] text-green-600 font-bold uppercase">(Ya asignado)</span>' : '';
+            return `
+            <label class="flex items-center space-x-2 cursor-pointer bg-white p-3 rounded border border-gray-200 shadow-sm hover:border-red-300 ${isAssigned ? 'bg-gray-50 cursor-not-allowed' : ''}">
+                <input type="checkbox" value="${o.id}" class="chk-reassign rounded text-red-600 focus:ring-red-600" ${disabledStr}>
+                <span class="text-xs font-bold ${colorStr}">${o.username} ${tagStr}</span>
+            </label>`;
+        }).join('');
+    }
+    document.getElementById('assign-quiz-modal').classList.remove('hidden');
+}
+
+function closeAssignQuizModal() { document.getElementById('assign-quiz-modal').classList.add('hidden'); }
+
+async function saveQuizAssignment(e) {
+    e.preventDefault();
+    const id = document.getElementById('assign-quiz-id').value;
+    const checkboxes = document.querySelectorAll('.chk-reassign:not([disabled]):checked');
+    if(checkboxes.length === 0) return customAlert('Aviso', 'Selecciona al menos un operador nuevo para asignar.', 'error');
+    
+    const newIds = Array.from(checkboxes).map(c => parseInt(c.value));
+    
+    try {
+        const res = await fetch(`${API_URL}/quizzes/${id}/assign`, {
+            method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({new_operators: newIds})
+        });
         if(res.ok) {
-            customAlert('Evaluación Desplegada', 'El examen está activo para los operadores.', 'success');
-            document.getElementById('quiz-title').value = '';
-            switchView('dashboard');
-        } else customAlert('Error', 'No se pudo crear la evaluación.', 'error');
-    } catch(e) { customAlert('Error', 'Fallo de conexión.', 'error'); }
+            customAlert('Asignación Exitosa', 'El examen ha sido enviado a los nuevos operadores.', 'success');
+            closeAssignQuizModal();
+            renderQuizBank(); 
+        }
+    } catch(e) { customAlert('Error', 'Fallo al asignar', 'error'); }
 }
 
 async function loadQuizGrades() {
@@ -711,12 +823,13 @@ async function loadQuizGrades() {
         const tbody = document.getElementById('quiz-grades-tbody');
         if(!tbody) return;
 
-        if(grades.length === 0) tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-gray-500 italic">Nadie ha tomado exámenes aún.</td></tr>`;
-        else {
+        if(grades.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-gray-500 italic">Nadie ha tomado exámenes aún.</td></tr>`;
+        } else {
             tbody.innerHTML = grades.map(g => {
                 const color = g.score >= 80 ? 'text-green-600' : 'text-red-600';
                 return `
-                <tr class="hover:bg-gray-50 transition-colors">
+                <tr class="hover:bg-gray-50 transition-colors border-b border-gray-100">
                     <td class="px-6 py-4 text-xs text-gray-500">${g.date.split(' ')[0]}</td>
                     <td class="px-6 py-4 font-bold text-black">${g.operator_name.toUpperCase()}</td>
                     <td class="px-6 py-4 text-gray-700">${g.quiz_title}</td>
@@ -735,11 +848,16 @@ let timeRemaining = 0;
 
 async function loadOperatorQuizzes() {
     try {
+        // Obtenemos los examenes que ya completó para no mostrarlos
+        const compRes = await fetch(`${API_URL}/quizzes/operator/${currentUser.id}/completed`);
+        const completedIds = await compRes.json();
+
         const res = await fetch(`${API_URL}/quizzes/school/${currentUser.school_id}`);
         const allQuizzes = await res.json();
         
         const myQuizzes = allQuizzes.filter(q => {
             if(!q.is_active) return false;
+            if(completedIds.includes(q.id)) return false; // Bloqueo anti-repeticion
             try { const assigned = JSON.parse(q.assigned_operators); return assigned.includes(currentUser.id); } catch(e) { return false; }
         });
 

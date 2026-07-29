@@ -29,7 +29,7 @@ with database.SessionLocal() as session:
         session.add_all([admin, academia, instructor, operador])
         session.commit()
 
-app = FastAPI(title="SECURITY CLOUD API V3")
+app = FastAPI(title="SECURITY CLOUD API V3.1")
 
 app.add_middleware(
     CORSMiddleware, 
@@ -50,6 +50,7 @@ class FeedbackUpdate(BaseModel): feedback: str
 class QuizCreate(BaseModel): school_id: int; instructor_id: int; title: str; questions: str; time_limit: int; assigned_operators: str
 class AnswerItem(BaseModel): question_index: int; selected_option: int
 class QuizSubmit(BaseModel): quiz_id: int; operator_id: int; answers: list[AnswerItem]
+class QuizAssign(BaseModel): new_operators: list[int]
 
 @app.post("/login")
 def login(data: LoginData, db: Session = Depends(database.get_db)):
@@ -88,24 +89,15 @@ def update_school(school_id: int, s: SchoolUpdate, db: Session = Depends(databas
 def delete_school(school_id: int, db: Session = Depends(database.get_db)):
     db_s = db.query(models.School).filter_by(id=school_id).first()
     if not db_s: raise HTTPException(status_code=404, detail="Escuela no encontrada")
-    
-    # 1. Borrar Quizzes y sus Resultados asociados a esta escuela ANTES de borrar a los usuarios
-    quizzes = db.query(models.Quiz).filter_by(school_id=school_id).all()
-    for q in quizzes:
-        db.query(models.QuizResult).filter_by(quiz_id=q.id).delete()
-        db.delete(q)
-    
-    # 2. Borrar Usuarios, Simulaciones y resultados residuales
     users = db.query(models.User).filter_by(school_id=school_id).all()
     for u in users:
         db.query(models.SimulationResult).filter_by(user_id=u.id).delete()
         db.query(models.QuizResult).filter_by(operator_id=u.id).delete()
         db.delete(u)
-        
-    # 3. Borrar la Escuela
+    db.query(models.Quiz).filter_by(school_id=school_id).delete()
     db.delete(db_s)
     db.commit()
-    return {"msg": "Escuela borrada exitosamente"}
+    return {"msg": "Escuela borrada"}
 
 @app.get("/users")
 def get_users(db: Session = Depends(database.get_db)):
@@ -171,9 +163,15 @@ def add_feedback(result_id: int, f: FeedbackUpdate, db: Session = Depends(databa
     db.commit()
     return res
 
+# ================= RUTAS PARA EXÁMENES (QUIZZES) =================
+
 @app.post("/quizzes")
 def create_quiz(q: QuizCreate, db: Session = Depends(database.get_db)):
-    db_q = models.Quiz(school_id=q.school_id, instructor_id=q.instructor_id, title=q.title, questions=q.questions, time_limit=q.time_limit, assigned_operators=q.assigned_operators, date_created=datetime.now().strftime("%Y-%m-%d"))
+    db_q = models.Quiz(
+        school_id=q.school_id, instructor_id=q.instructor_id, title=q.title,
+        questions=q.questions, time_limit=q.time_limit, assigned_operators=q.assigned_operators,
+        date_created=datetime.now().strftime("%Y-%m-%d")
+    )
     db.add(db_q)
     db.commit()
     return {"msg": "Examen creado exitosamente"}
@@ -181,6 +179,27 @@ def create_quiz(q: QuizCreate, db: Session = Depends(database.get_db)):
 @app.get("/quizzes/school/{school_id}")
 def get_school_quizzes(school_id: int, db: Session = Depends(database.get_db)):
     return db.query(models.Quiz).filter_by(school_id=school_id).order_by(models.Quiz.id.desc()).all()
+
+# NUEVO: Ruta para asignar un examen que ya existe a nuevos alumnos
+@app.put("/quizzes/{quiz_id}/assign")
+def assign_quiz(quiz_id: int, req: QuizAssign, db: Session = Depends(database.get_db)):
+    quiz = db.query(models.Quiz).filter_by(id=quiz_id).first()
+    if not quiz: raise HTTPException(404, "Examen no encontrado")
+    
+    current_assigned = json.loads(quiz.assigned_operators)
+    # Convierte a set para eliminar duplicados si por error se manda dos veces
+    updated_assigned = list(set(current_assigned + req.new_operators))
+    quiz.assigned_operators = json.dumps(updated_assigned)
+    
+    db.commit()
+    return {"msg": "Asignación actualizada exitosamente"}
+
+# NUEVO: Ruta para saber que examenes ya hizo el operador y no dejarselos repetir
+@app.get("/quizzes/operator/{operator_id}/completed")
+def get_completed_quizzes(operator_id: int, db: Session = Depends(database.get_db)):
+    results = db.query(models.QuizResult).filter_by(operator_id=operator_id).all()
+    # Retorna unicamente un arreglo con los IDs de los examenes que ya entregó
+    return [r.quiz_id for r in results]
 
 @app.post("/quizzes/submit")
 def submit_quiz(sub: QuizSubmit, db: Session = Depends(database.get_db)):
