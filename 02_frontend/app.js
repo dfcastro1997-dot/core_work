@@ -1100,17 +1100,17 @@ function startSim(type) {
     activeSim = type;
     document.getElementById('dashboard-view').classList.add('hidden');
     
+    // Oculta la barra lateral (aside) al entrar en el simulador
+    const sidebar = document.querySelector('aside');
+    if (sidebar) sidebar.classList.add('hidden');
+    
     const simView = document.getElementById('sim-view');
     simView.classList.remove('hidden');
     
-    // Carga el archivo HTML del simulador que acabamos de crear
-    // Nota: Debes guardar el HTML anterior con el nombre 'sim_density.html' en la misma carpeta.
     document.getElementById('sim-iframe').src = "sim_density.html"; 
 }
 
-// Modificamos finishSim para que reciba datos del iframe
 window.finishSim = async function(score, amenazas) {
-    // Si viene vacio porque cerro a la fuerza, asigna 0
     const finalScore = score !== undefined ? score : 0;
     const itemsMarcados = amenazas !== undefined ? amenazas : 0;
 
@@ -1127,8 +1127,12 @@ window.finishSim = async function(score, amenazas) {
     customAlert('Práctica finalizada', `Auditoría forense guardada.\nCalificación técnica: ${finalScore}%.`, 'success');
     
     document.getElementById('sim-view').classList.add('hidden');
-    document.getElementById('sim-iframe').src = ""; // Limpiar memoria iframe
+    document.getElementById('sim-iframe').src = ""; 
     document.getElementById('dashboard-view').classList.remove('hidden');
+    
+    // Vuelve a mostrar la barra lateral al terminar la práctica
+    const sidebar = document.querySelector('aside');
+    if (sidebar) sidebar.classList.remove('hidden');
     
     loadOperatorDashboard();
     if(currentUser.role === 'instructor') loadSchoolGeneralResults();
