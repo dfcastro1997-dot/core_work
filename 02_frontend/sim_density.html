@@ -537,7 +537,34 @@
     </div>
 
 
-
+    <!-- ========================================== -->
+    <!-- MODAL DE INFORME DE HALLAZGOS (POR MALETA) -->
+    <!-- ========================================== -->
+    <div id="report-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center z-[250]">
+        <div class="bg-white w-full max-w-lg rounded-2xl p-8 shadow-2xl border border-gray-200">
+            <h3 class="text-xl font-extrabold text-black mb-2 uppercase tracking-wide border-b border-gray-100 pb-3">Informe de Hallazgos</h3>
+            <p class="text-xs text-gray-500 mb-4">Redacte el informe forense de la maleta recién inspeccionada.</p>
+            <form id="report-form" onsubmit="guardarInforme(event)" class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-700 uppercase mb-1">Nombre del Operador</label>
+                        <input type="text" id="rep-name" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-red-600">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-700 uppercase mb-1">Fecha y Hora</label>
+                        <input type="text" id="rep-date" readonly class="w-full bg-gray-100 border border-gray-300 rounded-lg p-2.5 text-sm outline-none text-gray-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-700 uppercase mb-1">Descripción de Novedades</label>
+                    <textarea id="rep-details" rows="4" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-red-600" placeholder="Ej: Se detectó un arma de fuego camuflada junto a material orgánico..."></textarea>
+                </div>
+                <div class="flex justify-end pt-4 border-t border-gray-100">
+                    <button type="submit" class="bg-red-600 hover:bg-black text-white font-bold py-3 px-6 rounded-lg text-xs uppercase tracking-wider transition-colors shadow-md">Firmar y Continuar</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
 
     <!-- Modal Alerta Genérica -->
@@ -1232,10 +1259,35 @@
         }
 
         // ==========================================
-        // CÁLCULO DE CALIFICACIÓN AGREGADA
+        // CÁLCULO, INFORMES FORENSES Y CIERRE
         // ==========================================
+        let sessionReports = []; // Almacena todos los informes redactados
+
         function finalizarMaletaAuto() {
+            // Detener cinta temporalmente para que escriba el informe
+            if(beltInterval) {
+                clearInterval(beltInterval);
+                beltInterval = null;
+            }
+            
+            // Pre-llenar el modal del informe
+            document.getElementById('rep-date').value = new Date().toLocaleString('es-ES');
+            document.getElementById('rep-name').value = document.getElementById('op-name').innerText;
+            document.getElementById('rep-details').value = '';
+            
+            document.getElementById('report-modal').classList.remove('hidden');
+        }
+
+        function guardarInforme(e) {
+            e.preventDefault();
             sessionCurrentBag++;
+            
+            const repName = document.getElementById('rep-name').value;
+            const repDate = document.getElementById('rep-date').value;
+            const repDetails = document.getElementById('rep-details').value;
+
+            document.getElementById('report-modal').classList.add('hidden');
+
             const isEval = sessionStorage.getItem('evalMode') === 'true';
             const amenazasReales = activeThreatsData.filter(th => th.data.type !== "INOFENSIVO");
             let totalInyectadas = amenazasReales.length;
@@ -1249,17 +1301,21 @@
             else if(totalInyectadas === 0 && totalAmenazasMarcadas === 0) bagScore = 100; 
 
             sessionAccumulatedScore += bagScore;
-            addLog(`📦 Maleta ${sessionCurrentBag}/${sessionTotalBags} procesada. Score Parcial: ${bagScore}%`);
+            
+            // Almacenar el informe redactado junto con los datos duros de esta maleta
+            sessionReports.push(`[MALETA ${sessionCurrentBag}/${sessionTotalBags}]\nOperador: ${repName}\nFecha: ${repDate}\nAmenazas Reales: ${totalInyectadas} | Marcadas: ${totalAmenazasMarcadas} | Score: ${bagScore}%\nInforme: ${repDetails}\n`);
+
+            addLog(`📦 Maleta ${sessionCurrentBag}/${sessionTotalBags} procesada y reporte firmado. Score Parcial: ${bagScore}%`);
 
             if (sessionCurrentBag < sessionTotalBags) {
                 beltPos = -900; 
                 applySettingsToEngine(); 
+                if (beltAutoMode) startBeltLoop(); // Reanudar cinta
             } else {
-                clearInterval(beltInterval); beltInterval = null; beltAutoMode = false;
+                beltAutoMode = false;
                 const btn = document.getElementById('btn-auto-belt');
                 if (btn) { btn.innerText = "SESIÓN TERMINADA"; btn.className = "flex-[2.5] bg-gray-200 text-gray-500 font-bold rounded-xl cursor-not-allowed"; }
                 
-                // Score Final es el promedio de todas las maletas pasadas
                 let globalScore = Math.round(sessionAccumulatedScore / sessionTotalBags);
                 addLog(isEval ? "🚨 EVALUACIÓN OFICIAL FINALIZADA." : "🚨 PRÁCTICA FINALIZADA.");
                 
@@ -1273,17 +1329,12 @@
             }
         }
 
-
-
-
-
-
-
-
         function cerrarSimulador(overrideScore = null) {
-            let scoreToSend = overrideScore !== null ? overrideScore : (totalAmenazasMarcadas > 0 ? 100 : 0);
+            let scoreToSend = overrideScore !== null ? overrideScore : 0;
+            let reportsData = sessionReports.length > 0 ? sessionReports.join("\n") : "Sin informes redactados.";
+            
             if (window.parent && typeof window.parent.finishSim === "function") {
-                window.parent.finishSim(scoreToSend, totalAmenazasMarcadas);
+                window.parent.finishSim(scoreToSend, totalAmenazasMarcadas, reportsData);
             } else {
                 sessionStorage.setItem('tempSimScore', scoreToSend);
                 window.location.href = "operator.html"; 

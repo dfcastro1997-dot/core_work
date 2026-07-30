@@ -1133,11 +1133,12 @@ function takeQuiz(quizObj) {
 }
 
 /* === REEMPLAZAR LA FUNCIÓN ACTUAL window.finishSim === */
-window.finishSim = async function(score, amenazas) {
+window.finishSim = async function(score, amenazas, reportsData) {
     const isEval = sessionStorage.getItem('evalMode') === 'true';
     const quizId = sessionStorage.getItem('evalQuizId');
     const finalScore = score !== undefined ? score : 0;
     const itemsMarcados = amenazas !== undefined ? amenazas : 0;
+    const reports = reportsData ? reportsData : "Sin informes redactados.";
 
     if (isEval) {
         if (currentUser.role !== 'instructor') {
@@ -1147,7 +1148,7 @@ window.finishSim = async function(score, amenazas) {
                     quiz_id: parseInt(quizId),
                     operator_id: currentUser.id, 
                     score: finalScore, 
-                    details: `[EVALUACIÓN DENSITY OFICIAL]\nInspección completada. Amenazas marcadas globalmente: ${itemsMarcados}.\nTasa de Efectividad Total: ${finalScore}%.`
+                    details: `[EVALUACIÓN DENSITY OFICIAL]\nInspección completada. Amenazas marcadas globalmente: ${itemsMarcados}.\nTasa de Efectividad Total: ${finalScore}%.\n\n=== INFORMES DE HALLAZGOS REDACTADOS ===\n${reports}`
                 })
             });
         }
