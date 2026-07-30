@@ -595,10 +595,16 @@
             setupAreaSelector();
 
             addLog("Módulo conectado a Servidor Central.");
+            addLog("En espera de confirmación del operador para iniciar...");
+            // Se suspenden applySettingsToEngine() y toggleAutoBelt() hasta presionar el botón de inicio
+        });
+
+        function iniciarEntrenamiento() {
+            document.getElementById('start-training-modal').classList.add('hidden');
             addLog("Generando equipaje de perfil aleatorio...");
             applySettingsToEngine();
             toggleAutoBelt(); 
-        });
+        }
 
         // ==========================================
         // SISTEMA DE MODALES ALERTAS
