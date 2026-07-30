@@ -1184,21 +1184,28 @@
         }
 
         // ==========================================
-        // FINALIZACIÓN Y CONEXIÓN
+        // FINALIZACIÓN Y CONEXIÓN (MODO PRÁCTICA)
         // ==========================================
         function finalizarMaletaAuto() {
             addLog("EVALUACIÓN AUTOMÁTICA EN PROGRESO...");
             
+            // FILTRADO DE AMENAZAS REALES: Se descartan los objetos categorizados como 'INOFENSIVO'
+            const amenazasReales = activeThreatsData.filter(th => th.data.type !== "INOFENSIVO");
+            let totalInyectadas = amenazasReales.length;
+            
             let finalScore = 100;
-            let totalInyectadas = activeThreatsData.length;
             
             if(totalInyectadas > 0 && totalAmenazasMarcadas >= totalInyectadas) finalScore = 100;
             else if(totalInyectadas > 0 && totalAmenazasMarcadas > 0) finalScore = 50; 
             else if(totalInyectadas > 0 && totalAmenazasMarcadas === 0) finalScore = 0;
-            else if(totalInyectadas === 0 && totalAmenazasMarcadas > 0) finalScore = 50; 
+            else if(totalInyectadas === 0 && totalAmenazasMarcadas > 0) finalScore = 50; // Falso positivo
             else if(totalInyectadas === 0 && totalAmenazasMarcadas === 0) finalScore = 100; 
             
-            customAlert(`🚨 ANÁLISIS TÁCTICO COMPLETADO`, `Amenazas Reales: ${totalInyectadas}\nMarcas Realizadas: ${totalAmenazasMarcadas}\nEfectividad: ${finalScore}%\n\nGuardando reporte en la nube...`, 'success');
+            customAlert(
+                `🚨 ANÁLISIS TÁCTICO COMPLETADO`, 
+                `Amenazas Reales: ${totalInyectadas}\nMarcas Realizadas: ${totalAmenazasMarcadas}\nEfectividad: ${finalScore}%\n\n[Modo Práctica - Sin Registro]`, 
+                'success'
+            );
             
             setTimeout(() => cerrarSimulador(finalScore), 2000);
         }

@@ -1114,23 +1114,19 @@ window.finishSim = async function(score, amenazas) {
     const finalScore = score !== undefined ? score : 0;
     const itemsMarcados = amenazas !== undefined ? amenazas : 0;
 
-    await fetch(`${API_URL}/results`, {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            user_id: currentUser.id, 
-            simulator_type: activeSim, 
-            score: finalScore, 
-            details: `[SISTEMA AUTOMATIZADO - DENSITY WEB]\nInspección completada por operador.\nAmenazas tácticas marcadas en sesión: ${itemsMarcados}.\nTasa de Efectividad: ${finalScore}%.`
-        })
-    });
+    // MODO PRÁCTICA: Petición fetch a la API deshabilitada (no se guardan resultados en BD)
     
-    customAlert('Práctica finalizada', `Auditoría forense guardada.\nCalificación técnica: ${finalScore}%.`, 'success');
+    customAlert(
+        'Práctica Finalizada', 
+        `Evaluación terminada.\nCalificación técnica: ${finalScore}%.\n(Modo Práctica: Datos no almacenados).`, 
+        'success'
+    );
     
     document.getElementById('sim-view').classList.add('hidden');
     document.getElementById('sim-iframe').src = ""; 
     document.getElementById('dashboard-view').classList.remove('hidden');
     
-    // Vuelve a mostrar la barra lateral al terminar la práctica
+    // Restaurar barra lateral si estaba oculta
     const sidebar = document.querySelector('aside');
     if (sidebar) sidebar.classList.remove('hidden');
     
