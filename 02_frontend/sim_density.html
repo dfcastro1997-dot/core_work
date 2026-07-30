@@ -488,6 +488,13 @@
     </div>
 
 
+
+
+
+
+
+
+
     <!-- ========================================== -->
     <!-- MODAL DE BIENVENIDA / INICIO DE PRACTICA   -->
     <!-- ========================================== -->
@@ -505,6 +512,29 @@
     </div>
 
 
+
+    <!-- ========================================== -->
+    <!-- MODAL SELECCIÓN CANTIDAD DE MALETAS         -->
+    <!-- ========================================== -->
+    <div id="bag-count-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center z-[210]">
+        <div class="bg-white w-full max-w-sm rounded-2xl p-8 shadow-2xl text-center border border-gray-200">
+            <div class="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            </div>
+            <h3 class="text-xl font-extrabold text-black mb-1 uppercase tracking-wide">Configurar Práctica</h3>
+            <p class="text-xs text-gray-500 mb-6">Ingrese el número de maletas a inspeccionar en esta sesión.</p>
+            
+            <div class="mb-6">
+                <label class="block text-[10px] font-bold text-gray-700 uppercase mb-2 tracking-widest">Cantidad de Equipajes</label>
+                <input type="number" id="input-bag-count" value="5" min="1" max="50" class="w-full bg-gray-50 border border-gray-300 text-black font-extrabold text-center text-xl p-3 rounded-lg outline-none focus:ring-2 focus:ring-red-600 shadow-sm">
+            </div>
+
+            <div class="flex space-x-3">
+                <button onclick="cancelarConfigPruebas()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3 rounded-lg text-xs uppercase tracking-wider transition-colors border border-gray-200">Cancelar</button>
+                <button onclick="confirmarCantidadMaletas()" class="flex-1 bg-red-600 hover:bg-black text-white font-bold py-3 rounded-lg text-xs uppercase tracking-wider transition-colors shadow-md">Confirmar</button>
+            </div>
+        </div>
+    </div>
 
 
 
@@ -600,25 +630,34 @@
         });
 
         // ==========================================
-        // VARIABLES Y CONTROL DE SESIÓN DE PRÁCTICA
+        // CONTROL DE SESIÓN Y MODALES DE PRÁCTICA
         // ==========================================
         let sessionTotalBags = 1;
         let sessionCurrentBag = 0;
 
         function iniciarEntrenamiento() {
-            let numInput = prompt("Ingrese la cantidad de maletas a verificar para esta práctica:", "5");
-            if (numInput === null) return; // Cancela el inicio si presiona Cancelar
+            document.getElementById('start-training-modal').classList.add('hidden');
+            document.getElementById('bag-count-modal').classList.remove('hidden');
+        }
+
+        function cancelarConfigPruebas() {
+            document.getElementById('bag-count-modal').classList.add('hidden');
+            document.getElementById('start-training-modal').classList.remove('hidden');
+        }
+
+        function confirmarCantidadMaletas() {
+            const input = document.getElementById('input-bag-count');
+            let count = parseInt(input.value);
             
-            let count = parseInt(numInput);
             if (isNaN(count) || count < 1) {
-                alert("Por favor ingrese un número válido de maletas (mínimo 1).");
+                customAlert("Atención", "Por favor ingrese una cantidad válida (mínimo 1 maleta).", "error");
                 return;
             }
             
             sessionTotalBags = count;
             sessionCurrentBag = 0;
 
-            document.getElementById('start-training-modal').classList.add('hidden');
+            document.getElementById('bag-count-modal').classList.add('hidden');
             addLog(`Inicio de práctica configurado para ${sessionTotalBags} maleta(s).`);
             applySettingsToEngine();
             toggleAutoBelt(); 
