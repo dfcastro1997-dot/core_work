@@ -545,6 +545,17 @@
             <h3 class="text-xl font-extrabold text-black mb-2 uppercase tracking-wide border-b border-gray-100 pb-3">Informe de Hallazgos</h3>
             <p class="text-xs text-gray-500 mb-4">Redacte el informe forense de la maleta recién inspeccionada.</p>
             <form id="report-form" onsubmit="guardarInforme(event)" class="space-y-4">
+                
+                <!-- Datos del Sujeto (Extraídos automáticamente) -->
+                <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 mb-2">
+                    <h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Identificación de Sujeto</h4>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div><span class="font-bold text-gray-600">Nombre:</span> <span id="rep-subj-name" class="font-black text-black"></span></div>
+                        <div><span class="font-bold text-gray-600">ID / Cédula:</span> <span id="rep-subj-id" class="font-black text-black"></span></div>
+                        <div><span class="font-bold text-gray-600">Género:</span> <span id="rep-subj-gender" class="font-black text-black"></span></div>
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-[10px] font-bold text-gray-700 uppercase mb-1">Nombre del Operador</label>
@@ -552,7 +563,8 @@
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold text-gray-700 uppercase mb-1">Fecha y Hora</label>
-                        <input type="text" id="rep-date" readonly class="w-full bg-gray-100 border border-gray-300 rounded-lg p-2.5 text-sm outline-none text-gray-500">
+                        <!-- Campo editable sin readonly para que el alumno lo diligencie -->
+                        <input type="text" id="rep-date" required placeholder="Ej: 14/08/2026 15:30" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-red-600">
                     </div>
                 </div>
                 <div>
@@ -1270,8 +1282,13 @@
                 beltInterval = null;
             }
             
-            // Pre-llenar el modal del informe
-            document.getElementById('rep-date').value = new Date().toLocaleString('es-ES');
+            // Llenar datos del sujeto desde el panel lateral CCTV
+            document.getElementById('rep-subj-name').innerText = document.getElementById('p-name').innerText;
+            document.getElementById('rep-subj-id').innerText = document.getElementById('p-cedula').innerText;
+            document.getElementById('rep-subj-gender').innerText = document.getElementById('p-gender').innerText;
+
+            // Pre-llenar el modal del informe (dejando fecha vacía para que el operador la llene)
+            document.getElementById('rep-date').value = ''; 
             document.getElementById('rep-name').value = document.getElementById('op-name').innerText;
             document.getElementById('rep-details').value = '';
             
@@ -1285,6 +1302,9 @@
             const repName = document.getElementById('rep-name').value;
             const repDate = document.getElementById('rep-date').value;
             const repDetails = document.getElementById('rep-details').value;
+            
+            const subjName = document.getElementById('rep-subj-name').innerText;
+            const subjId = document.getElementById('rep-subj-id').innerText;
 
             document.getElementById('report-modal').classList.add('hidden');
 
@@ -1302,8 +1322,8 @@
 
             sessionAccumulatedScore += bagScore;
             
-            // Almacenar el informe redactado junto con los datos duros de esta maleta
-            sessionReports.push(`[MALETA ${sessionCurrentBag}/${sessionTotalBags}]\nOperador: ${repName}\nFecha: ${repDate}\nAmenazas Reales: ${totalInyectadas} | Marcadas: ${totalAmenazasMarcadas} | Score: ${bagScore}%\nInforme: ${repDetails}\n`);
+            // Almacenar el informe redactado junto con los datos duros de esta maleta y el sujeto
+            sessionReports.push(`[MALETA ${sessionCurrentBag}/${sessionTotalBags}]\nSujeto: ${subjName} (ID: ${subjId})\nOperador: ${repName}\nFecha Ingresada: ${repDate}\nAmenazas Reales: ${totalInyectadas} | Marcadas: ${totalAmenazasMarcadas} | Score: ${bagScore}%\nInforme: ${repDetails}\n`);
 
             addLog(`📦 Maleta ${sessionCurrentBag}/${sessionTotalBags} procesada y reporte firmado. Score Parcial: ${bagScore}%`);
 
