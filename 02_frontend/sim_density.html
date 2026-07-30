@@ -607,61 +607,8 @@
             return saved;
         }
 
-        // ==========================================
-        // INIT & CARGA
-        // ==========================================
-        document.addEventListener('DOMContentLoaded', () => {
-            const savedUser = localStorage.getItem('securityCloudUser');
-            if (savedUser) {
-                const u = JSON.parse(savedUser);
-                document.getElementById('op-name').innerText = u.username;
-            }
-            
-            setInterval(() => {
-                const now = new Date();
-                document.getElementById('cctv-time').innerText = now.toLocaleTimeString('en-US', {hour12: false});
-            }, 1000);
 
-            setupAreaSelector();
 
-            addLog("Módulo conectado a Servidor Central.");
-            addLog("En espera de confirmación del operador para iniciar...");
-            // Se suspenden applySettingsToEngine() y toggleAutoBelt() hasta presionar el botón de inicio
-        });
-
-        // ==========================================
-        // CONTROL DE SESIÓN Y MODALES DE PRÁCTICA
-        // ==========================================
-        let sessionTotalBags = 1;
-        let sessionCurrentBag = 0;
-
-        function iniciarEntrenamiento() {
-            document.getElementById('start-training-modal').classList.add('hidden');
-            document.getElementById('bag-count-modal').classList.remove('hidden');
-        }
-
-        function cancelarConfigPruebas() {
-            document.getElementById('bag-count-modal').classList.add('hidden');
-            document.getElementById('start-training-modal').classList.remove('hidden');
-        }
-
-        function confirmarCantidadMaletas() {
-            const input = document.getElementById('input-bag-count');
-            let count = parseInt(input.value);
-            
-            if (isNaN(count) || count < 1) {
-                customAlert("Atención", "Por favor ingrese una cantidad válida (mínimo 1 maleta).", "error");
-                return;
-            }
-            
-            sessionTotalBags = count;
-            sessionCurrentBag = 0;
-
-            document.getElementById('bag-count-modal').classList.add('hidden');
-            addLog(`Inicio de práctica configurado para ${sessionTotalBags} maleta(s).`);
-            applySettingsToEngine();
-            toggleAutoBelt(); 
-        }
 
         // ==========================================
         // SISTEMA DE MODALES ALERTAS
@@ -1237,51 +1184,101 @@
             document.getElementById('tip-modal').classList.add('hidden');
         }
 
+
+
+        let sessionTotalBags = 1;
+        let sessionCurrentBag = 0;
+        let sessionAccumulatedScore = 0; // NUEVO: Sumatoria de puntuación por maleta
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedUser = localStorage.getItem('securityCloudUser');
+            if (savedUser) { const u = JSON.parse(savedUser); document.getElementById('op-name').innerText = u.username; }
+            setInterval(() => { const now = new Date(); document.getElementById('cctv-time').innerText = now.toLocaleTimeString('en-US', {hour12: false}); }, 1000);
+            setupAreaSelector();
+
+            if (sessionStorage.getItem('evalMode') === 'true') {
+                // MODO EVALUACIÓN: Se salta los modales y extrae la cantidad del Examen Oficial
+                sessionTotalBags = parseInt(sessionStorage.getItem('evalBags'));
+                sessionCurrentBag = 0;
+                sessionAccumulatedScore = 0;
+                
+                document.getElementById('start-training-modal').classList.add('hidden');
+                document.getElementById('bag-count-modal').classList.add('hidden');
+                
+                // Ocultar botón de Ajustes para evitar trampas en pleno Examen Oficial
+                const btnAjustes = document.getElementById('btn-ajustes');
+                if(btnAjustes) btnAjustes.style.display = 'none';
+
+                addLog(`[EVALUACIÓN OFICIAL] Iniciando inspección de ${sessionTotalBags} maleta(s).`);
+                
+                setTimeout(() => { applySettingsToEngine(); toggleAutoBelt(); }, 1000);
+            } else {
+                // MODO PRÁCTICA LIBRE: Mostrar el modal de bienvenida
+                addLog("Módulo conectado a Servidor Central. Esperando operador...");
+                document.getElementById('start-training-modal').classList.remove('hidden');
+            }
+        });
+
+        // Funciones del Modo Práctica Libre (Se conservan igual)
+        function iniciarEntrenamiento() { document.getElementById('start-training-modal').classList.add('hidden'); document.getElementById('bag-count-modal').classList.remove('hidden'); }
+        function cancelarConfigPruebas() { document.getElementById('bag-count-modal').classList.add('hidden'); document.getElementById('start-training-modal').classList.remove('hidden'); }
+        function confirmarCantidadMaletas() {
+            const count = parseInt(document.getElementById('input-bag-count').value);
+            if (isNaN(count) || count < 1) return customAlert("Atención", "Ingrese cantidad válida.", "error");
+            sessionTotalBags = count; sessionCurrentBag = 0; sessionAccumulatedScore = 0;
+            document.getElementById('bag-count-modal').classList.add('hidden');
+            addLog(`Inicio de práctica configurado para ${sessionTotalBags} maleta(s).`);
+            applySettingsToEngine(); toggleAutoBelt(); 
+        }
+
+        // ==========================================
+        // CÁLCULO DE CALIFICACIÓN AGREGADA
+        // ==========================================
         function finalizarMaletaAuto() {
             sessionCurrentBag++;
-            
-            // Evaluamos la maleta en segundo plano sin pausar la cinta
+            const isEval = sessionStorage.getItem('evalMode') === 'true';
             const amenazasReales = activeThreatsData.filter(th => th.data.type !== "INOFENSIVO");
             let totalInyectadas = amenazasReales.length;
             
-            let finalScore = 100;
-            if(totalInyectadas > 0 && totalAmenazasMarcadas >= totalInyectadas) finalScore = 100;
-            else if(totalInyectadas > 0 && totalAmenazasMarcadas > 0) finalScore = 50; 
-            else if(totalInyectadas > 0 && totalAmenazasMarcadas === 0) finalScore = 0;
-            else if(totalInyectadas === 0 && totalAmenazasMarcadas > 0) finalScore = 50; 
-            else if(totalInyectadas === 0 && totalAmenazasMarcadas === 0) finalScore = 100; 
+            // Score individual de ESTA maleta
+            let bagScore = 100;
+            if(totalInyectadas > 0 && totalAmenazasMarcadas >= totalInyectadas) bagScore = 100;
+            else if(totalInyectadas > 0 && totalAmenazasMarcadas > 0) bagScore = 50; 
+            else if(totalInyectadas > 0 && totalAmenazasMarcadas === 0) bagScore = 0;
+            else if(totalInyectadas === 0 && totalAmenazasMarcadas > 0) bagScore = 50; 
+            else if(totalInyectadas === 0 && totalAmenazasMarcadas === 0) bagScore = 100; 
 
-            // Registrar resultado en el panel de auditoría lateral
-            addLog(`📦 Maleta ${sessionCurrentBag}/${sessionTotalBags} pasada. Reales: ${totalInyectadas}, Marcadas: ${totalAmenazasMarcadas} (${finalScore}%)`);
+            sessionAccumulatedScore += bagScore;
+            addLog(`📦 Maleta ${sessionCurrentBag}/${sessionTotalBags} procesada. Score Parcial: ${bagScore}%`);
 
             if (sessionCurrentBag < sessionTotalBags) {
-                // REARRANQUE CONTINUO: Posiciona la siguiente maleta fuera de pantalla a la izquierda (-900px)
-                // para mantener un espacio razonable de separación mientras la cinta sigue rodando
                 beltPos = -900; 
                 applySettingsToEngine(); 
             } else {
-                // FIN DE LA SESIÓN CONTINUA: Se detiene la cinta y muestra el resultado final
-                clearInterval(beltInterval);
-                beltInterval = null;
-                beltAutoMode = false;
-                
+                clearInterval(beltInterval); beltInterval = null; beltAutoMode = false;
                 const btn = document.getElementById('btn-auto-belt');
-                if (btn) {
-                    btn.innerText = "FIN DE SESIÓN";
-                    btn.className = "flex-[2.5] bg-gray-200 text-gray-500 font-bold rounded-xl uppercase tracking-wider cursor-not-allowed border border-gray-300 flex items-center justify-center";
-                }
+                if (btn) { btn.innerText = "SESIÓN TERMINADA"; btn.className = "flex-[2.5] bg-gray-200 text-gray-500 font-bold rounded-xl cursor-not-allowed"; }
                 
-                addLog("🚨 SESIÓN DE PRÁCTICA FINALIZADA.");
+                // Score Final es el promedio de todas las maletas pasadas
+                let globalScore = Math.round(sessionAccumulatedScore / sessionTotalBags);
+                addLog(isEval ? "🚨 EVALUACIÓN OFICIAL FINALIZADA." : "🚨 PRÁCTICA FINALIZADA.");
                 
                 customAlert(
-                    `🚨 PRÁCTICA FINALIZADA (${sessionTotalBags} MALETAS)`, 
-                    `Has completado la inspección continua de las ${sessionTotalBags} maletas.\n\nFinalizando práctica...`, 
+                    isEval ? `🚨 EVALUACIÓN FINALIZADA` : `🚨 PRÁCTICA FINALIZADA`, 
+                    `Inspección completada (${sessionTotalBags} maletas).\n\nCalculando porcentaje global y cerrando...`, 
                     'success'
                 );
                 
-                setTimeout(() => cerrarSimulador(finalScore), 2500);
+                setTimeout(() => cerrarSimulador(globalScore), 2500);
             }
         }
+
+
+
+
+
+
+
 
         function cerrarSimulador(overrideScore = null) {
             let scoreToSend = overrideScore !== null ? overrideScore : (totalAmenazasMarcadas > 0 ? 100 : 0);

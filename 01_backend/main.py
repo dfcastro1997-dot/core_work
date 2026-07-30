@@ -52,6 +52,7 @@ class QuizUpdate(BaseModel): title: str; questions: str; time_limit: int; assign
 class AnswerItem(BaseModel): question_index: int; selected_option: int
 class QuizSubmit(BaseModel): quiz_id: int; operator_id: int; answers: list[AnswerItem]
 class QuizAssign(BaseModel): new_operators: list[int]
+class PracticalSubmit(BaseModel): quiz_id: int; operator_id: int; score: float; details: str
 
 @app.post("/login")
 def login(data: LoginData, db: Session = Depends(database.get_db)):
@@ -236,6 +237,27 @@ def submit_quiz(sub: QuizSubmit, db: Session = Depends(database.get_db)):
     db.add(result)
     db.commit()
     return {"score": score}
+
+
+@app.post("/quizzes/submit_practical")
+def submit_practical(sub: PracticalSubmit, db: Session = Depends(database.get_db)):
+    quiz = db.query(models.Quiz).filter_by(id=sub.quiz_id).first()
+    if not quiz: raise HTTPException(404, "Examen no encontrado")
+
+    # 1. Guardar en SimulationResult para que genere el Certificado PDF
+    sim_res = models.SimulationResult(user_id=sub.operator_id, simulator_type=f"DENSITY (Evaluación: {quiz.title})", score=sub.score, details=sub.details, date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    db.add(sim_res)
+    
+    # 2. Guardar en QuizResult para marcarlo como Completado (Un solo intento)
+    q_res = models.QuizResult(quiz_id=sub.quiz_id, operator_id=sub.operator_id, score=sub.score, date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    db.add(q_res)
+    db.commit()
+    return {"score": sub.score}
+
+
+
+
+
 
 @app.get("/quizzes/results/{school_id}")
 def get_quiz_grades(school_id: int, db: Session = Depends(database.get_db)):

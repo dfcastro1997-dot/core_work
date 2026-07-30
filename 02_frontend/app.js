@@ -764,72 +764,7 @@ function previewQuiz(id) {
     takeQuiz(q); 
 }
 
-async function saveQuiz() {
-    const title = document.getElementById('quiz-title').value.trim();
-    const time = document.getElementById('quiz-time').value;
-    
-    if(!title) return customAlert('Aviso', 'Dale un nombre a la evaluación.', 'error');
 
-    const weights = document.querySelectorAll('.q-weight');
-    let sum = 0; weights.forEach(w => sum += parseInt(w.value || 0));
-    if(sum !== 100) return customAlert('Matemática Inválida', 'La suma del peso de todas las preguntas debe ser exactamente 100%.', 'error');
-
-    const blocks = document.querySelectorAll('.question-block');
-    if(blocks.length === 0) return customAlert('Aviso', 'Debes añadir al menos una pregunta.', 'error');
-    
-    const questionsArray = [];
-    for(let block of blocks) {
-        const text = block.querySelector('.q-text').value.trim();
-        const opts = Array.from(block.querySelectorAll('.q-opt')).map(o => o.value.trim());
-        const correct = block.querySelector('.q-correct').value;
-        const weight = block.querySelector('.q-weight').value;
-
-        if(!text || opts.some(o => !o)) return customAlert('Campos Vacíos', 'Llena todos los enunciados y opciones.', 'error');
-        questionsArray.push({ q: text, opts: opts, correct: correct, weight: weight });
-    }
-
-    const checkboxes = document.querySelectorAll('.chk-assign:checked');
-    const assignedIds = Array.from(checkboxes).map(c => parseInt(c.value));
-    
-    const payload = {
-        school_id: currentUser.school_id, instructor_id: currentUser.id, title: title,
-        questions: JSON.stringify(questionsArray), time_limit: parseInt(time), assigned_operators: JSON.stringify(assignedIds)
-    };
-
-    const savingModal = document.getElementById('quiz-saving-modal');
-    const savingProgress = document.getElementById('quiz-saving-progress');
-    savingModal.classList.remove('hidden');
-    savingProgress.style.width = '0%';
-    
-    let progress = 0;
-    const progInterval = setInterval(() => {
-        progress += 20;
-        if(progress > 90) progress = 90; 
-        savingProgress.style.width = progress + '%';
-    }, 200);
-
-    try {
-        const method = editingQuizId ? 'PUT' : 'POST';
-        const url = editingQuizId ? `${API_URL}/quizzes/${editingQuizId}` : `${API_URL}/quizzes`;
-
-        const res = await fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
-        clearInterval(progInterval);
-        savingProgress.style.width = '100%';
-        
-        setTimeout(() => {
-            savingModal.classList.add('hidden');
-            if(res.ok) {
-                customAlert('Evaluación Desplegada', 'El examen ha sido guardado exitosamente.', 'success');
-                loadQuizMaker(); 
-            } else customAlert('Error', 'No se pudo guardar la evaluación.', 'error');
-        }, 500);
-        
-    } catch(e) { 
-        clearInterval(progInterval);
-        savingModal.classList.add('hidden');
-        customAlert('Error', 'Fallo de conexión.', 'error'); 
-    }
-}
 
 async function openAssignQuizModal(quiz_id) {
     const q = bankQuizzes.find(x => x.id === quiz_id);
@@ -971,48 +906,7 @@ async function loadOperatorQuizzes() {
     } catch(e) {}
 }
 
-function takeQuiz(quizObj) {
-    const isInstructorPreview = currentUser.role === 'instructor';
-    const msg = isInstructorPreview 
-        ? `Modo Autoprueba: El tiempo será de ${quizObj.time_limit} mins. Tu calificación no se guardará en la base de datos.` 
-        : `¿Estás listo? El tiempo comenzará a correr (${quizObj.time_limit} minutos) y no podrás pausarlo ni salirte.`;
 
-    customConfirm('Iniciar Examen', msg, () => {
-        activeQuizData = quizObj;
-        
-        document.getElementById('active-quiz-title').innerText = quizObj.title;
-        document.getElementById('quiz-operator-name').innerText = currentUser.username.toUpperCase();
-        
-        const container = document.getElementById('quiz-questions-render');
-        container.innerHTML = '';
-        
-        const questions = JSON.parse(quizObj.questions);
-        questions.forEach((q, index) => {
-            let optsHtml = q.opts.map((opt, i) => `
-                <label class="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-red-600 hover:bg-red-50 transition-all group">
-                    <div class="relative flex items-center justify-center">
-                        <input type="radio" name="q_${index}" value="${i}" class="peer w-5 h-5 text-red-600 border-gray-300 focus:ring-red-600 cursor-pointer">
-                    </div>
-                    <span class="text-sm font-semibold text-gray-700 group-hover:text-black">${opt}</span>
-                </label>
-            `).join('');
-
-            container.innerHTML += `
-                <div class="quiz-item bg-white">
-                    <h4 class="text-lg font-bold text-black mb-5 leading-relaxed">
-                        <span class="bg-black text-white px-3 py-1 rounded text-sm mr-3 shadow-sm">${index + 1}</span>
-                        ${q.q}
-                    </h4>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pl-2">
-                        ${optsHtml}
-                    </div>
-                </div>`;
-        });
-
-        document.getElementById('take-quiz-view').classList.remove('hidden');
-        startQuizTimer(quizObj.time_limit);
-    });
-}
 
 function startQuizTimer(minutes) {
     timeRemaining = minutes * 60;
@@ -1110,26 +1004,169 @@ function startSim(type) {
     document.getElementById('sim-iframe').src = "sim_density.html"; 
 }
 
+/* === AGREGAR JUNTO A LAS FUNCIONES DE QUIZZES === */
+function toggleQuizType() {
+    const type = document.getElementById('quiz-type').value;
+    if(type === 'practico') {
+        document.getElementById('questions-container').style.display = 'none';
+        document.getElementById('btn-add-question-container').style.display = 'none';
+        document.getElementById('practical-config').classList.remove('hidden');
+        document.getElementById('quiz-total-weight').innerText = '100%';
+        document.getElementById('quiz-total-weight').className = "text-green-600 text-lg font-extrabold ml-2";
+    } else {
+        document.getElementById('questions-container').style.display = 'block';
+        document.getElementById('btn-add-question-container').style.display = 'flex';
+        document.getElementById('practical-config').classList.add('hidden');
+        updateTotalWeight();
+    }
+}
+
+/* === REEMPLAZAR LA FUNCIÓN ACTUAL saveQuiz() === */
+async function saveQuiz() {
+    const title = document.getElementById('quiz-title').value.trim();
+    const time = document.getElementById('quiz-time').value;
+    const type = document.getElementById('quiz-type') ? document.getElementById('quiz-type').value : 'teorico';
+    
+    if(!title) return customAlert('Aviso', 'Dale un nombre a la evaluación.', 'error');
+
+    let questionsArray = [];
+    
+    if (type === 'teorico') {
+        const weights = document.querySelectorAll('.q-weight');
+        let sum = 0; weights.forEach(w => sum += parseInt(w.value || 0));
+        if(sum !== 100) return customAlert('Matemática Inválida', 'La suma del peso debe ser 100%.', 'error');
+
+        const blocks = document.querySelectorAll('.question-block');
+        if(blocks.length === 0) return customAlert('Aviso', 'Añade al menos una pregunta.', 'error');
+        
+        for(let block of blocks) {
+            const text = block.querySelector('.q-text').value.trim();
+            const opts = Array.from(block.querySelectorAll('.q-opt')).map(o => o.value.trim());
+            const correct = block.querySelector('.q-correct').value;
+            const weight = block.querySelector('.q-weight').value;
+            if(!text || opts.some(o => !o)) return customAlert('Campos Vacíos', 'Llena todos los enunciados.', 'error');
+            questionsArray.push({ q: text, opts: opts, correct: correct, weight: weight });
+        }
+    } else {
+        // Formato interno para saber que es una prueba DENSITY práctica
+        questionsArray = [{"type": "practical_density", "bags": parseInt(time)}];
+    }
+
+    const checkboxes = document.querySelectorAll('.chk-assign:checked');
+    const assignedIds = Array.from(checkboxes).map(c => parseInt(c.value));
+    
+    const payload = { school_id: currentUser.school_id, instructor_id: currentUser.id, title: title, questions: JSON.stringify(questionsArray), time_limit: parseInt(time), assigned_operators: JSON.stringify(assignedIds) };
+
+    const savingModal = document.getElementById('quiz-saving-modal');
+    const savingProgress = document.getElementById('quiz-saving-progress');
+    savingModal.classList.remove('hidden'); savingProgress.style.width = '0%';
+    
+    let progress = 0;
+    const progInterval = setInterval(() => { progress += 20; if(progress > 90) progress = 90; savingProgress.style.width = progress + '%'; }, 200);
+
+    try {
+        const method = editingQuizId ? 'PUT' : 'POST';
+        const url = editingQuizId ? `${API_URL}/quizzes/${editingQuizId}` : `${API_URL}/quizzes`;
+        const res = await fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+        clearInterval(progInterval); savingProgress.style.width = '100%';
+        
+        setTimeout(() => {
+            savingModal.classList.add('hidden');
+            if(res.ok) { customAlert('Evaluación Desplegada', 'El examen ha sido guardado exitosamente.', 'success'); loadQuizMaker(); } 
+            else customAlert('Error', 'No se pudo guardar la evaluación.', 'error');
+        }, 500);
+    } catch(e) { clearInterval(progInterval); savingModal.classList.add('hidden'); customAlert('Error', 'Fallo de conexión.', 'error'); }
+}
+
+/* === REEMPLAZAR LA FUNCIÓN ACTUAL takeQuiz() === */
+function takeQuiz(quizObj) {
+    const questions = JSON.parse(quizObj.questions);
+    
+    // Verifica si la evaluación en realidad es una práctica de DENSITY
+    if (questions[0] && questions[0].type === 'practical_density') {
+        const isInstructorPreview = currentUser.role === 'instructor';
+        const msg = isInstructorPreview 
+            ? `Autoprueba Práctica: Consta de ${questions[0].bags} maleta(s). Al ser instructor, la nota no se guardará en la base de datos oficial.` 
+            : `Evaluación Práctica DENSITY: Inspeccionarás ${questions[0].bags} maleta(s) continuas. Tienes solo UN intento, la nota será enviada a la academia. ¿Estás listo?`;
+
+        customConfirm('Iniciar Evaluación DENSITY', msg, () => {
+            sessionStorage.setItem('evalMode', 'true');
+            sessionStorage.setItem('evalBags', questions[0].bags);
+            sessionStorage.setItem('evalQuizId', quizObj.id);
+            startSim('DENSITY');
+        });
+        return;
+    }
+
+    const isInstructorPreview = currentUser.role === 'instructor';
+    const msg = isInstructorPreview 
+        ? `Modo Autoprueba: El tiempo será de ${quizObj.time_limit} mins. Tu calificación no se guardará.` 
+        : `¿Estás listo? El tiempo comenzará a correr (${quizObj.time_limit} minutos) y no podrás pausarlo.`;
+
+    customConfirm('Iniciar Examen Teórico', msg, () => {
+        activeQuizData = quizObj;
+        document.getElementById('active-quiz-title').innerText = quizObj.title;
+        document.getElementById('quiz-operator-name').innerText = currentUser.username.toUpperCase();
+        
+        const container = document.getElementById('quiz-questions-render');
+        container.innerHTML = '';
+        
+        questions.forEach((q, index) => {
+            let optsHtml = q.opts.map((opt, i) => `
+                <label class="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-red-600 hover:bg-red-50 transition-all group">
+                    <div class="relative flex items-center justify-center"><input type="radio" name="q_${index}" value="${i}" class="peer w-5 h-5 text-red-600 border-gray-300 focus:ring-red-600 cursor-pointer"></div>
+                    <span class="text-sm font-semibold text-gray-700 group-hover:text-black">${opt}</span>
+                </label>
+            `).join('');
+
+            container.innerHTML += `
+                <div class="quiz-item bg-white">
+                    <h4 class="text-lg font-bold text-black mb-5 leading-relaxed">
+                        <span class="bg-black text-white px-3 py-1 rounded text-sm mr-3 shadow-sm">${index + 1}</span>${q.q}
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pl-2">${optsHtml}</div>
+                </div>`;
+        });
+        document.getElementById('take-quiz-view').classList.remove('hidden');
+        startQuizTimer(quizObj.time_limit);
+    });
+}
+
+/* === REEMPLAZAR LA FUNCIÓN ACTUAL window.finishSim === */
 window.finishSim = async function(score, amenazas) {
+    const isEval = sessionStorage.getItem('evalMode') === 'true';
+    const quizId = sessionStorage.getItem('evalQuizId');
     const finalScore = score !== undefined ? score : 0;
     const itemsMarcados = amenazas !== undefined ? amenazas : 0;
 
-    // MODO PRÁCTICA: Petición fetch a la API deshabilitada (no se guardan resultados en BD)
-    
-    customAlert(
-        'Práctica Finalizada', 
-        `Evaluación terminada.\nCalificación técnica: ${finalScore}%.\n(Modo Práctica: Datos no almacenados).`, 
-        'success'
-    );
+    if (isEval) {
+        if (currentUser.role !== 'instructor') {
+            await fetch(`${API_URL}/quizzes/submit_practical`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    quiz_id: parseInt(quizId),
+                    operator_id: currentUser.id, 
+                    score: finalScore, 
+                    details: `[EVALUACIÓN DENSITY OFICIAL]\nInspección completada. Amenazas marcadas globalmente: ${itemsMarcados}.\nTasa de Efectividad Total: ${finalScore}%.`
+                })
+            });
+        }
+        customAlert('Evaluación Oficial Finalizada', `Tu examen práctico ha concluido y fue enviado.\nCalificación final: ${finalScore}%.`, 'success');
+        sessionStorage.removeItem('evalMode');
+        sessionStorage.removeItem('evalBags');
+        sessionStorage.removeItem('evalQuizId');
+    } else {
+        customAlert('Práctica Finalizada', `Evaluación terminada.\nCalificación técnica: ${finalScore}%.\n(Modo Práctica Libre: Datos no almacenados).`, 'success');
+    }
     
     document.getElementById('sim-view').classList.add('hidden');
     document.getElementById('sim-iframe').src = ""; 
     document.getElementById('dashboard-view').classList.remove('hidden');
     
-    // Restaurar barra lateral si estaba oculta
     const sidebar = document.querySelector('aside');
     if (sidebar) sidebar.classList.remove('hidden');
     
     loadOperatorDashboard();
+    if(currentUser.role === 'operator') loadOperatorQuizzes();
     if(currentUser.role === 'instructor') loadSchoolGeneralResults();
 }

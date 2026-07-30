@@ -82,14 +82,33 @@
                     <p class="text-sm text-gray-500 mb-6">Crea o edita cuestionarios teóricos. La suma de todas las preguntas debe ser 100%.</p>
                     
                     <div class="grid grid-cols-4 gap-4 mb-6">
-                        <div class="col-span-3">
+                        <div class="col-span-2">
                             <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nombre de la Evaluación</label>
                             <input type="text" id="quiz-title" placeholder="Ej: Protocolo Nivel 1" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-600 outline-none">
                         </div>
                         <div class="col-span-1">
-                            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Tiempo (Minutos)</label>
+                            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Tipo</label>
+                            <select id="quiz-type" onchange="toggleQuizType()" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-600 outline-none cursor-pointer">
+                                <option value="teorico">Teórico</option>
+                                <option value="practico">Práctico (DENSITY)</option>
+                            </select>
+                        </div>
+                        <div class="col-span-1">
+                            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Tiempo/Maletas</label>
                             <input type="number" id="quiz-time" value="15" min="1" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-600 outline-none">
                         </div>
+                    </div>
+
+                    <!-- Mensaje para cuando es modo práctico -->
+                    <div id="practical-config" class="hidden bg-red-50 p-4 rounded-lg border border-red-200 mb-6">
+                        <p class="text-sm text-red-700 font-bold">Modo Evaluación Práctica Activo</p>
+                        <p class="text-xs text-red-600 mt-1">El valor ingresado en "Tiempo/Maletas" definirá la cantidad de equipajes que el operador deberá inspeccionar en el simulador DENSITY de forma continua.</p>
+                    </div>
+
+                    <div id="questions-container" class="space-y-6 border-t border-gray-100 pt-6"></div>
+
+                    <div class="flex justify-center mt-6 border-b border-gray-100 pb-6" id="btn-add-question-container">
+                        <button type="button" onclick="addQuestion()" class="bg-gray-100 hover:bg-gray-200 text-black font-bold py-2.5 px-6 rounded-lg text-sm transition-colors border border-gray-300 shadow-sm">+ Agregar Otra Pregunta</button>
                     </div>
 
                     <div id="questions-container" class="space-y-6 border-t border-gray-100 pt-6"></div>
