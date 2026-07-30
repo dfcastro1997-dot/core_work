@@ -1063,6 +1063,9 @@
             } else { addLog("Cinta: DETENIDA."); }
         }
 
+        // ==========================================
+        // CINTA CONTINUA Y EVALUACIÓN FLUIDA
+        // ==========================================
         function startBeltLoop() {
             beltInterval = setInterval(() => {
                 if (!beltAutoMode && beltManualDir === 0) {
@@ -1087,15 +1090,9 @@
                 const beltProg = document.getElementById('belt-progress');
                 if(beltProg) beltProg.innerText = `${Math.floor(beltProgress)}%`;
 
+                // Al salir la maleta por la derecha
                 if (beltProgress >= 100) {
-                    clearInterval(beltInterval);
-                    beltInterval = null;
-                    beltAutoMode = false;
-                    const btn = document.getElementById('btn-auto-belt');
-                    btn.innerText = "FIN DE BANDA";
-                    btn.className = "flex-[2.5] bg-gray-200 text-gray-500 font-bold rounded-xl uppercase tracking-wider cursor-not-allowed border border-gray-300 flex items-center justify-center";
-                    addLog("🚨 EQUIPAJE HA LLEGADO AL FINAL DEL ESCÁNER.");
-                    setTimeout(() => finalizarMaletaAuto(), 1000);
+                    finalizarMaletaAuto();
                 }
 
             }, 30); 
@@ -1240,14 +1237,10 @@
             document.getElementById('tip-modal').classList.add('hidden');
         }
 
-        // ==========================================
-        // FINALIZACIÓN Y BUCLE DE SESIÓN MULTI-MALETA
-        // ==========================================
         function finalizarMaletaAuto() {
             sessionCurrentBag++;
-            addLog(`EVALUACIÓN AUTOMÁTICA DE MALETA ${sessionCurrentBag}/${sessionTotalBags}...`);
             
-            // Filtrado: Excluir objetos INOFENSIVOS del conteo de amenazas reales
+            // Evaluamos la maleta en segundo plano sin pausar la cinta
             const amenazasReales = activeThreatsData.filter(th => th.data.type !== "INOFENSIVO");
             let totalInyectadas = amenazasReales.length;
             
@@ -1257,25 +1250,32 @@
             else if(totalInyectadas > 0 && totalAmenazasMarcadas === 0) finalScore = 0;
             else if(totalInyectadas === 0 && totalAmenazasMarcadas > 0) finalScore = 50; 
             else if(totalInyectadas === 0 && totalAmenazasMarcadas === 0) finalScore = 100; 
-            
+
+            // Registrar resultado en el panel de auditoría lateral
+            addLog(`📦 Maleta ${sessionCurrentBag}/${sessionTotalBags} pasada. Reales: ${totalInyectadas}, Marcadas: ${totalAmenazasMarcadas} (${finalScore}%)`);
+
             if (sessionCurrentBag < sessionTotalBags) {
-                // Aún quedan maletas por evaluar en esta sesión de práctica
-                customAlert(
-                    `🚨 MALETA ${sessionCurrentBag}/${sessionTotalBags} EVALUADA`, 
-                    `Amenazas Reales: ${totalInyectadas}\nMarcas Realizadas: ${totalAmenazasMarcadas}\nEfectividad: ${finalScore}%\n\nCargando siguiente maleta...`, 
-                    'success'
-                );
-                
-                setTimeout(() => {
-                    closeAlertModal();
-                    applySettingsToEngine();
-                    toggleAutoBelt();
-                }, 2000);
+                // REARRANQUE CONTINUO: Posiciona la siguiente maleta fuera de pantalla a la izquierda (-900px)
+                // para mantener un espacio razonable de separación mientras la cinta sigue rodando
+                beltPos = -900; 
+                applySettingsToEngine(); 
             } else {
-                // Se completaron todas las maletas de la práctica
+                // FIN DE LA SESIÓN CONTINUA: Se detiene la cinta y muestra el resultado final
+                clearInterval(beltInterval);
+                beltInterval = null;
+                beltAutoMode = false;
+                
+                const btn = document.getElementById('btn-auto-belt');
+                if (btn) {
+                    btn.innerText = "FIN DE SESIÓN";
+                    btn.className = "flex-[2.5] bg-gray-200 text-gray-500 font-bold rounded-xl uppercase tracking-wider cursor-not-allowed border border-gray-300 flex items-center justify-center";
+                }
+                
+                addLog("🚨 SESIÓN DE PRÁCTICA FINALIZADA.");
+                
                 customAlert(
                     `🚨 PRÁCTICA FINALIZADA (${sessionTotalBags} MALETAS)`, 
-                    `Última Maleta - Amenazas Reales: ${totalInyectadas}\nMarcas Realizadas: ${totalAmenazasMarcadas}\nEfectividad: ${finalScore}%\n\n¡Has completado toda la sesión de práctica!`, 
+                    `Has completado la inspección continua de las ${sessionTotalBags} maletas.\n\nFinalizando práctica...`, 
                     'success'
                 );
                 
