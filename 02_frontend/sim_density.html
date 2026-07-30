@@ -599,9 +599,27 @@
             // Se suspenden applySettingsToEngine() y toggleAutoBelt() hasta presionar el botón de inicio
         });
 
+        // ==========================================
+        // VARIABLES Y CONTROL DE SESIÓN DE PRÁCTICA
+        // ==========================================
+        let sessionTotalBags = 1;
+        let sessionCurrentBag = 0;
+
         function iniciarEntrenamiento() {
+            let numInput = prompt("Ingrese la cantidad de maletas a verificar para esta práctica:", "5");
+            if (numInput === null) return; // Cancela el inicio si presiona Cancelar
+            
+            let count = parseInt(numInput);
+            if (isNaN(count) || count < 1) {
+                alert("Por favor ingrese un número válido de maletas (mínimo 1).");
+                return;
+            }
+            
+            sessionTotalBags = count;
+            sessionCurrentBag = 0;
+
             document.getElementById('start-training-modal').classList.add('hidden');
-            addLog("Generando equipaje de perfil aleatorio...");
+            addLog(`Inicio de práctica configurado para ${sessionTotalBags} maleta(s).`);
             applySettingsToEngine();
             toggleAutoBelt(); 
         }
@@ -913,10 +931,10 @@
 
                 const possibleThreats = saved.threats.filter(t => t.bagIdx === idx);
                 
-                // Probabilidad de inyectar objetos (70% de probabilidad de que haya algo)
+                // Probabilidad de inyectar objetos (70% de probabilidad de que contenga elementos)
                 if(possibleThreats.length > 0 && Math.random() > 0.3) {
-                    // Determinar aleatoriamente la cantidad de objetos a inyectar (de 1 a 3)
-                    let numObjects = Math.floor(Math.random() * 3) + 1; 
+                    // Genera aleatoriamente entre 4 y 8 objetos
+                    let numObjects = Math.floor(Math.random() * 5) + 4; 
                     
                     for(let i = 0; i < numObjects; i++) {
                         const t = possibleThreats[Math.floor(Math.random() * possibleThreats.length)];
@@ -945,7 +963,7 @@
                         activeThreatsData.push({ data: t, element: tImg, z: tZ });
                         luggageGroup.appendChild(tImg);
                         
-                        addLog(`Sistema inyectó objeto anómalo [${t.type}] (Profundidad Z: ${tZ.toFixed(2)}).`);
+                        addLog(`Sistema inyectó objeto [${t.type}] (Profundidad Z: ${tZ.toFixed(2)}).`);
                     }
                 } else {
                     addLog(`Equipaje evaluado como aparentemente limpio por el sistema.`);
@@ -1184,30 +1202,46 @@
         }
 
         // ==========================================
-        // FINALIZACIÓN Y CONEXIÓN (MODO PRÁCTICA)
+        // FINALIZACIÓN Y BUCLE DE SESIÓN MULTI-MALETA
         // ==========================================
         function finalizarMaletaAuto() {
-            addLog("EVALUACIÓN AUTOMÁTICA EN PROGRESO...");
+            sessionCurrentBag++;
+            addLog(`EVALUACIÓN AUTOMÁTICA DE MALETA ${sessionCurrentBag}/${sessionTotalBags}...`);
             
-            // FILTRADO DE AMENAZAS REALES: Se descartan los objetos categorizados como 'INOFENSIVO'
+            // Filtrado: Excluir objetos INOFENSIVOS del conteo de amenazas reales
             const amenazasReales = activeThreatsData.filter(th => th.data.type !== "INOFENSIVO");
             let totalInyectadas = amenazasReales.length;
             
             let finalScore = 100;
-            
             if(totalInyectadas > 0 && totalAmenazasMarcadas >= totalInyectadas) finalScore = 100;
             else if(totalInyectadas > 0 && totalAmenazasMarcadas > 0) finalScore = 50; 
             else if(totalInyectadas > 0 && totalAmenazasMarcadas === 0) finalScore = 0;
-            else if(totalInyectadas === 0 && totalAmenazasMarcadas > 0) finalScore = 50; // Falso positivo
+            else if(totalInyectadas === 0 && totalAmenazasMarcadas > 0) finalScore = 50; 
             else if(totalInyectadas === 0 && totalAmenazasMarcadas === 0) finalScore = 100; 
             
-            customAlert(
-                `🚨 ANÁLISIS TÁCTICO COMPLETADO`, 
-                `Amenazas Reales: ${totalInyectadas}\nMarcas Realizadas: ${totalAmenazasMarcadas}\nEfectividad: ${finalScore}%\n\n[Modo Práctica - Sin Registro]`, 
-                'success'
-            );
-            
-            setTimeout(() => cerrarSimulador(finalScore), 2000);
+            if (sessionCurrentBag < sessionTotalBags) {
+                // Aún quedan maletas por evaluar en esta sesión de práctica
+                customAlert(
+                    `🚨 MALETA ${sessionCurrentBag}/${sessionTotalBags} EVALUADA`, 
+                    `Amenazas Reales: ${totalInyectadas}\nMarcas Realizadas: ${totalAmenazasMarcadas}\nEfectividad: ${finalScore}%\n\nCargando siguiente maleta...`, 
+                    'success'
+                );
+                
+                setTimeout(() => {
+                    closeAlertModal();
+                    applySettingsToEngine();
+                    toggleAutoBelt();
+                }, 2000);
+            } else {
+                // Se completaron todas las maletas de la práctica
+                customAlert(
+                    `🚨 PRÁCTICA FINALIZADA (${sessionTotalBags} MALETAS)`, 
+                    `Última Maleta - Amenazas Reales: ${totalInyectadas}\nMarcas Realizadas: ${totalAmenazasMarcadas}\nEfectividad: ${finalScore}%\n\n¡Has completado toda la sesión de práctica!`, 
+                    'success'
+                );
+                
+                setTimeout(() => cerrarSimulador(finalScore), 2500);
+            }
         }
 
         function cerrarSimulador(overrideScore = null) {
