@@ -293,6 +293,15 @@
                     <div id="tab-threats" class="settings-content hidden">
                         <h3 class="text-xl font-bold text-black mb-2">Librería de Objetos y Amenazas</h3>
                         <p class="text-sm text-gray-500 mb-4">Ajusta los valores para ver la posición y tamaño real dentro de la maleta.</p>
+
+                        <div class="bg-red-50 p-4 rounded-lg border border-red-200 mb-6 shadow-sm">
+                            <h4 class="text-xs font-bold text-red-800 uppercase mb-2">Política de Evaluación (Escenarios de Control)</h4>
+                            <label class="flex items-center space-x-3 cursor-pointer">
+                                <input type="checkbox" id="cfg-electronics-illegal" class="w-5 h-5 text-red-600 border-gray-300 rounded focus:ring-red-600">
+                                <span class="text-sm font-bold text-red-900">Sancionar extracción de "Componentes Electrónicos"</span>
+                            </label>
+                            <p class="text-[10px] text-red-700 mt-1 font-medium">Si está marcado, simulará un entorno estricto (Ej. Almacén tecnológico). Si se desmarca, los componentes electrónicos serán evaluados como "Objetos Inofensivos" permitidos (Ej. Seguridad de aeropuerto).</p>
+                        </div>
                         
                         <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6">
                             <div class="grid grid-cols-12 gap-3 mb-4">
@@ -319,6 +328,7 @@
                                         <option value="EXPLOSIVO">Artefacto Explosivo (IED)</option>
                                         <option value="DROGAS">Sustancia Orgánica Sospechosa</option>
                                         <option value="CONTRABANDO">Mercancía Restringida</option>
+                                        <option value="ELECTRONICO NO AUTORIZADO">Componente Electrónico (No Autorizado)</option>
                                         <option value="INOFENSIVO">Objeto Inofensivo (Test)</option>
                                     </select>
                                 </div>
@@ -409,6 +419,7 @@
                         <option value="EXPLOSIVO">Artefacto Explosivo (IED)</option>
                         <option value="DROGAS">Sustancia Orgánica Sospechosa</option>
                         <option value="CONTRABANDO">Mercancía Restringida / Contrabando</option>
+                        <option value="ELECTRONICO NO AUTORIZADO">Componente Electrónico (No Autorizado)</option>
                         <option value="INOFENSIVO">Objeto Inofensivo (Test)</option>
                     </select>
                 </div>
@@ -605,6 +616,7 @@
             ],
             maleAv: "https://ui-avatars.com/api/?name=Hombre&background=random&color=fff",
             femaleAv: "https://ui-avatars.com/api/?name=Mujer&background=random&color=fff",
+            electronics_illegal: true
         };
 
         let tempBags = [];
@@ -618,6 +630,39 @@
                 if (!saved || !Array.isArray(saved.bags) || !Array.isArray(saved.threats)) saved = defaultSettings;
             } catch(e) { saved = defaultSettings; }
             return saved;
+        }
+
+        function loadSettingsToUI() {
+            const saved = getSafeSettings();
+            tempBags = [...saved.bags];
+            tempThreats = [...saved.threats];
+            
+            document.getElementById('cfg-url-male').value = saved.maleAv;
+            document.getElementById('cfg-url-female').value = saved.femaleAv;
+            
+            const chkElec = document.getElementById('cfg-electronics-illegal');
+            if(chkElec) chkElec.checked = saved.electronics_illegal !== false;
+            
+            renderBagsList();
+            renderThreatsList();
+        }
+
+        function saveSettings() {
+            if(tempBags.length === 0) return alert("Debes tener al menos 1 maleta en la librería.");
+            
+            const chkElec = document.getElementById('cfg-electronics-illegal');
+            
+            const cfg = {
+                bags: tempBags,
+                threats: tempThreats,
+                maleAv: document.getElementById('cfg-url-male').value || defaultSettings.maleAv,
+                femaleAv: document.getElementById('cfg-url-female').value || defaultSettings.femaleAv,
+                electronics_illegal: chkElec ? chkElec.checked : true
+            };
+            localStorage.setItem('densitySettings', JSON.stringify(cfg));
+            closeSettingsModal();
+            applySettingsToEngine(); 
+            addLog("⚙️ Librerías y políticas sincronizadas con éxito.");
         }
 
 
@@ -680,32 +725,6 @@
             const activeBtn = document.getElementById('btn-' + tabId);
             activeBtn.classList.remove('settings-tab-inactive');
             activeBtn.classList.add('settings-tab-active');
-        }
-
-        function loadSettingsToUI() {
-            const saved = getSafeSettings();
-            tempBags = [...saved.bags];
-            tempThreats = [...saved.threats];
-            
-            document.getElementById('cfg-url-male').value = saved.maleAv;
-            document.getElementById('cfg-url-female').value = saved.femaleAv;
-            
-            renderBagsList();
-            renderThreatsList();
-        }
-
-        function saveSettings() {
-            if(tempBags.length === 0) return alert("Debes tener al menos 1 maleta en la librería.");
-            const cfg = {
-                bags: tempBags,
-                threats: tempThreats,
-                maleAv: document.getElementById('cfg-url-male').value || defaultSettings.maleAv,
-                femaleAv: document.getElementById('cfg-url-female').value || defaultSettings.femaleAv
-            };
-            localStorage.setItem('densitySettings', JSON.stringify(cfg));
-            closeSettingsModal();
-            applySettingsToEngine(); 
-            addLog("⚙️ Librerías sincronizadas con éxito.");
         }
 
         function addBagToLibrary() {
@@ -1321,7 +1340,16 @@
             document.getElementById('report-modal').classList.add('hidden');
 
             const isEval = sessionStorage.getItem('evalMode') === 'true';
-            const amenazasReales = activeThreatsData.filter(th => th.data.type !== "INOFENSIVO");
+            
+            // Lógica de evaluación basada en la política del instructor
+            const savedSettings = getSafeSettings();
+            const elecIllegal = savedSettings.electronics_illegal !== false;
+            
+            const amenazasReales = activeThreatsData.filter(th => {
+                if (th.data.type === "INOFENSIVO") return false;
+                if (th.data.type === "ELECTRONICO NO AUTORIZADO" && !elecIllegal) return false;
+                return true;
+            });
             let totalInyectadas = amenazasReales.length;
             
             let bagScore = 100;
