@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DENSITY | X-RAY Web Simulator</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Consolas&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #F9FAFB; overflow: hidden; }
@@ -1076,6 +1076,8 @@
 
         // --- SISTEMA DE CAPTURA POR RECUADRO ---
         function tomarCaptura() {
+            if(typeof htmlToImage === 'undefined') return customAlert("Error", "Librería de capturas no cargada.", "error");
+            
             isScreenshotMode = true;
             document.getElementById('screenshot-overlay').classList.remove('hidden');
             addLog("📸 Modo Captura activado: Haga clic y arrastre el cursor para seleccionar el área.");
@@ -1113,7 +1115,7 @@
             
             // Si el cuadro está oculto (solo fue un clic rápido sin arrastrar), cancela la captura
             if(box.classList.contains('hidden')) {
-                setTimeout(() => { isScreenshotMode = false; }, 150); // Retraso para evitar que abra el modal forense
+                setTimeout(() => { isScreenshotMode = false; }, 150);
                 return;
             }
             
@@ -1130,17 +1132,15 @@
                 setTimeout(() => { isScreenshotMode = false; }, 150);
                 return;
             }
-
-            if(typeof html2canvas === 'undefined') {
-                setTimeout(() => { isScreenshotMode = false; }, 150);
-                return customAlert("Error", "Librería de capturas no cargada.", "error");
-            }
             
             const viewport = document.getElementById('xray-viewport');
-            const scaleFactor = window.devicePixelRatio || 2; // Multiplicador para máxima resolución idéntica a la vista
+            const scaleFactor = window.devicePixelRatio || 2; 
             
-            // Captura con ajustes para leer CSS Filter y Mix Blend Modes
-            html2canvas(viewport, {backgroundColor: "#020202", scale: scaleFactor, useCORS: true, allowTaint: true}).then(canvas => {
+            // html-to-image usa foreignObject nativo, conservando el 100% de la fidelidad visual, filtros CSS y modos de fusión
+            htmlToImage.toCanvas(viewport, { 
+                backgroundColor: "#020202", 
+                pixelRatio: scaleFactor 
+            }).then(canvas => {
                 const cropCanvas = document.createElement('canvas');
                 cropCanvas.width = width * scaleFactor;
                 cropCanvas.height = height * scaleFactor;
@@ -1149,11 +1149,14 @@
                 // Recorte exacto aplicando el multiplicador de escala
                 ctx.drawImage(canvas, x * scaleFactor, y * scaleFactor, width * scaleFactor, height * scaleFactor, 0, 0, width * scaleFactor, height * scaleFactor);
                 
-                const imgData = cropCanvas.toDataURL('image/jpeg', 0.95); // Mayor calidad JPG
+                const imgData = cropCanvas.toDataURL('image/jpeg', 0.95); // Alta calidad JPG
                 currentBagScreenshots.push(imgData);
                 addLog(`📸 Evidencia guardada exitosamente (${currentBagScreenshots.length} adjuntas).`);
                 
                 // Liberar el clic después de tomar la foto para no disparar el marcador forense
+                setTimeout(() => { isScreenshotMode = false; }, 150);
+            }).catch(err => {
+                console.error("Error al capturar:", err);
                 setTimeout(() => { isScreenshotMode = false; }, 150);
             });
         }
