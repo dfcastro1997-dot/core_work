@@ -471,19 +471,24 @@
 
 
     <!-- ========================================== -->
-    <!-- MODAL SELECCIÓN DE GENERACIÓN DE PDF        -->
+    <!-- MODAL SELECCIÓN DE GENERACIÓN DE PDF       -->
     <!-- ========================================== -->
     <div id="pdf-choice-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center z-[220]">
-        <div class="bg-white w-full max-w-sm rounded-2xl p-8 shadow-2xl text-center border border-gray-200">
-            <div class="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-            </div>
-            <h3 class="text-xl font-extrabold text-black mb-1 uppercase tracking-wide">Reporte de Práctica</h3>
-            <p class="text-xs text-gray-500 mb-6">¿Desea generar un certificado PDF al finalizar esta práctica? (Los resultados no se guardarán en la base de datos de su academia).</p>
+        <div class="bg-white w-full max-w-md rounded-2xl p-8 shadow-2xl text-center border border-gray-200">
+            <img src="https://i.ibb.co/mVh9kScZ/logofb.png" alt="DENSITY Logo" class="h-12 object-contain mx-auto mb-4">
+            <h3 class="text-xl font-extrabold text-black mb-2 uppercase tracking-wide">Generación de Reporte</h3>
+            <p class="text-xs text-gray-600 mb-6 leading-relaxed">
+                Ha configurado exitosamente la sesión. ¿Desea descargar un certificado PDF con el informe de hallazgos al finalizar la práctica?<br><br>
+                <span class="text-red-600 font-bold">* Las prácticas libres NO se guardan en la base de datos de la academia, solo las evaluaciones oficiales.</span>
+            </p>
 
-            <div class="flex space-x-3">
-                <button onclick="iniciarPractica(false)" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3 rounded-lg text-xs uppercase tracking-wider transition-colors border border-gray-200 shadow-sm">Sin PDF</button>
-                <button onclick="iniciarPractica(true)" class="flex-1 bg-red-600 hover:bg-black text-white font-bold py-3 rounded-lg text-xs uppercase tracking-wider transition-colors shadow-md">Generar PDF</button>
+            <div class="flex flex-col space-y-3">
+                <button onclick="iniciarPractica(true)" class="w-full bg-red-600 hover:bg-black text-white font-bold py-3.5 rounded-lg shadow-md uppercase tracking-wider transition-colors text-sm">
+                    Sí, Generar PDF al terminar
+                </button>
+                <button onclick="iniciarPractica(false)" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3.5 rounded-lg uppercase tracking-wider transition-colors text-sm border border-gray-200 shadow-sm">
+                    No, Solo Practicar
+                </button>
             </div>
         </div>
     </div>
@@ -1357,10 +1362,15 @@
         function confirmarCantidadMaletas() {
             const count = parseInt(document.getElementById('input-bag-count').value);
             if (isNaN(count) || count < 1) return customAlert("Atención", "Ingrese cantidad válida.", "error");
-            sessionTotalBags = count; sessionCurrentBag = 0; sessionAccumulatedScore = 0;
+            
+            sessionTotalBags = count; 
+            sessionCurrentBag = 0; 
+            sessionAccumulatedScore = 0;
+            
+            // Oculta el modal de cantidad de maletas
             document.getElementById('bag-count-modal').classList.add('hidden');
             
-            // Mostrar modal de elección de PDF en lugar de iniciar directamente
+            // Muestra el modal profesional preguntando por el PDF
             document.getElementById('pdf-choice-modal').classList.remove('hidden');
         }
 
@@ -1368,9 +1378,9 @@
             sessionGeneratePdf = withPdf;
             document.getElementById('pdf-choice-modal').classList.add('hidden');
             addLog(`Inicio de práctica configurado para ${sessionTotalBags} maleta(s). PDF: ${withPdf ? 'SÍ' : 'NO'}`);
-            applySettingsToEngine(); toggleAutoBelt(); 
+            applySettingsToEngine(); 
+            toggleAutoBelt(); 
         }
-
         function cerrarSimulador(overrideScore = null) {
             let scoreToSend = overrideScore !== null ? overrideScore : 0;
             if (window.parent && typeof window.parent.finishSim === "function") {
