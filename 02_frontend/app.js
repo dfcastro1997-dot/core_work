@@ -1152,39 +1152,67 @@ function takeQuiz(quizObj) {
 }
 
 /* === REEMPLAZAR LA FUNCIÓN ACTUAL window.finishSim === */
-window.finishSim = async function(score, amenazas, reportsData) {
+window.finishSim = async function(score, amenazas, reportsData, generatePdf) {
     const isEval = sessionStorage.getItem('evalMode') === 'true';
     const quizId = sessionStorage.getItem('evalQuizId');
     const finalScore = score !== undefined ? score : 0;
     const itemsMarcados = amenazas !== undefined ? amenazas : 0;
-    const reports = reportsData ? reportsData : "Sin informes redactados.";
+    
+    const payloadDetails = JSON.stringify({
+        header: isEval 
+            ? `[EVALUACIÓN DENSITY OFICIAL]\nInspección completada. Amenazas marcadas globalmente: ${itemsMarcados}.\nTasa de Efectividad Total: ${finalScore}%.`
+            : `[PRÁCTICA LIBRE DENSITY]\nInspección completada. Amenazas marcadas globalmente: ${itemsMarcados}.\nTasa de Efectividad Total: ${finalScore}%.`,
+        reports: Array.isArray(reportsData) ? reportsData : []
+    });
 
     if (isEval) {
         if (currentUser.role !== 'instructor') {
             await fetch(`${API_URL}/quizzes/submit_practical`, {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    quiz_id: parseInt(quizId),
-                    operator_id: currentUser.id, 
-                    score: finalScore, 
-                    details: `[EVALUACIÓN DENSITY OFICIAL]\nInspección completada. Amenazas marcadas globalmente: ${itemsMarcados}.\nTasa de Efectividad Total: ${finalScore}%.\n\n=== INFORMES DE HALLAZGOS REDACTADOS ===\n${reports}`
+                    quiz_id: parseInt(quizId), operator_id: currentUser.id, score: finalScore, details: payloadDetails
                 })
             });
         }
         customAlert('Evaluación Oficial Finalizada', `Tu examen práctico ha concluido y fue enviado.\nCalificación final: ${finalScore}%.`, 'success');
-        sessionStorage.removeItem('evalMode');
-        sessionStorage.removeItem('evalBags');
-        sessionStorage.removeItem('evalQuizId');
+        sessionStorage.removeItem('evalMode'); sessionStorage.removeItem('evalBags'); sessionStorage.removeItem('evalQuizId');
     } else {
-        customAlert('Práctica Finalizada', `Evaluación terminada.\nCalificación técnica: ${finalScore}%.\n(Modo Práctica Libre: Datos no almacenados).`, 'success');
+        // MODO PRÁCTICA
+        if (generatePdf) {
+            try {
+                customAlert('Procesando', 'Generando PDF de la práctica, por favor espera...', 'success');
+                const res = await fetch(`${API_URL}/generate_practice_pdf`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        user_id: currentUser.id,
+                        simulator_type: "DENSITY (Práctica Libre)",
+                        score: finalScore,
+                        details: payloadDetails
+                    })
+                });
+                
+                if(res.ok) {
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Practica_Libre_${currentUser.username}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                }
+            } catch(e) {
+                console.error("Error al generar PDF de práctica", e);
+            }
+            customAlert('Práctica Finalizada', `Evaluación terminada.\nCalificación técnica: ${finalScore}%.\n(Su PDF se ha descargado exitosamente).`, 'success');
+        } else {
+            customAlert('Práctica Finalizada', `Evaluación terminada.\nCalificación técnica: ${finalScore}%.\n(Modo Práctica: No se guardaron datos ni se generó PDF).`, 'success');
+        }
     }
     
-    document.getElementById('sim-view').classList.add('hidden');
-    document.getElementById('sim-iframe').src = ""; 
+    document.getElementById('sim-view').classList.add('hidden'); document.getElementById('sim-iframe').src = ""; 
     document.getElementById('dashboard-view').classList.remove('hidden');
-    
-    const sidebar = document.querySelector('aside');
-    if (sidebar) sidebar.classList.remove('hidden');
+    const sidebar = document.querySelector('aside'); if (sidebar) sidebar.classList.remove('hidden');
     
     loadOperatorDashboard();
     if(currentUser.role === 'operator') loadOperatorQuizzes();

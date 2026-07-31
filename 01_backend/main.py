@@ -57,9 +57,11 @@ class FeedbackUpdate(BaseModel): feedback: str
 class QuizCreate(BaseModel): school_id: int; instructor_id: int; title: str; questions: str; time_limit: int; assigned_operators: str
 class QuizUpdate(BaseModel): title: str; questions: str; time_limit: int; assigned_operators: str
 class AnswerItem(BaseModel): question_index: int; selected_option: int
+
 class QuizSubmit(BaseModel): quiz_id: int; operator_id: int; answers: list[AnswerItem]
 class QuizAssign(BaseModel): new_operators: list[int]
 class PracticalSubmit(BaseModel): quiz_id: int; operator_id: int; score: float; details: str
+class PracticePdfPayload(BaseModel): user_id: int; simulator_type: str; score: float; details: str
 
 @app.post("/login")
 def login(data: LoginData, db: Session = Depends(database.get_db)):
@@ -480,6 +482,154 @@ def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
 
     return FileResponse(final_pdf_path, media_type='application/pdf', filename=f"Cert_{user.username}.pdf")
 
+
+@app.post("/generate_practice_pdf")
+def generate_practice_pdf(payload: PracticePdfPayload, db: Session = Depends(database.get_db)):
+    user = db.query(models.User).filter_by(id=payload.user_id).first()
+    if not user: raise HTTPException(404, "Usuario no encontrado")
+    
+    pdf = CertPDF()
+    pdf.add_page()
+    
+    details_data = {}
+    reports = []
+    try:
+        details_data = json.loads(payload.details)
+        reports = details_data.get('reports', [])
+    except:
+        pass
+        
+    total_reales = sum([int(r.get('real_threats', 0)) for r in reports]) if reports else 0
+    total_marcas = sum([int(r.get('marked_threats', 0)) for r in reports]) if reports else 0
+    omisiones = max(0, total_reales - total_marcas)
+    efectividad = payload.score
+    
+    pdf.set_font("Arial", 'B', 11)
+    pdf.set_text_color(0, 0, 0)
+    
+    nombre_mostrar = user.full_name.upper() if getattr(user, 'full_name', '') else user.username.upper()
+    cedula_mostrar = user.cedula if getattr(user, 'cedula', '') else f"{user.id}000000"
+    
+    pdf.cell(0, 6, f"OPERADOR: {nombre_mostrar} | CÉDULA: {cedula_mostrar} | FECHA: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 0, 1)
+    pdf.cell(0, 6, f"PUNTUACIÓN TOTAL: {efectividad} / 100 (MODO PRÁCTICA)", 0, 1)
+    pdf.cell(0, 6, f"PRECISIÓN OPERACIONAL: {efectividad}%", 0, 1)
+    pdf.ln(5)
+    
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 6, "CRONOLOGÍA DE EQUIPAJES AUDITADOS", 0, 1)
+    pdf.set_font("Arial", '', 8)
+    pdf.cell(0, 5, "La tabla inferior documenta el historial de la sesión, volumen de amenazas infiltradas (TIP) y el dictamen final.", 0, 1)
+    
+    pdf.set_font("Arial", 'B', 8)
+    pdf.set_fill_color(178, 34, 34)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(10, 6, "#", 1, 0, 'C', True)
+    pdf.cell(60, 6, "PROPIETARIO", 1, 0, 'C', True)
+    pdf.cell(30, 6, "OBJ. REALES", 1, 0, 'C', True)
+    pdf.cell(30, 6, "MARCAS OP.", 1, 0, 'C', True)
+    pdf.cell(30, 6, "PUNTAJE", 1, 0, 'C', True)
+    pdf.cell(30, 6, "DIAGNÓSTICO", 1, 1, 'C', True)
+    
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", '', 8)
+    
+    for r in reports:
+        pdf.cell(10, 6, str(r.get('bag', '')), 1, 0, 'C')
+        pdf.cell(60, 6, str(r.get('subject', 'N/A'))[:25], 1, 0, 'C')
+        pdf.cell(30, 6, str(r.get('real_threats', 0)), 1, 0, 'C')
+        pdf.cell(30, 6, str(r.get('marked_threats', 0)), 1, 0, 'C')
+        pdf.cell(30, 6, str(r.get('score', 0)), 1, 0, 'C')
+        diag = "ACIERTO" if float(r.get('score', 0)) >= 80 else "FALLO"
+        pdf.cell(30, 6, diag, 1, 1, 'C')
+        
+    pdf.ln(8)
+    
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 6, "CONSOLIDADO DE ACIERTOS Y FALLOS TÁCTICOS", 0, 1)
+    
+    pdf.set_font("Arial", 'B', 8)
+    pdf.set_fill_color(178, 34, 34)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(47, 6, "VOLUMEN TOTAL TIP", 1, 0, 'C', True)
+    pdf.cell(47, 6, "INTERCEPCIONES (ACIERTO)", 1, 0, 'C', True)
+    pdf.cell(47, 6, "OMISIONES (FALLO)", 1, 0, 'C', True)
+    pdf.cell(47, 6, "ÍNDICE EFECTIVIDAD", 1, 1, 'C', True)
+    
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", '', 8)
+    pdf.cell(47, 6, str(total_reales), 1, 0, 'C')
+    pdf.cell(47, 6, str(total_marcas), 1, 0, 'C')
+    pdf.cell(47, 6, str(omisiones), 1, 0, 'C')
+    pdf.cell(47, 6, f"{efectividad}%", 1, 1, 'C')
+    pdf.ln(2)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(0, 5, "Balance de efectividad: Las 'Omisiones' representan los objetos ilícitos que evadieron los controles de seguridad.", 0, 1)
+    pdf.ln(6)
+    
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 6, "ANÁLISIS ESTADÍSTICO DE DESEMPEÑO", 0, 1)
+    
+    chart_path = tempfile.mktemp(suffix=".png")
+    try:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 3.5))
+        sizes = [efectividad, max(0, 100-efectividad)]
+        if sum(sizes) == 0: sizes = [100, 0]
+        ax1.pie(sizes, labels=[f'{sizes[0]}%', f'{sizes[1]}%'], labeldistance=0.4, colors=['#B22222', '#F08080'], textprops={'color':"w", 'weight':'bold', 'fontsize': 10})
+        ax1.set_title('Efectividad y Tasa de Falsos Negativos', fontsize=10, pad=10)
+        ax2.bar(['Reales (Sistema)', 'Marcas (Operador)'], [total_reales, total_marcas], color=['black', '#B22222'])
+        ax2.set_title('Volumen de Incidentes vs Detecciones', fontsize=10, pad=10)
+        plt.tight_layout()
+        plt.savefig(chart_path, dpi=300)
+        plt.close()
+        pdf.image(chart_path, x=15, w=180)
+        os.unlink(chart_path)
+    except Exception as e:
+        pass
+    
+    if reports:
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(0, 10, "REGISTRO VISUAL", 0, 1, 'C')
+        pdf.ln(5)
+        for r in reports:
+            for idx, b64 in enumerate(r.get('screenshots', [])):
+                if "," in b64:
+                    _, data = b64.split(',', 1)
+                    img_data = base64.b64decode(data)
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_img:
+                        tmp_img.write(img_data)
+                        tmp_name = tmp_img.name
+                    if pdf.get_y() > 200:
+                        pdf.add_page()
+                    pdf.image(tmp_name, w=160, x=25)
+                    pdf.set_font("Arial", 'B', 9)
+                    pdf.set_text_color(0, 0, 0)
+                    pdf.cell(0, 6, f"Maleta: #{r.get('bag', '')} | Propietario: {r.get('subject', 'N/A')}", 0, 1, 'C')
+                    pdf.set_font("Arial", '', 9)
+                    pdf.set_text_color(80, 80, 80)
+                    pdf.multi_cell(0, 5, f"Bitácora: {r.get('details', '')}", align='C')
+                    pdf.ln(8)
+                    os.unlink(tmp_name)
+
+    body_path = tempfile.mktemp(suffix=".pdf")
+    pdf.output(body_path)
+    
+    try:
+        merger = PdfWriter()
+        portada_path = os.path.join("04_Pdf", "Portada_density.pdf")
+        if os.path.exists(portada_path): merger.append(portada_path)
+        merger.append(body_path)
+        contraportada_path = os.path.join("04_Pdf", "Contraportada_density.pdf")
+        if os.path.exists(contraportada_path): merger.append(contraportada_path)
+        final_pdf_path = tempfile.mktemp(suffix=".pdf")
+        merger.write(final_pdf_path)
+        merger.close()
+        os.unlink(body_path)
+    except Exception as e:
+        final_pdf_path = body_path
+
+    return FileResponse(final_pdf_path, media_type='application/pdf', filename=f"Practica_{user.username}.pdf")
 
 @app.get("/reset-db")
 def reset_database():

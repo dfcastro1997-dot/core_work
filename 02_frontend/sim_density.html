@@ -471,6 +471,25 @@
 
 
     <!-- ========================================== -->
+    <!-- MODAL SELECCIÓN DE GENERACIÓN DE PDF        -->
+    <!-- ========================================== -->
+    <div id="pdf-choice-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center z-[220]">
+        <div class="bg-white w-full max-w-sm rounded-2xl p-8 shadow-2xl text-center border border-gray-200">
+            <div class="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            </div>
+            <h3 class="text-xl font-extrabold text-black mb-1 uppercase tracking-wide">Reporte de Práctica</h3>
+            <p class="text-xs text-gray-500 mb-6">¿Desea generar un certificado PDF al finalizar esta práctica? (Los resultados no se guardarán en la base de datos de su academia).</p>
+
+            <div class="flex space-x-3">
+                <button onclick="iniciarPractica(false)" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3 rounded-lg text-xs uppercase tracking-wider transition-colors border border-gray-200 shadow-sm">Sin PDF</button>
+                <button onclick="iniciarPractica(true)" class="flex-1 bg-red-600 hover:bg-black text-white font-bold py-3 rounded-lg text-xs uppercase tracking-wider transition-colors shadow-md">Generar PDF</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ========================================== -->
     <!-- MODAL DE INFORME DE HALLAZGOS (POR MALETA) -->
     <!-- ========================================== -->
     <div id="report-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md hidden flex items-center justify-center z-[250] p-4">
@@ -1332,11 +1351,31 @@
             }
         }
 
+
+        let sessionGeneratePdf = false;
+
+        function confirmarCantidadMaletas() {
+            const count = parseInt(document.getElementById('input-bag-count').value);
+            if (isNaN(count) || count < 1) return customAlert("Atención", "Ingrese cantidad válida.", "error");
+            sessionTotalBags = count; sessionCurrentBag = 0; sessionAccumulatedScore = 0;
+            document.getElementById('bag-count-modal').classList.add('hidden');
+            
+            // Mostrar modal de elección de PDF en lugar de iniciar directamente
+            document.getElementById('pdf-choice-modal').classList.remove('hidden');
+        }
+
+        function iniciarPractica(withPdf) {
+            sessionGeneratePdf = withPdf;
+            document.getElementById('pdf-choice-modal').classList.add('hidden');
+            addLog(`Inicio de práctica configurado para ${sessionTotalBags} maleta(s). PDF: ${withPdf ? 'SÍ' : 'NO'}`);
+            applySettingsToEngine(); toggleAutoBelt(); 
+        }
+
         function cerrarSimulador(overrideScore = null) {
             let scoreToSend = overrideScore !== null ? overrideScore : 0;
             if (window.parent && typeof window.parent.finishSim === "function") {
-                // Pasamos sessionReports como ARRAY
-                window.parent.finishSim(scoreToSend, totalAmenazasMarcadas, sessionReports);
+                // Ahora enviamos 4 parámetros: Score, Marcadas, Informes y la bandera del PDF
+                window.parent.finishSim(scoreToSend, totalAmenazasMarcadas, sessionReports, sessionGeneratePdf);
             } else {
                 sessionStorage.setItem('tempSimScore', scoreToSend);
                 window.location.href = "operator.html"; 
@@ -1381,14 +1420,8 @@
         // Funciones del Modo Práctica Libre (Se conservan igual)
         function iniciarEntrenamiento() { document.getElementById('start-training-modal').classList.add('hidden'); document.getElementById('bag-count-modal').classList.remove('hidden'); }
         function cancelarConfigPruebas() { document.getElementById('bag-count-modal').classList.add('hidden'); document.getElementById('start-training-modal').classList.remove('hidden'); }
-        function confirmarCantidadMaletas() {
-            const count = parseInt(document.getElementById('input-bag-count').value);
-            if (isNaN(count) || count < 1) return customAlert("Atención", "Ingrese cantidad válida.", "error");
-            sessionTotalBags = count; sessionCurrentBag = 0; sessionAccumulatedScore = 0;
-            document.getElementById('bag-count-modal').classList.add('hidden');
-            addLog(`Inicio de práctica configurado para ${sessionTotalBags} maleta(s).`);
-            applySettingsToEngine(); toggleAutoBelt(); 
-        }
+        
+
 
         function addLog(msg) {
             const now = new Date();
