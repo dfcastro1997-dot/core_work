@@ -7,3 +7,5 @@ pydantic
 requests
 apscheduler
 fpdf
+matplotlib
+PyPDF2
