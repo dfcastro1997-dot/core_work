@@ -285,8 +285,15 @@ def get_quiz_grades(school_id: int, db: Session = Depends(database.get_db)):
     results = db.query(models.QuizResult, models.User, models.Quiz).join(models.User, models.QuizResult.operator_id == models.User.id).join(models.Quiz, models.QuizResult.quiz_id == models.Quiz.id).filter(models.User.school_id == school_id).order_by(models.QuizResult.id.desc()).all()
     return [{"id": r.QuizResult.id, "operator_name": r.User.username, "quiz_title": r.Quiz.title, "score": r.QuizResult.score, "date": r.QuizResult.date } for r in results]
 
+
 class CertPDF(FPDF):
     def header(self):
+        # Insertar marca de agua centrada en el fondo de todas las páginas del reporte
+        wm = getattr(self, 'watermark_path', None)
+        if wm and os.path.exists(wm):
+            # Posición calculada para centrar una imagen de 120x120 en una hoja A4 (210x297)
+            self.image(wm, x=45, y=88.5, w=120)
+
         self.set_font('Arial', 'B', 12)
         self.set_text_color(150, 150, 150)
         self.cell(0, 10, 'INFORME DE INSPECCIÓN Y TRAZABILIDAD', 0, 1, 'L')
@@ -296,15 +303,9 @@ class CertPDF(FPDF):
         self.ln(5)
 
     def footer(self):
-        self.set_y(-25)
-        self.set_font('Arial', 'B', 8)
-        self.set_text_color(220, 38, 38)
-        self.cell(0, 4, 'CERTIFICADO DE AUTENTICIDAD CRIPTOGRÁFICA', 0, 1, 'C')
+        self.set_y(-15)
         self.set_font('Arial', '', 7)
         self.set_text_color(100, 100, 100)
-        self.cell(0, 4, 'Documento respaldado por firma digital inalterable DENSITY:', 0, 1, 'C')
-        self.cell(0, 4, f'DENS-{os.urandom(8).hex().upper()}', 0, 1, 'C')
-        self.set_y(-10)
         self.cell(0, 10, f'Fecha: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")} | Plataforma: Density   Página {self.page_no()}', 0, 0, 'C')
 
 
@@ -411,22 +412,10 @@ def build_pdf_report_logic(pdf, res, user, reports, total_reales, total_marcas, 
     except Exception as e:
         pass
 
-    # DESCARGAR LOGO DENSITY PARA REPORTES VISUALES
-    logo_path = tempfile.mktemp(suffix=".png")
-    try:
-        logo_req = requests.get("https://i.ibb.co/mVh9kScZ/logofb.png", timeout=3)
-        with open(logo_path, 'wb') as f: f.write(logo_req.content)
-    except:
-        logo_path = None
-
-    # 6. REGISTRO VISUAL (NUEVO FORMATO GRID)
+    # 6. REGISTRO VISUAL (NUEVO FORMATO GRID UNIFORME)
     if reports:
         for r in reports:
             pdf.add_page()
-            
-            # Encabezado Logo
-            if logo_path and os.path.exists(logo_path):
-                pdf.image(logo_path, x=80, y=10, w=50)
             
             pdf.set_y(35)
             pdf.set_font("Arial", 'B', 14)
@@ -455,6 +444,7 @@ def build_pdf_report_logic(pdf, res, user, reports, total_reales, total_marcas, 
                 x_start = 15
                 y_pos = pdf.get_y()
                 img_w = 85
+                img_h = 55 # Alto fijado para asegurar organización perfecta
                 row_height = 65
                 
                 for idx, b64 in enumerate(images):
@@ -473,7 +463,8 @@ def build_pdf_report_logic(pdf, res, user, reports, total_reales, total_marcas, 
                         
                         col = idx % 2
                         x_pos = x_start + (col * 90)
-                        pdf.image(tmp_name, x=x_pos, y=y_pos, w=img_w)
+                        # Dibujado uniforme
+                        pdf.image(tmp_name, x=x_pos, y=y_pos, w=img_w, h=img_h)
                         os.unlink(tmp_name)
     
     # Comentarios Instructor
@@ -516,6 +507,16 @@ def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
     user = db.query(models.User).filter_by(id=res.user_id).first()
     
     pdf = CertPDF()
+    
+    # Descargar logo para la marca de agua y asignarlo
+    logo_path = tempfile.mktemp(suffix=".png")
+    try:
+        logo_req = requests.get("https://i.ibb.co/mVh9kScZ/logofb.png", timeout=3)
+        with open(logo_path, 'wb') as f: f.write(logo_req.content)
+        pdf.watermark_path = logo_path
+    except:
+        pass
+
     pdf.add_page()
     
     details_data = {}
@@ -540,6 +541,16 @@ def generate_practice_pdf(payload: PracticePdfPayload, db: Session = Depends(dat
     if not user: raise HTTPException(404, "Usuario no encontrado")
     
     pdf = CertPDF()
+
+    # Descargar logo para la marca de agua y asignarlo
+    logo_path = tempfile.mktemp(suffix=".png")
+    try:
+        logo_req = requests.get("https://i.ibb.co/mVh9kScZ/logofb.png", timeout=3)
+        with open(logo_path, 'wb') as f: f.write(logo_req.content)
+        pdf.watermark_path = logo_path
+    except:
+        pass
+        
     pdf.add_page()
     
     details_data = {}

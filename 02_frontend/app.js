@@ -1165,7 +1165,47 @@ window.finishSim = async function(score, amenazas, reportsData, generatePdf) {
         reports: Array.isArray(reportsData) ? reportsData : []
     });
 
+    // CREAR OVERLAY DE CARGA BLOQUEANTE SI NO EXISTE
+    let loader = document.getElementById('pdf-loader-overlay');
+    if(!loader) {
+        loader = document.createElement('div');
+        loader.id = 'pdf-loader-overlay';
+        loader.className = 'fixed inset-0 bg-black/90 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center hidden';
+        loader.innerHTML = `
+            <div class="w-full max-w-md bg-white p-8 rounded-2xl shadow-2xl text-center">
+                <svg class="w-16 h-16 mx-auto mb-4 animate-spin text-red-600" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <h3 class="text-xl font-extrabold text-black mb-2">Procesando Datos y Generando PDF...</h3>
+                <p class="text-xs text-gray-500 mb-5 text-center">Por favor, no cierres esta ventana hasta que finalice.</p>
+                <div class="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                    <div id="pdf-progress-bar" class="bg-red-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(loader);
+    }
+
+    const showLoading = () => {
+        loader.classList.remove('hidden');
+        document.getElementById('pdf-progress-bar').style.width = '0%';
+        let prog = 0;
+        loader.dataset.interval = setInterval(() => {
+            prog += Math.random() * 12;
+            if(prog > 90) prog = 90;
+            document.getElementById('pdf-progress-bar').style.width = prog + '%';
+        }, 300);
+    };
+
+    const hideLoading = () => {
+        clearInterval(loader.dataset.interval);
+        document.getElementById('pdf-progress-bar').style.width = '100%';
+        setTimeout(() => loader.classList.add('hidden'), 500);
+    };
+
     if (isEval) {
+        showLoading(); // Iniciar loader
         if (currentUser.role !== 'instructor') {
             await fetch(`${API_URL}/quizzes/submit_practical`, {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -1174,13 +1214,14 @@ window.finishSim = async function(score, amenazas, reportsData, generatePdf) {
                 })
             });
         }
+        hideLoading();
         customAlert('Evaluación Oficial Finalizada', `Tu examen práctico ha concluido y fue enviado.\nCalificación final: ${finalScore}%.`, 'success');
         sessionStorage.removeItem('evalMode'); sessionStorage.removeItem('evalBags'); sessionStorage.removeItem('evalQuizId');
     } else {
         // MODO PRÁCTICA
         if (generatePdf) {
+            showLoading(); // Iniciar loader bloqueante
             try {
-                customAlert('Procesando', 'Generando PDF de la práctica, por favor espera...', 'success');
                 const res = await fetch(`${API_URL}/generate_practice_pdf`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
@@ -1204,6 +1245,7 @@ window.finishSim = async function(score, amenazas, reportsData, generatePdf) {
             } catch(e) {
                 console.error("Error al generar PDF de práctica", e);
             }
+            hideLoading();
             customAlert('Práctica Finalizada', `Evaluación terminada.\nCalificación técnica: ${finalScore}%.\n(Su PDF se ha descargado exitosamente).`, 'success');
         } else {
             customAlert('Práctica Finalizada', `Evaluación terminada.\nCalificación técnica: ${finalScore}%.\n(Modo Práctica: No se guardaron datos ni se generó PDF).`, 'success');
