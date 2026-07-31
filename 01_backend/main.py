@@ -2,6 +2,7 @@ import os
 import json
 import tempfile
 import base64
+import requests
 from datetime import datetime
 import matplotlib
 matplotlib.use('Agg') # Evita errores de renderizado GUI en el servidor
@@ -10,6 +11,7 @@ from PyPDF2 import PdfWriter
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from PIL import Image
 
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -259,7 +261,6 @@ def submit_quiz(sub: QuizSubmit, db: Session = Depends(database.get_db)):
     db.commit()
     return {"score": score}
 
-
 @app.post("/quizzes/submit_practical")
 def submit_practical(sub: PracticalSubmit, db: Session = Depends(database.get_db)):
     quiz = db.query(models.Quiz).filter_by(id=sub.quiz_id).first()
@@ -275,44 +276,43 @@ def submit_practical(sub: PracticalSubmit, db: Session = Depends(database.get_db
     db.commit()
     return {"score": sub.score}
 
-
-
-
-
-
 @app.get("/quizzes/results/{school_id}")
 def get_quiz_grades(school_id: int, db: Session = Depends(database.get_db)):
     results = db.query(models.QuizResult, models.User, models.Quiz).join(models.User, models.QuizResult.operator_id == models.User.id).join(models.Quiz, models.QuizResult.quiz_id == models.Quiz.id).filter(models.User.school_id == school_id).order_by(models.QuizResult.id.desc()).all()
     return [{"id": r.QuizResult.id, "operator_name": r.User.username, "quiz_title": r.Quiz.title, "score": r.QuizResult.score, "date": r.QuizResult.date } for r in results]
 
 
+# ================= GENERACIÓN DE PDF =================
+
 class CertPDF(FPDF):
     def header(self):
-        # Insertar marca de agua centrada en el fondo de todas las páginas del reporte
+        # Insertar marca de agua semitransparente centrada en el fondo
         wm = getattr(self, 'watermark_path', None)
         if wm and os.path.exists(wm):
-            # Posición calculada para centrar una imagen de 120x120 en una hoja A4 (210x297)
-            self.image(wm, x=45, y=88.5, w=120)
+            self.image(wm, x=45, y=90, w=120)
 
         self.set_font('Arial', 'B', 12)
-        self.set_text_color(150, 150, 150)
-        self.cell(0, 10, 'INFORME DE INSPECCIÓN Y TRAZABILIDAD', 0, 1, 'L')
+        self.set_text_color(120, 120, 120)
+        self.cell(0, 10, 'INFORME TÁCTICO DE INSPECCIÓN FORENSE', 0, 1, 'R')
         self.set_draw_color(220, 38, 38)
-        self.set_line_width(0.5)
+        self.set_line_width(0.8)
         self.line(10, 20, 200, 20)
         self.ln(5)
 
     def footer(self):
         self.set_y(-15)
-        self.set_font('Arial', '', 7)
-        self.set_text_color(100, 100, 100)
-        self.cell(0, 10, f'Fecha: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")} | Plataforma: Density   Página {self.page_no()}', 0, 0, 'C')
+        self.set_font('Arial', 'I', 8)
+        self.set_text_color(120, 120, 120)
+        self.cell(0, 10, f'Fecha de Emisión: {datetime.now().strftime("%d/%m/%Y %H:%M")} | Plataforma: Density   Página {self.page_no()}', 0, 0, 'C')
 
-
-import requests
+def make_image_transparent(image_path, opacity, output_path):
+    # Función para generar la marca de agua con transparencia
+    img = Image.open(image_path).convert("RGBA")
+    bg = Image.new("RGBA", img.size, (255, 255, 255, 255))
+    blended = Image.blend(bg, img, alpha=opacity)
+    blended.convert("RGB").save(output_path, "JPEG")
 
 def find_pdf_asset(filename):
-    # Busca en diferentes niveles para asegurar que encuentra la carpeta 04_Pdf en el servidor
     paths = [
         os.path.join("04_Pdf", filename),
         os.path.join("..", "04_Pdf", filename),
@@ -323,77 +323,107 @@ def find_pdf_asset(filename):
     return None
 
 def build_pdf_report_logic(pdf, res, user, reports, total_reales, total_marcas, omisiones, efectividad, is_practice=False):
-    # 2. ENCABEZADO Y PUNTUACIONES
-    pdf.set_font("Arial", 'B', 11)
-    pdf.set_text_color(0, 0, 0)
+    pdf.set_draw_color(200, 200, 200)
     
+    # 2. ENCABEZADO Y DATOS DEL OPERADOR
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_text_color(220, 38, 38)
+    pdf.cell(0, 8, "RESUMEN EJECUTIVO DE LA SESIÓN", 0, 1, 'L')
+    pdf.ln(2)
+
     nombre_mostrar = user.full_name.upper() if getattr(user, 'full_name', '') else user.username.upper()
     cedula_mostrar = user.cedula if getattr(user, 'cedula', '') else f"{user.id}000000"
     fecha_mostrar = datetime.now().strftime('%Y-%m-%d %H:%M:%S') if is_practice else res.date
     
-    pdf.cell(0, 6, f"OPERADOR: {nombre_mostrar} | CÉDULA: {cedula_mostrar} | FECHA: {fecha_mostrar}", 0, 1)
-    modo_texto = " (MODO PRÁCTICA)" if is_practice else ""
-    pdf.cell(0, 6, f"PUNTUACIÓN TOTAL: {efectividad} / 100{modo_texto}", 0, 1)
-    pdf.cell(0, 6, f"PRECISIÓN OPERACIONAL: {efectividad}%", 0, 1)
-    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 9)
+    pdf.set_fill_color(245, 245, 245)
+    pdf.set_text_color(50, 50, 50)
     
-    # 3. TABLA 1: CRONOLOGÍA
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(0, 6, "CRONOLOGÍA DE EQUIPAJES AUDITADOS", 0, 1)
-    pdf.set_font("Arial", '', 8)
-    pdf.cell(0, 5, "La tabla inferior documenta el historial de la sesión, volumen de amenazas infiltradas (TIP) y el dictamen final.", 0, 1)
+    pdf.cell(40, 7, "  OPERADOR:", border=1, align='L', fill=True)
+    pdf.set_font("Arial", '', 9)
+    pdf.cell(60, 7, f"  {nombre_mostrar}", border=1, align='L')
+    
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(40, 7, "  CÉDULA / ID:", border=1, align='L', fill=True)
+    pdf.set_font("Arial", '', 9)
+    pdf.cell(50, 7, f"  {cedula_mostrar}", border=1, align='L', ln=1)
+
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(40, 7, "  FECHA / HORA:", border=1, align='L', fill=True)
+    pdf.set_font("Arial", '', 9)
+    pdf.cell(60, 7, f"  {fecha_mostrar}", border=1, align='L')
+    
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(40, 7, "  MODO SESIÓN:", border=1, align='L', fill=True)
+    pdf.set_font("Arial", 'B', 9)
+    pdf.set_text_color(220, 38, 38)
+    pdf.cell(50, 7, "  PRÁCTICA LIBRE" if is_practice else "  EVALUACIÓN OFICIAL", border=1, align='L', ln=1)
+    pdf.ln(8)
+    
+    # 3. MÉTRICAS TÁCTICAS
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_text_color(220, 38, 38)
+    pdf.cell(0, 8, "MÉTRICAS Y RESULTADOS GLOBALES", 0, 1, 'L')
+    pdf.ln(2)
+
+    pdf.set_font("Arial", 'B', 9)
+    pdf.set_fill_color(220, 38, 38)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(47, 8, "PRECISIÓN TOTAL", border=1, align='C', fill=True)
+    pdf.cell(47, 8, "VOLUMEN DE TIP", border=1, align='C', fill=True)
+    pdf.cell(47, 8, "ACIERTO (MARCAS)", border=1, align='C', fill=True)
+    pdf.cell(47, 8, "OMISIONES", border=1, align='C', fill=True, ln=1)
+
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_text_color(50, 50, 50)
+    pdf.set_fill_color(255, 255, 255)
+    pdf.cell(47, 10, f"{efectividad}%", border=1, align='C')
+    pdf.cell(47, 10, f"{total_reales}", border=1, align='C')
+    pdf.cell(47, 10, f"{total_marcas}", border=1, align='C')
+    pdf.cell(47, 10, f"{omisiones}", border=1, align='C', ln=1)
+    pdf.ln(8)
+    
+    # 4. TABLA: CRONOLOGÍA
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_text_color(220, 38, 38)
+    pdf.cell(0, 8, "DESGLOSE DE INSPECCIÓN POR EQUIPAJE", 0, 1, 'L')
+    pdf.ln(2)
     
     pdf.set_font("Arial", 'B', 8)
-    pdf.set_fill_color(178, 34, 34) 
+    pdf.set_fill_color(50, 50, 50)
     pdf.set_text_color(255, 255, 255)
-    pdf.cell(10, 6, "#", 1, 0, 'C', True)
-    pdf.cell(60, 6, "PROPIETARIO", 1, 0, 'C', True)
-    pdf.cell(30, 6, "OBJ. REALES", 1, 0, 'C', True)
-    pdf.cell(30, 6, "MARCAS OP.", 1, 0, 'C', True)
-    pdf.cell(30, 6, "PUNTAJE", 1, 0, 'C', True)
-    pdf.cell(30, 6, "DIAGNÓSTICO", 1, 1, 'C', True)
+    pdf.cell(15, 7, "MALETA", border=1, align='C', fill=True)
+    pdf.cell(65, 7, "PROPIETARIO", border=1, align='C', fill=True)
+    pdf.cell(25, 7, "INYECTADO", border=1, align='C', fill=True)
+    pdf.cell(25, 7, "DETECTADO", border=1, align='C', fill=True)
+    pdf.cell(25, 7, "SCORE", border=1, align='C', fill=True)
+    pdf.cell(35, 7, "DIAGNÓSTICO", border=1, align='C', fill=True, ln=1)
     
-    pdf.set_text_color(0, 0, 0)
+    pdf.set_text_color(50, 50, 50)
     pdf.set_font("Arial", '', 8)
-    
     for r in reports:
-        pdf.cell(10, 6, str(r.get('bag', '')), 1, 0, 'C')
-        pdf.cell(60, 6, str(r.get('subject', 'N/A'))[:25], 1, 0, 'C')
-        pdf.cell(30, 6, str(r.get('real_threats', 0)), 1, 0, 'C')
-        pdf.cell(30, 6, str(r.get('marked_threats', 0)), 1, 0, 'C')
-        pdf.cell(30, 6, str(r.get('score', 0)), 1, 0, 'C')
+        pdf.cell(15, 7, str(r.get('bag', '')), border=1, align='C')
+        pdf.cell(65, 7, str(r.get('subject', 'N/A'))[:25], border=1, align='C')
+        pdf.cell(25, 7, str(r.get('real_threats', 0)), border=1, align='C')
+        pdf.cell(25, 7, str(r.get('marked_threats', 0)), border=1, align='C')
+        pdf.cell(25, 7, f"{r.get('score', 0)}%", border=1, align='C')
         diag = "ACIERTO" if float(r.get('score', 0)) >= 80 else "FALLO"
-        pdf.cell(30, 6, diag, 1, 1, 'C')
+        if diag == "ACIERTO":
+            pdf.set_text_color(0, 128, 0)
+        else:
+            pdf.set_text_color(220, 38, 38)
+        pdf.set_font("Arial", 'B', 8)
+        pdf.cell(35, 7, diag, border=1, align='C', ln=1)
+        pdf.set_text_color(50, 50, 50)
+        pdf.set_font("Arial", '', 8)
         
     pdf.ln(8)
     
-    # 4. TABLA 2: CONSOLIDADO TÁCTICO
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(0, 6, "CONSOLIDADO DE ACIERTOS Y FALLOS TÁCTICOS", 0, 1)
-    
-    pdf.set_font("Arial", 'B', 8)
-    pdf.set_fill_color(178, 34, 34)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(47, 6, "VOLUMEN TOTAL TIP", 1, 0, 'C', True)
-    pdf.cell(47, 6, "INTERCEPCIONES (ACIERTO)", 1, 0, 'C', True)
-    pdf.cell(47, 6, "OMISIONES (FALLO)", 1, 0, 'C', True)
-    pdf.cell(47, 6, "ÍNDICE EFECTIVIDAD", 1, 1, 'C', True)
-    
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Arial", '', 8)
-    pdf.cell(47, 6, str(total_reales), 1, 0, 'C')
-    pdf.cell(47, 6, str(total_marcas), 1, 0, 'C')
-    pdf.cell(47, 6, str(omisiones), 1, 0, 'C')
-    pdf.cell(47, 6, f"{efectividad}%", 1, 1, 'C')
-    pdf.ln(2)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(0, 5, "Balance de efectividad: Las 'Omisiones' representan los objetos ilícitos que evadieron los controles de seguridad.", 0, 1)
-    pdf.ln(6)
-    
     # 5. CHARTS
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(0, 6, "ANÁLISIS ESTADÍSTICO DE DESEMPEÑO", 0, 1)
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_text_color(220, 38, 38)
+    pdf.cell(0, 8, "ANÁLISIS ESTADÍSTICO", 0, 1, 'L')
+    pdf.ln(2)
     
     chart_path = tempfile.mktemp(suffix=".png")
     try:
@@ -401,18 +431,18 @@ def build_pdf_report_logic(pdf, res, user, reports, total_reales, total_marcas, 
         sizes = [efectividad, max(0, 100-efectividad)]
         if sum(sizes) == 0: sizes = [100, 0]
         ax1.pie(sizes, labels=[f'{sizes[0]}%', f'{sizes[1]}%'], labeldistance=0.4, colors=['#B22222', '#F08080'], textprops={'color':"w", 'weight':'bold', 'fontsize': 10})
-        ax1.set_title('Efectividad y Tasa de Falsos Negativos', fontsize=10, pad=10)
-        ax2.bar(['Reales (Sistema)', 'Marcas (Operador)'], [total_reales, total_marcas], color=['black', '#B22222'])
+        ax1.set_title('Efectividad vs Omisiones', fontsize=10, pad=10)
+        ax2.bar(['Inyectadas (TIP)', 'Marcas (Operador)'], [total_reales, total_marcas], color=['#404040', '#B22222'])
         ax2.set_title('Volumen de Incidentes vs Detecciones', fontsize=10, pad=10)
         plt.tight_layout()
-        plt.savefig(chart_path, dpi=300)
+        plt.savefig(chart_path, dpi=300, transparent=True)
         plt.close()
         pdf.image(chart_path, x=15, w=180)
         os.unlink(chart_path)
     except Exception as e:
         pass
 
-    # 6. REGISTRO VISUAL (NUEVO FORMATO GRID UNIFORME)
+    # 6. REGISTRO VISUAL (FORMATO GRID UNIFORME)
     if reports:
         for r in reports:
             pdf.add_page()
@@ -420,31 +450,31 @@ def build_pdf_report_logic(pdf, res, user, reports, total_reales, total_marcas, 
             pdf.set_y(35)
             pdf.set_font("Arial", 'B', 14)
             pdf.set_text_color(220, 38, 38)
-            pdf.cell(0, 8, f"REGISTRO VISUAL - MALETA #{r.get('bag', '')}", 0, 1, 'C')
+            pdf.cell(0, 8, f"REGISTRO VISUAL FORENSE - MALETA #{r.get('bag', '')}", 0, 1, 'C')
             
-            pdf.set_font("Arial", '', 10)
-            pdf.set_text_color(0, 0, 0)
-            pdf.cell(0, 6, f"Propietario: {r.get('subject', 'N/A')} | Cédula: {r.get('subject_id', 'N/A')}", 0, 1, 'C')
+            pdf.set_font("Arial", 'B', 9)
+            pdf.set_text_color(50, 50, 50)
+            pdf.cell(0, 6, f"PROPIETARIO: {r.get('subject', 'N/A')} | CÉDULA: {r.get('subject_id', 'N/A')}", 0, 1, 'C')
             pdf.ln(5)
             
             # Bitácora (General por Maleta)
-            pdf.set_font("Arial", 'B', 11)
-            pdf.cell(0, 6, "Bitácora Forense (Reporte Operador):", 0, 1, 'L')
-            pdf.set_font("Arial", '', 10)
             pdf.set_fill_color(245, 245, 245)
-            pdf.multi_cell(0, 6, f"{r.get('details', 'Sin novedades documentadas.')}", fill=True, border=1)
+            pdf.set_font("Arial", 'B', 10)
+            pdf.cell(0, 7, "  BITÁCORA OPERACIONAL Y NOVEDADES:", border=1, fill=True, ln=1, align='L')
+            pdf.set_font("Arial", '', 9)
+            pdf.multi_cell(0, 6, f"  {r.get('details', 'Sin novedades documentadas.')}", border=1)
             pdf.ln(8)
             
             images = r.get('screenshots', [])
             if images:
-                pdf.set_font("Arial", 'B', 11)
-                pdf.cell(0, 6, "Evidencias Fotográficas Adjuntas:", 0, 1, 'L')
+                pdf.set_font("Arial", 'B', 10)
+                pdf.cell(0, 7, "  EVIDENCIAS FOTOGRÁFICAS ADJUNTAS:", border=1, fill=True, ln=1, align='L')
                 pdf.ln(3)
                 
                 x_start = 15
                 y_pos = pdf.get_y()
                 img_w = 85
-                img_h = 55 # Alto fijado para asegurar organización perfecta
+                img_h = 55 # Alto fijado
                 row_height = 65
                 
                 for idx, b64 in enumerate(images):
@@ -463,7 +493,11 @@ def build_pdf_report_logic(pdf, res, user, reports, total_reales, total_marcas, 
                         
                         col = idx % 2
                         x_pos = x_start + (col * 90)
-                        # Dibujado uniforme
+                        
+                        # Borde sutil alrededor de la imagen
+                        pdf.set_draw_color(200, 200, 200)
+                        pdf.rect(x_pos - 1, y_pos - 1, img_w + 2, img_h + 2)
+                        
                         pdf.image(tmp_name, x=x_pos, y=y_pos, w=img_w, h=img_h)
                         os.unlink(tmp_name)
     
@@ -508,12 +542,15 @@ def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
     
     pdf = CertPDF()
     
-    # Descargar logo para la marca de agua y asignarlo
+    # Descargar logo para la marca de agua y hacerlo transparente
     logo_path = tempfile.mktemp(suffix=".png")
     try:
         logo_req = requests.get("https://i.ibb.co/mVh9kScZ/logofb.png", timeout=3)
         with open(logo_path, 'wb') as f: f.write(logo_req.content)
-        pdf.watermark_path = logo_path
+        
+        transparent_logo_path = tempfile.mktemp(suffix=".jpg")
+        make_image_transparent(logo_path, 0.15, transparent_logo_path)
+        pdf.watermark_path = transparent_logo_path
     except:
         pass
 
@@ -542,12 +579,15 @@ def generate_practice_pdf(payload: PracticePdfPayload, db: Session = Depends(dat
     
     pdf = CertPDF()
 
-    # Descargar logo para la marca de agua y asignarlo
+    # Descargar logo para la marca de agua y hacerlo transparente
     logo_path = tempfile.mktemp(suffix=".png")
     try:
         logo_req = requests.get("https://i.ibb.co/mVh9kScZ/logofb.png", timeout=3)
         with open(logo_path, 'wb') as f: f.write(logo_req.content)
-        pdf.watermark_path = logo_path
+        
+        transparent_logo_path = tempfile.mktemp(suffix=".jpg")
+        make_image_transparent(logo_path, 0.15, transparent_logo_path)
+        pdf.watermark_path = transparent_logo_path
     except:
         pass
         
