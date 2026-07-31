@@ -101,8 +101,13 @@
 
                     <!-- Mensaje para cuando es modo práctico -->
                     <div id="practical-config" class="hidden bg-red-50 p-4 rounded-lg border border-red-200 mb-6">
-                        <p class="text-sm text-red-700 font-bold">Modo Evaluación Práctica Activo</p>
-                        <p class="text-xs text-red-600 mt-1">El valor ingresado en "Tiempo/Maletas" definirá la cantidad de equipajes que el operador deberá inspeccionar en el simulador DENSITY de forma continua.</p>
+                        <p class="text-sm text-red-700 font-bold mb-2">Modo Evaluación Práctica Activo</p>
+                        <p class="text-xs text-red-600 mb-4">El valor ingresado en "Tiempo/Maletas" definirá la cantidad de equipajes que el operador deberá inspeccionar de forma continua.</p>
+                        
+                        <label class="flex items-center space-x-3 cursor-pointer bg-white p-3 rounded-lg border border-red-100 shadow-sm w-fit">
+                            <input type="checkbox" id="quiz-elec-illegal" class="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-600" checked>
+                            <span class="text-xs font-bold text-red-900">Sancionar extracción de "Componentes Electrónicos" <br><span class="font-normal">(Se evaluarán como amenaza / objeto no autorizado)</span></span>
+                        </label>
                     </div>
 
                     <div id="questions-container" class="space-y-6 border-t border-gray-100 pt-6"></div>

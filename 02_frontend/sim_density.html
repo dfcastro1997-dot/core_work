@@ -470,7 +470,12 @@
             
             <div class="mb-6">
                 <label class="block text-[10px] font-bold text-gray-700 uppercase mb-2 tracking-widest">Cantidad de Equipajes</label>
-                <input type="number" id="input-bag-count" value="5" min="1" max="50" class="w-full bg-gray-50 border border-gray-300 text-black font-extrabold text-center text-xl p-3 rounded-lg outline-none focus:ring-2 focus:ring-red-600 shadow-sm">
+                <input type="number" id="input-bag-count" value="5" min="1" max="50" class="w-full bg-gray-50 border border-gray-300 text-black font-extrabold text-center text-xl p-3 rounded-lg outline-none focus:ring-2 focus:ring-red-600 shadow-sm mb-4">
+                
+                <label class="flex items-center space-x-3 cursor-pointer bg-gray-50 p-3 rounded-lg border border-gray-200 text-left hover:bg-gray-100 transition-colors">
+                    <input type="checkbox" id="input-elec-illegal" class="w-5 h-5 text-red-600 border-gray-300 rounded focus:ring-red-600 shrink-0" checked>
+                    <span class="text-[10px] font-bold text-gray-700 leading-tight">Sancionar "Componentes Electrónicos" <br><span class="text-red-600 font-normal">(Evaluar como objetos no autorizados)</span></span>
+                </label>
             </div>
 
             <div class="flex space-x-3">
@@ -1341,13 +1346,9 @@
 
             const isEval = sessionStorage.getItem('evalMode') === 'true';
             
-            // Lógica de evaluación basada en la política del instructor
-            const savedSettings = getSafeSettings();
-            const elecIllegal = savedSettings.electronics_illegal !== false;
-            
             const amenazasReales = activeThreatsData.filter(th => {
                 if (th.data.type === "INOFENSIVO") return false;
-                if (th.data.type === "ELECTRONICO NO AUTORIZADO" && !elecIllegal) return false;
+                if (th.data.type === "ELECTRONICO NO AUTORIZADO" && !sessionElecIllegal) return false;
                 return true;
             });
             let totalInyectadas = amenazasReales.length;
@@ -1388,20 +1389,6 @@
 
         let sessionGeneratePdf = false;
 
-        function confirmarCantidadMaletas() {
-            const count = parseInt(document.getElementById('input-bag-count').value);
-            if (isNaN(count) || count < 1) return customAlert("Atención", "Ingrese cantidad válida.", "error");
-            
-            sessionTotalBags = count; 
-            sessionCurrentBag = 0; 
-            sessionAccumulatedScore = 0;
-            
-            // Oculta el modal de cantidad de maletas
-            document.getElementById('bag-count-modal').classList.add('hidden');
-            
-            // Muestra el modal profesional preguntando por el PDF
-            document.getElementById('pdf-choice-modal').classList.remove('hidden');
-        }
 
         function iniciarPractica(withPdf) {
             sessionGeneratePdf = withPdf;
@@ -1424,13 +1411,13 @@
 
         let sessionTotalBags = 1;
         let sessionCurrentBag = 0;
-        let sessionAccumulatedScore = 0; // NUEVO: Sumatoria de puntuación por maleta
+        let sessionAccumulatedScore = 0; 
+        let sessionElecIllegal = true; // Control de electrónicos
 
         document.addEventListener('DOMContentLoaded', () => {
             const savedUser = localStorage.getItem('securityCloudUser');
             if (savedUser) { 
                 const u = JSON.parse(savedUser); 
-                // Muestra el nombre completo si existe, de lo contrario usa el username
                 document.getElementById('op-name').innerText = u.full_name || u.username; 
             }
             setInterval(() => { const now = new Date(); document.getElementById('cctv-time').innerText = now.toLocaleTimeString('en-US', {hour12: false}); }, 1000);
@@ -1438,6 +1425,7 @@
 
             if (sessionStorage.getItem('evalMode') === 'true') {
                 sessionTotalBags = parseInt(sessionStorage.getItem('evalBags'));
+                sessionElecIllegal = sessionStorage.getItem('evalElecIllegal') === 'true';
                 sessionCurrentBag = 0;
                 sessionAccumulatedScore = 0;
                 
@@ -1455,6 +1443,20 @@
                 document.getElementById('start-training-modal').classList.remove('hidden');
             }
         });
+
+        function confirmarCantidadMaletas() {
+            const count = parseInt(document.getElementById('input-bag-count').value);
+            if (isNaN(count) || count < 1) return customAlert("Atención", "Ingrese cantidad válida.", "error");
+            
+            sessionTotalBags = count; 
+            sessionCurrentBag = 0; 
+            sessionAccumulatedScore = 0;
+            sessionElecIllegal = document.getElementById('input-elec-illegal').checked;
+            
+            document.getElementById('bag-count-modal').classList.add('hidden');
+            document.getElementById('pdf-choice-modal').classList.remove('hidden');
+        }
+        
 
         // Funciones del Modo Práctica Libre (Se conservan igual)
         function iniciarEntrenamiento() { document.getElementById('start-training-modal').classList.add('hidden'); document.getElementById('bag-count-modal').classList.remove('hidden'); }

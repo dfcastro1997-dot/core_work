@@ -1068,7 +1068,8 @@ async function saveQuiz() {
         }
     } else {
         // Formato interno para saber que es una prueba DENSITY práctica
-        questionsArray = [{"type": "practical_density", "bags": parseInt(time)}];
+        const isElecIllegal = document.getElementById('quiz-elec-illegal') ? document.getElementById('quiz-elec-illegal').checked : true;
+        questionsArray = [{"type": "practical_density", "bags": parseInt(time), "elec_illegal": isElecIllegal}];
     }
 
     const checkboxes = document.querySelectorAll('.chk-assign:checked');
@@ -1111,6 +1112,7 @@ function takeQuiz(quizObj) {
         customConfirm('Iniciar Evaluación DENSITY', msg, () => {
             sessionStorage.setItem('evalMode', 'true');
             sessionStorage.setItem('evalBags', questions[0].bags);
+            sessionStorage.setItem('evalElecIllegal', questions[0].elec_illegal !== false);
             sessionStorage.setItem('evalQuizId', quizObj.id);
             startSim('DENSITY');
         });
