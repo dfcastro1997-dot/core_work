@@ -954,9 +954,6 @@
             updateZScanUI();
         }
 
-        // ==========================================
-        // Z-SCAN (SISTEMA DE PROFUNDIDAD FÍSICA Y SHADER DE BORDES)
-        // ==========================================
         function updateZScanUI() {
             const zBar = document.getElementById('z-bar');
             if (zBar) zBar.style.width = `${zScanValue * 100}%`;
@@ -979,11 +976,8 @@
                 threatOp = Math.max(0.0, Math.min(0.6, threatOp)); 
                 
                 let mat = threat.data.mat;
-                if (currentFilter === 'metals' && mat === 'organic') {
-                    threatOp = 0; 
-                } else if (currentFilter === 'organic' && mat === 'metals') {
-                    threatOp = 0.05; 
-                }
+                if (currentFilter === 'metals' && mat === 'organic') threatOp = 0; 
+                else if (currentFilter === 'organic' && mat === 'metals') threatOp = 0.05; 
 
                 threat.element.style.opacity = threatOp;
                 
@@ -1000,6 +994,17 @@
                     threat.element.style.filter = `${colorFilter} url(#edge-shader) brightness(2.0) blur(0px)`;
                 } else {
                     threat.element.style.filter = `${colorFilter} url(#edge-shader) brightness(1.2) blur(${distanceToFocus * 4}px)`;
+                }
+            });
+
+            // Iteramos marcadores forenses para ocultarlos o mostrarlos según la profundidad Z actual
+            document.querySelectorAll('.forensic-marker, .forensic-label').forEach(el => {
+                let elZ = parseFloat(el.dataset.z || 0.5);
+                let dist = Math.abs(zScanValue - elZ);
+                if(dist < 0.15) {
+                    el.style.opacity = 1 - (dist * 6); // Aparece gradualmente
+                } else {
+                    el.style.opacity = 0; // Desaparece si el escáner se aleja
                 }
             });
         }
@@ -1031,23 +1036,25 @@
             
             const marker = document.createElement('div');
             marker.id = `m-${id}`;
-            marker.className = 'forensic-marker w-16 h-16';
+            // Se le añade transición de opacidad
+            marker.className = 'forensic-marker w-16 h-16 transition-opacity duration-200';
             marker.style.left = `${currentClickX}px`;
             marker.style.top = `${currentClickY}px`;
+            marker.dataset.z = zScanValue; // Guardamos la profundidad Z donde se detectó
             
             const label = document.createElement('div');
             label.id = `l-${id}`;
-            label.className = 'forensic-label';
+            label.className = 'forensic-label transition-opacity duration-200';
             label.innerText = `► ${tipo}`;
             label.style.left = `${currentClickX + 25}px`;
             label.style.top = `${currentClickY - 15}px`;
+            label.dataset.z = zScanValue;
 
             luggageGroup.appendChild(marker);
             luggageGroup.appendChild(label);
 
             totalAmenazasMarcadas++;
             
-            // Verificamos si la clasificación coincide con ALGUNO de los objetos activos
             let match = activeThreatsData.find(th => th.data.type === tipo);
             
             if(match) {
@@ -1103,38 +1110,51 @@
         function endScreenshot(e) {
             if(!isScreenshotMode) return;
             const box = document.getElementById('screenshot-box');
-            if(box.classList.contains('hidden')) return;
             
-            isScreenshotMode = false;
+            // Si el cuadro está oculto (solo fue un clic rápido sin arrastrar), cancela la captura
+            if(box.classList.contains('hidden')) {
+                setTimeout(() => { isScreenshotMode = false; }, 150); // Retraso para evitar que abra el modal forense
+                return;
+            }
+            
             document.getElementById('screenshot-overlay').classList.add('hidden');
             box.classList.add('hidden');
 
             const width = parseInt(box.style.width);
             const height = parseInt(box.style.height);
-            
-            if (width < 30 || height < 30) {
-                addLog("Captura cancelada: Área demasiado pequeña.");
-                return;
-            }
-
             const x = parseInt(box.style.left);
             const y = parseInt(box.style.top);
 
-            if(typeof html2canvas === 'undefined') return customAlert("Error", "Librería de capturas no cargada.", "error");
+            if (width < 30 || height < 30) {
+                addLog("Captura cancelada: Área demasiado pequeña.");
+                setTimeout(() => { isScreenshotMode = false; }, 150);
+                return;
+            }
+
+            if(typeof html2canvas === 'undefined') {
+                setTimeout(() => { isScreenshotMode = false; }, 150);
+                return customAlert("Error", "Librería de capturas no cargada.", "error");
+            }
             
             const viewport = document.getElementById('xray-viewport');
+            const scaleFactor = window.devicePixelRatio || 2; // Multiplicador para máxima resolución idéntica a la vista
             
-            html2canvas(viewport, {backgroundColor: "#020202", scale: 1, useCORS: true}).then(canvas => {
-                // Crear canvas secundario para hacer el Crop (Recorte)
+            // Captura con ajustes para leer CSS Filter y Mix Blend Modes
+            html2canvas(viewport, {backgroundColor: "#020202", scale: scaleFactor, useCORS: true, allowTaint: true}).then(canvas => {
                 const cropCanvas = document.createElement('canvas');
-                cropCanvas.width = width;
-                cropCanvas.height = height;
+                cropCanvas.width = width * scaleFactor;
+                cropCanvas.height = height * scaleFactor;
                 const ctx = cropCanvas.getContext('2d');
-                ctx.drawImage(canvas, x, y, width, height, 0, 0, width, height);
                 
-                const imgData = cropCanvas.toDataURL('image/jpeg', 0.8);
+                // Recorte exacto aplicando el multiplicador de escala
+                ctx.drawImage(canvas, x * scaleFactor, y * scaleFactor, width * scaleFactor, height * scaleFactor, 0, 0, width * scaleFactor, height * scaleFactor);
+                
+                const imgData = cropCanvas.toDataURL('image/jpeg', 0.95); // Mayor calidad JPG
                 currentBagScreenshots.push(imgData);
                 addLog(`📸 Evidencia guardada exitosamente (${currentBagScreenshots.length} adjuntas).`);
+                
+                // Liberar el clic después de tomar la foto para no disparar el marcador forense
+                setTimeout(() => { isScreenshotMode = false; }, 150);
             });
         }
 
@@ -1160,11 +1180,6 @@
             document.getElementById('tip-modal').classList.remove('hidden');
         }
 
-        // (Conserva igual cancelarMarcador y guardarMarcador)
-
-        // ==========================================
-        // FINALIZACIÓN PARA MODAL MULTI-CAPTURA
-        // ==========================================
         function finalizarMaletaAuto() {
             if(beltInterval) { clearInterval(beltInterval); beltInterval = null; }
             
@@ -1183,9 +1198,9 @@
             } else {
                 currentBagScreenshots.forEach((img, idx) => {
                     galeria.innerHTML += `
-                        <div class="relative shrink-0 group">
-                            <input type="checkbox" value="${idx}" class="chk-screenshot absolute top-2 left-2 z-10 w-4 h-4 text-red-600 bg-white rounded border border-gray-300 focus:ring-red-600 shadow-md cursor-pointer" checked>
-                            <img src="${img}" class="h-24 w-auto object-cover border-2 border-transparent group-hover:border-gray-400 rounded-lg cursor-zoom-in shadow-sm transition-all" onclick="verImagen('${img}')">
+                        <div class="relative shrink-0 group select-none" style="-webkit-tap-highlight-color: transparent;">
+                            <input type="checkbox" value="${idx}" class="chk-screenshot absolute top-2 left-2 z-10 w-4 h-4 text-red-600 bg-white rounded border border-gray-300 focus:ring-red-600 shadow-md cursor-pointer outline-none" checked>
+                            <img src="${img}" class="h-24 w-auto object-cover border-2 border-transparent group-hover:border-gray-400 rounded-lg cursor-zoom-in shadow-sm transition-all pointer-events-auto" onclick="verImagen('${img}')" ondragstart="return false;">
                         </div>`;
                 });
             }
