@@ -230,18 +230,18 @@
                     
                     <!-- PTZ Cruz -->
                     <div class="flex flex-col items-center space-y-1 mb-4">
-                        <button class="ptz-btn" onclick="logTerminal('PTZ: Arriba')"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg></button>
+                        <button class="ptz-btn" onclick="panCam(0, 30)"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg></button>
                         <div class="flex space-x-8">
-                            <button class="ptz-btn" onclick="logTerminal('PTZ: Izquierda')"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
-                            <button class="ptz-btn" onclick="logTerminal('PTZ: Derecha')"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
+                            <button class="ptz-btn" onclick="panCam(30, 0)"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
+                            <button class="ptz-btn" onclick="panCam(-30, 0)"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
                         </div>
-                        <button class="ptz-btn" onclick="logTerminal('PTZ: Abajo')"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
+                        <button class="ptz-btn" onclick="panCam(0, -30)"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
                     </div>
 
                     <!-- Zoom -->
                     <div class="flex justify-center space-x-2">
-                        <button class="bg-white border border-gray-300 text-black text-xs font-bold py-1.5 px-3 rounded hover:bg-gray-100" onclick="logTerminal('Zoom In (+)')">🔍 Zoom +</button>
-                        <button class="bg-white border border-gray-300 text-black text-xs font-bold py-1.5 px-3 rounded hover:bg-gray-100" onclick="logTerminal('Zoom Out (-)')">🔍 Zoom -</button>
+                        <button class="bg-white border border-gray-300 text-black text-xs font-bold py-1.5 px-3 rounded hover:bg-gray-100" onclick="zoomCam(0.5)">🔍 Zoom +</button>
+                        <button class="bg-white border border-gray-300 text-black text-xs font-bold py-1.5 px-3 rounded hover:bg-gray-100" onclick="zoomCam(-0.5)">🔍 Zoom -</button>
                     </div>
                 </div>
                 
@@ -598,11 +598,68 @@
             return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
         }
 
+        // ==========================================
+        // CONTROL PTZ (ZOOM Y MOVIMIENTO)
+        // ==========================================
+        let ptzState = {
+            1: { zoom: 1, x: 0, y: 0 },
+            2: { zoom: 1, x: 0, y: 0 },
+            3: { zoom: 1, x: 0, y: 0 },
+            4: { zoom: 1, x: 0, y: 0 }
+        };
+
+        function zoomCam(delta) {
+            let s = ptzState[activeCam];
+            s.zoom += delta;
+            if(s.zoom < 1) { s.zoom = 1; s.x = 0; s.y = 0; } // Resetea si quitas todo el zoom
+            if(s.zoom > 5) s.zoom = 5; // Zoom máximo de 5x
+            applyPTZ();
+            logTerminal(`Zoom aplicado a cámara ${activeCam}. Nivel: ${s.zoom.toFixed(1)}x`);
+        }
+
+        function panCam(dx, dy) {
+            let s = ptzState[activeCam];
+            if(s.zoom <= 1) return; // Solo permite paneo si hay zoom
+            s.x += dx;
+            s.y += dy;
+            applyPTZ();
+            logTerminal(`Desplazamiento táctico PTZ en cámara ${activeCam}.`);
+        }
+
+        function applyPTZ() {
+            let s = ptzState[activeCam];
+            const vid = document.getElementById(`vid${activeCam}`);
+            const iframe = document.getElementById(`iframe${activeCam}`);
+            const transformStr = `scale(${s.zoom}) translate(${s.x}px, ${s.y}px)`;
+            
+            if(vid) { vid.style.transform = transformStr; vid.style.transition = "transform 0.2s ease-out"; }
+            if(iframe) { iframe.style.transform = transformStr; iframe.style.transition = "transform 0.2s ease-out"; }
+        }
+
+        // ==========================================
+        // REPRODUCCIÓN (INTEGRACIÓN NATIVA Y YOUTUBE)
+        // ==========================================
         function syncTimeline() {
-            if(isMasterPlaying && vids[0].src && !vids[0].paused) {
-                const t = vids[0].currentTime;
-                document.getElementById('timeline').value = t;
-                document.getElementById('time-current').innerText = formatTime(t);
+            if(isMasterPlaying) {
+                const vid1 = document.getElementById('vid1');
+                const iframe1 = document.getElementById('iframe1');
+                
+                // Si la Cam 1 es nativa, sincroniza exacto
+                if(vid1 && !vid1.classList.contains('hidden') && vid1.src) {
+                    const t = vid1.currentTime;
+                    document.getElementById('timeline').value = t;
+                    document.getElementById('time-current').innerText = formatTime(t);
+                } 
+                // Si la Cam 1 es YouTube, incrementamos la barra virtualmente para simular el paso del tiempo
+                else if(iframe1 && !iframe1.classList.contains('hidden')) {
+                    let currentVal = parseFloat(document.getElementById('timeline').value);
+                    let maxVal = parseFloat(document.getElementById('timeline').max) || 100;
+                    if(currentVal < maxVal) {
+                        currentVal += 0.5; // El intervalo es de 500ms
+                        document.getElementById('timeline').value = currentVal;
+                        document.getElementById('time-current').innerText = formatTime(currentVal);
+                    }
+                }
             }
         }
 
@@ -610,7 +667,6 @@
             document.getElementById('start-vmsx-modal').classList.add('hidden');
             playAll();
             mainInterval = setInterval(syncTimeline, 500);
-            logTerminal("Grabaciones iniciadas.");
         }
 
         function selectCam(num) {
@@ -621,9 +677,14 @@
 
         function playAll() {
             isMasterPlaying = true;
-            vids.forEach(v => {
-                if(v.src && v.src !== window.location.href) {
-                    v.play().catch(e=>{});
+            [1,2,3,4].forEach(index => {
+                const v = document.getElementById(`vid${index}`);
+                const iframe = document.getElementById(`iframe${index}`);
+                // Activar nativos
+                if(v && v.src && !v.classList.contains('hidden')) v.play().catch(e=>{});
+                // Activar Youtube enviando señal al API oculta del reproductor
+                if(iframe && !iframe.classList.contains('hidden')) {
+                    iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
                 }
             });
             logTerminal("Reproducción global iniciada.");
@@ -631,13 +692,45 @@
 
         function pauseAll() {
             isMasterPlaying = false;
-            vids.forEach(v => v.pause());
+            [1,2,3,4].forEach(index => {
+                const v = document.getElementById(`vid${index}`);
+                const iframe = document.getElementById(`iframe${index}`);
+                if(v && !v.classList.contains('hidden')) v.pause();
+                // Detener YouTube enviando comando API
+                if(iframe && !iframe.classList.contains('hidden')) {
+                    iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+                }
+            });
             logTerminal("Reproducción global pausada.");
+        }
+
+        function seekAll(val) {
+            [1,2,3,4].forEach(index => {
+                const v = document.getElementById(`vid${index}`);
+                const iframe = document.getElementById(`iframe${index}`);
+                
+                // Mover tiempo nativo
+                if(v && !v.classList.contains('hidden')) {
+                    v.currentTime = parseFloat(val);
+                }
+                // Mover tiempo YouTube (seekTo)
+                if(iframe && !iframe.classList.contains('hidden')) {
+                    iframe.contentWindow.postMessage(JSON.stringify({event: "command", func: "seekTo", args: [parseFloat(val), true]}), '*');
+                }
+            });
+            document.getElementById('time-current').innerText = formatTime(val);
+        }
+
+        function setSpeed(val) {
+            [1,2,3,4].forEach(index => {
+                const v = document.getElementById(`vid${index}`);
+                if(v && !v.classList.contains('hidden')) v.playbackRate = parseFloat(val);
+            });
+            logTerminal(`Velocidad de reproducción ajustada a ${val}x.`);
         }
 
         function extractSrc(input) {
             if (!input) return "";
-            // Extraer solo lo que está dentro de src="" si el usuario pegó todo el <iframe>
             if (input.includes("<iframe")) {
                 const match = input.match(/src=["']([^"']+)["']/);
                 if (match) return match[1];
@@ -654,22 +747,14 @@
             let url = extractSrc(data.src);
             title.innerText = data.name;
             
-            // Detectar si la fuente es YouTube
-            if (url && (url.includes("youtube.com") || url.includes("youtu.be") || url.includes("youtube-nocookie.com"))) {
-                // Extraer el ID exacto del video aislando cualquier otro parámetro
+            if (url && (url.includes("youtube.com") || url.includes("youtu.be"))) {
                 let videoId = "";
-                if (url.includes("watch?v=")) {
-                    videoId = url.split("watch?v=")[1].split("&")[0];
-                } else if (url.includes("youtu.be/")) {
-                    videoId = url.split("youtu.be/")[1].split("?")[0];
-                } else if (url.includes("embed/")) {
-                    videoId = url.split("embed/")[1].split("?")[0];
-                }
+                if (url.includes("watch?v=")) videoId = url.split("watch?v=")[1].split("&")[0];
+                else if (url.includes("youtu.be/")) videoId = url.split("youtu.be/")[1].split("?")[0];
+                else if (url.includes("embed/")) videoId = url.split("embed/")[1].split("?")[0];
                 
-                // Reconstruir una URL limpia y a prueba de fallos locales (file://)
-                // Se usa youtube-nocookie para saltar el bloqueo de CORS (Error 153)
-                // Se fuerza autoplay=1 y mute=1 para que inicie automáticamente en la grilla
-                url = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&modestbranding=1&rel=0&showinfo=0`;
+                // Se agrega &enablejsapi=1 para permitir que postMessage funcione y controle Play/Pause/Seek
+                url = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&origin=http://localhost&enablejsapi=1`;
                 
                 vid.classList.add('hidden');
                 vid.src = "";
@@ -677,7 +762,6 @@
                 iframe.classList.remove('hidden');
                 iframe.src = url;
             } else {
-                // Tratamiento estándar para videos directos .mp4
                 iframe.classList.add('hidden');
                 iframe.src = "";
                 
@@ -689,6 +773,12 @@
                     vid.play().catch(e=>{});
                 }
             }
+            
+            // Resetea el PTZ al cambiar de cámara
+            ptzState[boxNumber] = { zoom: 1, x: 0, y: 0 };
+            activeCam = boxNumber;
+            applyPTZ();
+            
             selectCam(boxNumber);
             logTerminal(`Señal de ${data.name} asignada al canal ${boxNumber}.`);
         }
@@ -708,19 +798,8 @@
             logTerminal("Grilla limpiada.");
         }
 
-        function seekAll(val) {
-            vids.forEach(v => {
-                if(v.src && v.src !== window.location.href) {
-                    v.currentTime = parseFloat(val);
-                }
-            });
-            document.getElementById('time-current').innerText = formatTime(val);
-        }
 
-        function setSpeed(val) {
-            vids.forEach(v => v.playbackRate = parseFloat(val));
-            logTerminal(`Velocidad ajustada a ${val}x.`);
-        }
+
 
         // ==========================================
         // CÁMARA FORENSE (PINCEL Y CAPTURAS)
