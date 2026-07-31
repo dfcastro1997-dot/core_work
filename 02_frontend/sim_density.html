@@ -104,6 +104,11 @@
                 <img id="luggage-base" src="" class="w-full h-full object-fill absolute inset-0 base-xray transition-all duration-300" alt="Base">
                 <img id="luggage-threat" src="" class="absolute object-fill base-xray transition-all duration-300" style="opacity: 0;" alt="Threat">
             </div>
+
+            <!-- OVERLAY INVISIBLE PARA SELECCIÓN DE CAPTURA -->
+            <div id="screenshot-overlay" class="absolute inset-0 z-[100] cursor-crosshair hidden" onmousedown="startScreenshot(event)" onmousemove="dragScreenshot(event)" onmouseup="endScreenshot(event)" onmouseleave="endScreenshot(event)">
+                <div id="screenshot-box" class="absolute border-2 border-dashed border-red-500 bg-red-500/10 hidden pointer-events-none shadow-[0_0_15px_rgba(220,38,38,0.5)]"></div>
+            </div>
         </div>
 
         <!-- PANEL LATERAL DERECHO (CCTV MULTIVISTA) -->
@@ -464,37 +469,37 @@
             </div>
             
             <form id="report-form" onsubmit="guardarInforme(event)" class="p-6 overflow-y-auto flex-1 space-y-5">
-                <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                    <h4 class="text-[10px] font-bold text-blue-800 uppercase tracking-widest mb-3">Identificación de Sujeto</h4>
+                <div class="bg-gray-100 p-4 rounded-xl border border-gray-200">
+                    <h4 class="text-[10px] font-bold text-gray-800 uppercase tracking-widest mb-3">Identificación de Sujeto</h4>
                     <div class="grid grid-cols-3 gap-4 text-sm">
-                        <div><span class="block text-[10px] text-blue-600 font-bold uppercase">Nombre</span> <span id="rep-subj-name" class="font-black text-gray-900"></span></div>
-                        <div><span class="block text-[10px] text-blue-600 font-bold uppercase">ID / Cédula</span> <span id="rep-subj-id" class="font-black text-gray-900"></span></div>
-                        <div><span class="block text-[10px] text-blue-600 font-bold uppercase">Género</span> <span id="rep-subj-gender" class="font-black text-gray-900"></span></div>
+                        <div><span class="block text-[10px] text-gray-500 font-bold uppercase">Nombre</span> <span id="rep-subj-name" class="font-black text-gray-900"></span></div>
+                        <div><span class="block text-[10px] text-gray-500 font-bold uppercase">ID / Cédula</span> <span id="rep-subj-id" class="font-black text-gray-900"></span></div>
+                        <div><span class="block text-[10px] text-gray-500 font-bold uppercase">Género</span> <span id="rep-subj-gender" class="font-black text-gray-900"></span></div>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-5">
                     <div>
                         <label class="block text-[10px] font-bold text-gray-700 uppercase mb-1.5">Nombre del Operador</label>
-                        <input type="text" id="rep-name" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-red-600 font-semibold shadow-inner">
+                        <input type="text" id="rep-name" required class="w-full bg-white border border-gray-300 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-red-600 font-semibold shadow-inner">
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold text-gray-700 uppercase mb-1.5">Fecha y Hora</label>
-                        <input type="text" id="rep-date" required placeholder="DD/MM/AAAA HH:MM" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-red-600 font-semibold shadow-inner">
+                        <input type="text" id="rep-date" required placeholder="DD/MM/AAAA HH:MM" class="w-full bg-white border border-gray-300 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-red-600 font-semibold shadow-inner">
                     </div>
                 </div>
                 
                 <div>
                     <label class="block text-[10px] font-bold text-gray-700 uppercase mb-1.5">Descripción Forense de Novedades</label>
-                    <textarea id="rep-details" rows="3" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-red-600 resize-none font-medium shadow-inner" placeholder="Ej: Se detectó objeto cortopunzante..."></textarea>
+                    <textarea id="rep-details" rows="3" required class="w-full bg-white border border-gray-300 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-red-600 resize-none font-medium shadow-inner" placeholder="Ej: Se detectó objeto cortopunzante..."></textarea>
                 </div>
 
                 <div>
                     <label class="block text-[10px] font-bold text-gray-700 uppercase mb-2">Evidencias Fotográficas (Capturas)</label>
-                    <div id="rep-gallery" class="flex gap-3 overflow-x-auto p-3 bg-gray-100 rounded-xl border border-gray-200 min-h-[100px] items-center">
+                    <div id="rep-gallery" class="flex gap-3 overflow-x-auto p-4 bg-gray-50 rounded-xl border border-gray-200 min-h-[120px] items-center">
                         <!-- Galeria inyectada via JS -->
                     </div>
-                    <p class="text-[10px] text-gray-500 mt-1.5 italic">* Seleccione las imágenes que desea adjuntar al informe final.</p>
+                    <p class="text-[10px] text-gray-500 mt-1.5 italic">* Seleccione las imágenes que desea adjuntar. Haga clic en la imagen para ampliarla.</p>
                 </div>
             </form>
             
@@ -502,6 +507,12 @@
                 <button type="submit" form="report-form" class="bg-red-600 hover:bg-black text-white font-bold py-3.5 px-8 rounded-xl text-xs uppercase tracking-widest transition-colors shadow-lg">Firmar Evidencias y Continuar</button>
             </div>
         </div>
+    </div>
+
+    <!-- Visor de Imágenes Expandidas -->
+    <div id="image-viewer-modal" class="fixed inset-0 bg-black/95 hidden z-[300] flex items-center justify-center p-4 cursor-zoom-out" onclick="this.classList.add('hidden')">
+        <img id="image-viewer-src" src="" class="max-w-full max-h-full object-contain rounded-md shadow-2xl">
+        <p class="absolute bottom-6 text-white text-xs font-bold tracking-widest uppercase bg-black/50 px-4 py-2 rounded-lg pointer-events-none">Haz clic para cerrar</p>
     </div>
 
 
@@ -1008,22 +1019,6 @@
             }
         }
 
-        // ==========================================
-        // SISTEMA FORENSE (MARCADORES RELATIVOS)
-        // ==========================================
-        function agregarMarcadorForense(e) {
-            if (beltProgress < 5 || beltProgress > 95) return;
-            if (beltAutoMode) toggleAutoBelt();
-
-            const rect = luggageGroup.getBoundingClientRect();
-            currentClickX = e.clientX - rect.left;
-            currentClickY = e.clientY - rect.top;
-
-            if(currentClickX < 0 || currentClickY < 0 || currentClickX > rect.width || currentClickY > rect.height) return;
-
-            document.getElementById('tip-modal').classList.remove('hidden');
-        }
-
         function cancelarMarcador() {
             document.getElementById('tip-modal').classList.add('hidden');
             addLog("Análisis forense cancelado.");
@@ -1067,18 +1062,135 @@
         }
 
 
-
         let activeThreatsData = []; 
         let currentBagScreenshots = []; // Almacena capturas temporales por maleta
+        let isScreenshotMode = false;
+        let scStartX, scStartY;
 
+        // --- SISTEMA DE CAPTURA POR RECUADRO ---
         function tomarCaptura() {
+            isScreenshotMode = true;
+            document.getElementById('screenshot-overlay').classList.remove('hidden');
+            addLog("📸 Modo Captura activado: Haga clic y arrastre el cursor para seleccionar el área.");
+        }
+
+        function startScreenshot(e) {
+            if(!isScreenshotMode) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            scStartX = e.clientX - rect.left;
+            scStartY = e.clientY - rect.top;
+            const box = document.getElementById('screenshot-box');
+            box.style.left = scStartX + 'px';
+            box.style.top = scStartY + 'px';
+            box.style.width = '0px';
+            box.style.height = '0px';
+            box.classList.remove('hidden');
+        }
+
+        function dragScreenshot(e) {
+            if(!isScreenshotMode || document.getElementById('screenshot-box').classList.contains('hidden')) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            let currX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+            let currY = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+            
+            const box = document.getElementById('screenshot-box');
+            box.style.left = Math.min(scStartX, currX) + 'px';
+            box.style.top = Math.min(scStartY, currY) + 'px';
+            box.style.width = Math.abs(currX - scStartX) + 'px';
+            box.style.height = Math.abs(currY - scStartY) + 'px';
+        }
+
+        function endScreenshot(e) {
+            if(!isScreenshotMode) return;
+            const box = document.getElementById('screenshot-box');
+            if(box.classList.contains('hidden')) return;
+            
+            isScreenshotMode = false;
+            document.getElementById('screenshot-overlay').classList.add('hidden');
+            box.classList.add('hidden');
+
+            const width = parseInt(box.style.width);
+            const height = parseInt(box.style.height);
+            
+            if (width < 30 || height < 30) {
+                addLog("Captura cancelada: Área demasiado pequeña.");
+                return;
+            }
+
+            const x = parseInt(box.style.left);
+            const y = parseInt(box.style.top);
+
             if(typeof html2canvas === 'undefined') return customAlert("Error", "Librería de capturas no cargada.", "error");
+            
             const viewport = document.getElementById('xray-viewport');
-            html2canvas(viewport, {backgroundColor: "#020202", scale: 1}).then(canvas => {
-                const imgData = canvas.toDataURL('image/jpeg', 0.6);
+            
+            html2canvas(viewport, {backgroundColor: "#020202", scale: 1, useCORS: true}).then(canvas => {
+                // Crear canvas secundario para hacer el Crop (Recorte)
+                const cropCanvas = document.createElement('canvas');
+                cropCanvas.width = width;
+                cropCanvas.height = height;
+                const ctx = cropCanvas.getContext('2d');
+                ctx.drawImage(canvas, x, y, width, height, 0, 0, width, height);
+                
+                const imgData = cropCanvas.toDataURL('image/jpeg', 0.8);
                 currentBagScreenshots.push(imgData);
-                addLog(`📸 Captura de rayos X guardada exitosamente (${currentBagScreenshots.length}).`);
+                addLog(`📸 Evidencia guardada exitosamente (${currentBagScreenshots.length} adjuntas).`);
             });
+        }
+
+        function verImagen(src) {
+            document.getElementById('image-viewer-src').src = src;
+            document.getElementById('image-viewer-modal').classList.remove('hidden');
+        }
+
+        // ==========================================
+        // SISTEMA FORENSE (MARCADORES RELATIVOS)
+        // ==========================================
+        function agregarMarcadorForense(e) {
+            if (isScreenshotMode) return; // Evita añadir marcadores mientras recorta
+            if (beltProgress < 5 || beltProgress > 95) return;
+            if (beltAutoMode) toggleAutoBelt();
+
+            const rect = luggageGroup.getBoundingClientRect();
+            currentClickX = e.clientX - rect.left;
+            currentClickY = e.clientY - rect.top;
+
+            if(currentClickX < 0 || currentClickY < 0 || currentClickX > rect.width || currentClickY > rect.height) return;
+
+            document.getElementById('tip-modal').classList.remove('hidden');
+        }
+
+        // (Conserva igual cancelarMarcador y guardarMarcador)
+
+        // ==========================================
+        // FINALIZACIÓN PARA MODAL MULTI-CAPTURA
+        // ==========================================
+        function finalizarMaletaAuto() {
+            if(beltInterval) { clearInterval(beltInterval); beltInterval = null; }
+            
+            document.getElementById('rep-subj-name').innerText = document.getElementById('p-name').innerText;
+            document.getElementById('rep-subj-id').innerText = document.getElementById('p-cedula').innerText;
+            document.getElementById('rep-subj-gender').innerText = document.getElementById('p-gender').innerText;
+
+            document.getElementById('rep-date').value = ''; 
+            document.getElementById('rep-name').value = document.getElementById('op-name').innerText;
+            document.getElementById('rep-details').value = '';
+            
+            const galeria = document.getElementById('rep-gallery');
+            galeria.innerHTML = '';
+            if(currentBagScreenshots.length === 0) {
+                galeria.innerHTML = '<p class="text-xs text-gray-400 italic font-bold w-full text-center py-2">No se realizaron capturas en esta maleta.</p>';
+            } else {
+                currentBagScreenshots.forEach((img, idx) => {
+                    galeria.innerHTML += `
+                        <div class="relative shrink-0 group">
+                            <input type="checkbox" value="${idx}" class="chk-screenshot absolute top-2 left-2 z-10 w-4 h-4 text-red-600 bg-white rounded border border-gray-300 focus:ring-red-600 shadow-md cursor-pointer" checked>
+                            <img src="${img}" class="h-24 w-auto object-cover border-2 border-transparent group-hover:border-gray-400 rounded-lg cursor-zoom-in shadow-sm transition-all" onclick="verImagen('${img}')">
+                        </div>`;
+                });
+            }
+            
+            document.getElementById('report-modal').classList.remove('hidden');
         }
 
         function applySettingsToEngine() {
@@ -1137,34 +1249,6 @@
         }
 
         let sessionReports = [];
-
-        function finalizarMaletaAuto() {
-            if(beltInterval) { clearInterval(beltInterval); beltInterval = null; }
-            
-            document.getElementById('rep-subj-name').innerText = document.getElementById('p-name').innerText;
-            document.getElementById('rep-subj-id').innerText = document.getElementById('p-cedula').innerText;
-            document.getElementById('rep-subj-gender').innerText = document.getElementById('p-gender').innerText;
-
-            document.getElementById('rep-date').value = ''; 
-            document.getElementById('rep-name').value = document.getElementById('op-name').innerText;
-            document.getElementById('rep-details').value = '';
-            
-            const galeria = document.getElementById('rep-gallery');
-            galeria.innerHTML = '';
-            if(currentBagScreenshots.length === 0) {
-                galeria.innerHTML = '<p class="text-xs text-gray-400 italic font-bold">No se realizaron capturas en esta maleta.</p>';
-            } else {
-                currentBagScreenshots.forEach((img, idx) => {
-                    galeria.innerHTML += `
-                        <label class="relative cursor-pointer border-2 border-transparent hover:border-red-500 rounded-lg overflow-hidden shrink-0">
-                            <input type="checkbox" value="${idx}" class="chk-screenshot absolute top-1 left-1 z-10 w-4 h-4 text-red-600 rounded focus:ring-red-600" checked>
-                            <img src="${img}" class="h-20 w-auto object-cover opacity-90 hover:opacity-100 transition-opacity">
-                        </label>`;
-                });
-            }
-            
-            document.getElementById('report-modal').classList.remove('hidden');
-        }
 
         function guardarInforme(e) {
             e.preventDefault();
