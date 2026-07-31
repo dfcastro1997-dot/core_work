@@ -12,7 +12,7 @@
         
         /* Estilos de la grilla de cámaras */
         .cam-container { border: 2px solid transparent; background-color: #e5e5e5; display: flex; flex-direction: column; transition: border-color 0.1s; }
-        .cam-container.active-cam { border-color: #DC2626; }
+        .cam-container.active-cam { border-color: #DC2626; box-shadow: inset 0 0 0 2px #000000; }
         .cam-header { background-color: #ffffff; padding: 4px 8px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #dcdcdc; }
         .cam-video-area { position: relative; flex: 1; background-color: #000000; overflow: hidden; cursor: pointer; }
         
@@ -40,7 +40,7 @@
         .tree-item:active { cursor: grabbing; }
     </style>
 </head>
-<body class="text-black flex flex-col h-screen">
+<body class="text-black flex flex-col h-screen bg-gray-50">
 
     <!-- HEADER PRINCIPAL -->
     <header class="h-16 bg-white border-b border-gray-300 flex justify-between items-center px-4 shrink-0 z-40 shadow-sm">
@@ -70,7 +70,7 @@
             </div>
             
             <!-- Botón Finalizar Práctica -->
-            <button onclick="cerrarSimuladorVmsx()" class="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4 py-2.5 rounded shadow uppercase tracking-widest transition-colors flex items-center">
+            <button onclick="cerrarSimuladorVmsx()" class="bg-red-600 hover:bg-black text-white text-xs font-bold px-4 py-2.5 rounded shadow uppercase tracking-widest transition-colors flex items-center">
                 Finalizar Práctica
             </button>
         </div>
@@ -267,7 +267,7 @@
                     </div>
 
                     <button onclick="takeSnapshot()" class="w-full bg-black hover:bg-gray-800 text-white text-xs font-bold px-4 py-3 rounded shadow uppercase transition-colors flex items-center justify-center mb-3">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                         Realizar Capturas
                     </button>
                     
@@ -405,7 +405,7 @@
         <div class="bg-white w-full max-w-3xl rounded shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-gray-200">
             <div class="p-4 border-b border-gray-200 bg-white flex justify-between items-center">
                 <h3 class="text-sm font-black text-black uppercase tracking-wide">Configuración de Fuentes de Video (URL)</h3>
-                <span class="text-[10px] bg-red-50 text-red-600 px-2 py-1 font-bold border border-red-200">* Utilice enlaces directos de video (Ej: .mp4)</span>
+                <span class="text-[10px] bg-red-50 text-red-600 px-2 py-1 font-bold border border-red-200">* Utilice enlaces directos de video (Ej: .mp4) o YouTube</span>
             </div>
             <div class="flex-1 overflow-y-auto p-6 bg-gray-50 space-y-4" id="vmsx-cameras-config-list">
                 <!-- Se llenará dinámicamente por JS -->
@@ -427,22 +427,19 @@
     </div>
 
     <script>
-        // FORZAR LIMPIEZA DE CACHÉ PARA EVITAR LOS ERRORES 403 DE LOS VIDEOS VIEJOS
-        localStorage.removeItem('vmsxCamsConfig');
-
         // ==========================================
         // BD DE CÁMARAS Y LÓGICA CORE
         // ==========================================
         let cameraDB = {
-            'cam1': { name: 'Cam 01 - Recepción', src: 'https://www.w3schools.com/html/mov_bbb.mp4' },
-            'cam2': { name: 'Cam 02 - Perímetro', src: 'https://www.w3schools.com/html/mov_bbb.mp4' },
-            'cam3': { name: 'Cam 03 - Pasillo', src: 'https://www.w3schools.com/html/mov_bbb.mp4' },
-            'cam4': { name: 'Cam 04 - Bodega', src: 'https://www.w3schools.com/html/mov_bbb.mp4' },
-            'cam5': { name: 'Cam 05 - Parking', src: 'https://www.w3schools.com/html/mov_bbb.mp4' },
-            'cam6': { name: 'Cam 06 - Servidores', src: 'https://www.w3schools.com/html/mov_bbb.mp4' },
-            'cam7': { name: 'Cam 07 - Casino', src: 'https://www.w3schools.com/html/mov_bbb.mp4' },
-            'cam8': { name: 'Cam 08 - Puerta N', src: 'https://www.w3schools.com/html/mov_bbb.mp4' },
-            'cam9': { name: 'Cam 09 - Puerta S', src: 'https://www.w3schools.com/html/mov_bbb.mp4' }
+            'cam1': { name: 'Cam 01 - Recepción', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4' },
+            'cam2': { name: 'Cam 02 - Perímetro', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4' },
+            'cam3': { name: 'Cam 03 - Pasillo', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4' },
+            'cam4': { name: 'Cam 04 - Bodega', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' },
+            'cam5': { name: 'Cam 05 - Parking', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4' },
+            'cam6': { name: 'Cam 06 - Servidores', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4' },
+            'cam7': { name: 'Cam 07 - Casino', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/VolkswagenGTIReview.mp4' },
+            'cam8': { name: 'Cam 08 - Puerta N', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4' },
+            'cam9': { name: 'Cam 09 - Puerta S', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WhatCarCanYouGetForAGrand.mp4' }
         };
 
         // Cargar configuraciones de URL guardadas por el admin
@@ -637,45 +634,26 @@
             }
         }
 
-        window.addEventListener('message', function(event) {
-            try {
-                let data = JSON.parse(event.data);
-                if (data.event === 'infoDelivery' && data.info && data.id === 'iframe1') {
-                    if (data.info.duration) {
-                        document.getElementById('timeline').max = data.info.duration;
-                        document.getElementById('time-total').innerText = formatTime(data.info.duration);
-                    }
-                    if (data.info.currentTime !== undefined && isMasterPlaying) {
-                        document.getElementById('timeline').value = data.info.currentTime;
-                        document.getElementById('time-current').innerText = formatTime(data.info.currentTime);
-                    }
-                }
-            } catch(e) {}
-        });
-
-        function formatTime(sec) {
-            if(isNaN(sec)) return "00:00:00";
-            let h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
-            return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-        }
-
         function syncTimeline() {
             if(isMasterPlaying) {
                 const vid1 = document.getElementById('vid1');
                 const iframe1 = document.getElementById('iframe1');
                 
+                // Sincronización precisa si es un video MP4 nativo
                 if(vid1 && !vid1.classList.contains('hidden') && vid1.src && !vid1.src.endsWith(window.location.pathname)) {
                     const t = vid1.currentTime;
                     document.getElementById('timeline').value = t;
                     document.getElementById('time-current').innerText = formatTime(t);
                 } 
+                // Avance virtual de la barra de tiempo si es un iframe de YouTube
                 else if(iframe1 && !iframe1.classList.contains('hidden')) {
-                    try {
-                        iframe1.contentWindow.postMessage(JSON.stringify({
-                            "event": "listening",
-                            "id": "iframe1"
-                        }), '*');
-                    } catch(e) {}
+                    let currentVal = parseFloat(document.getElementById('timeline').value) || 0;
+                    let maxVal = parseFloat(document.getElementById('timeline').max) || 600; 
+                    if(currentVal < maxVal) {
+                        currentVal += 0.5; // Intervalo de 500ms
+                        document.getElementById('timeline').value = currentVal;
+                        document.getElementById('time-current').innerText = formatTime(currentVal);
+                    }
                 }
             }
         }
@@ -698,13 +676,8 @@
                 const v = document.getElementById(`vid${index}`);
                 const iframe = document.getElementById(`iframe${index}`);
                 
-                if(v && !v.classList.contains('hidden') && v.src) {
-                    try { v.play().catch(e=>{}); } catch(e){}
-                }
-                
-                if(iframe && !iframe.classList.contains('hidden') && iframe.src) {
-                    sendYtCmd(iframe, "playVideo");
-                }
+                if(v && !v.classList.contains('hidden') && v.src) { try { v.play().catch(e=>{}); } catch(e){} }
+                if(iframe && !iframe.classList.contains('hidden') && iframe.src) sendYtCmd(iframe, "playVideo");
             });
             logTerminal("Reproducción global iniciada.");
         }
@@ -715,13 +688,8 @@
                 const v = document.getElementById(`vid${index}`);
                 const iframe = document.getElementById(`iframe${index}`);
                 
-                if(v && !v.classList.contains('hidden') && v.src) {
-                    try { v.pause(); } catch(e){}
-                }
-                
-                if(iframe && !iframe.classList.contains('hidden') && iframe.src) {
-                    sendYtCmd(iframe, "pauseVideo");
-                }
+                if(v && !v.classList.contains('hidden') && v.src) { try { v.pause(); } catch(e){} }
+                if(iframe && !iframe.classList.contains('hidden') && iframe.src) sendYtCmd(iframe, "pauseVideo");
             });
             logTerminal("Reproducción global pausada.");
         }
@@ -731,13 +699,8 @@
                 const v = document.getElementById(`vid${index}`);
                 const iframe = document.getElementById(`iframe${index}`);
                 
-                if(v && !v.classList.contains('hidden') && v.src) {
-                    try { v.currentTime = parseFloat(val); } catch(e){}
-                }
-                
-                if(iframe && !iframe.classList.contains('hidden') && iframe.src) {
-                    sendYtCmd(iframe, "seekTo", [parseFloat(val), true]);
-                }
+                if(v && !v.classList.contains('hidden') && v.src) { try { v.currentTime = parseFloat(val); } catch(e){} }
+                if(iframe && !iframe.classList.contains('hidden') && iframe.src) sendYtCmd(iframe, "seekTo", [parseFloat(val), true]);
             });
             document.getElementById('time-current').innerText = formatTime(val);
         }
@@ -747,30 +710,16 @@
                 const v = document.getElementById(`vid${index}`);
                 const iframe = document.getElementById(`iframe${index}`);
                 
-                if(v && !v.classList.contains('hidden') && v.src) {
-                    try { v.playbackRate = parseFloat(val); } catch(e){}
-                }
-                
-                if(iframe && !iframe.classList.contains('hidden') && iframe.src) {
-                    sendYtCmd(iframe, "setPlaybackRate", [parseFloat(val)]);
-                }
+                if(v && !v.classList.contains('hidden') && v.src) { try { v.playbackRate = parseFloat(val); } catch(e){} }
+                if(iframe && !iframe.classList.contains('hidden') && iframe.src) sendYtCmd(iframe, "setPlaybackRate", [parseFloat(val)]);
             });
             logTerminal(`Velocidad de reproducción ajustada a ${val}x.`);
         }
 
-        function clearGrid() {
-            pauseAll();
-            [1,2,3,4].forEach(i => {
-                document.getElementById(`vid${i}`).src = "";
-                document.getElementById(`vid${i}`).classList.remove('hidden');
-                const iframe = document.getElementById(`iframe${i}`);
-                if (iframe) {
-                    iframe.src = "";
-                    iframe.classList.add('hidden');
-                }
-                document.getElementById(`title-${i}`).innerText = "Sin Señal";
-            });
-            logTerminal("Grilla limpiada.");
+        function formatTime(sec) {
+            if(isNaN(sec)) return "00:00:00";
+            let h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
+            return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
         }
 
         function extractSrc(input) {
@@ -791,23 +740,26 @@
             let url = extractSrc(data.src);
             title.innerText = data.name;
             
-            if (url && (url.includes("youtube.com") || url.includes("youtu.be") || url.includes("youtube-nocookie.com"))) {
+            if (url && (url.includes("youtube.com") || url.includes("youtu.be"))) {
                 let videoId = "";
-                if (url.includes("watch?v=")) {
-                    videoId = url.split("watch?v=")[1].split("&")[0];
-                } else if (url.includes("youtu.be/")) {
-                    videoId = url.split("youtu.be/")[1].split("?")[0];
-                } else if (url.includes("embed/")) {
-                    videoId = url.split("embed/")[1].split("?")[0];
-                }
+                if (url.includes("watch?v=")) videoId = url.split("watch?v=")[1].split("&")[0];
+                else if (url.includes("youtu.be/")) videoId = url.split("youtu.be/")[1].split("?")[0];
+                else if (url.includes("embed/")) videoId = url.split("embed/")[1].split("?")[0];
                 
-                url = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&origin=http://localhost`;
+                // HACK SEGURO: "enablejsapi=1" activa los controles externos y el formato embed funciona estable localmente
+                url = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&controls=0&disablekb=1&rel=0`;
                 
                 vid.classList.add('hidden');
                 vid.src = "";
                 
                 iframe.classList.remove('hidden');
                 iframe.src = url;
+
+                // Establece el límite virtual de 10 min si se incrustó en la cámara master (Cam 1)
+                if (boxNumber === 1) {
+                    document.getElementById('timeline').max = 600; 
+                    document.getElementById('time-total').innerText = formatTime(600);
+                }
             } else {
                 iframe.classList.add('hidden');
                 iframe.src = "";
@@ -831,6 +783,21 @@
             logTerminal(`Señal de ${data.name} asignada al canal ${boxNumber}.`);
         }
 
+        function clearGrid() {
+            pauseAll();
+            [1,2,3,4].forEach(i => {
+                document.getElementById(`vid${i}`).src = "";
+                document.getElementById(`vid${i}`).classList.remove('hidden');
+                const iframe = document.getElementById(`iframe${i}`);
+                if (iframe) {
+                    iframe.src = "";
+                    iframe.classList.add('hidden');
+                }
+                document.getElementById(`title-${i}`).innerText = "Sin Señal";
+            });
+            logTerminal("Grilla limpiada.");
+        }
+
         // ==========================================
         // CÁMARA FORENSE (PINCEL Y CAPTURAS)
         // ==========================================
@@ -843,7 +810,7 @@
             const iframe = document.getElementById(`iframe${activeCam}`);
             
             if (!vid.classList.contains('hidden')) {
-                if(!vid || vid.readyState < 2 || !vid.src || vid.src === window.location.href) {
+                if(!vid || vid.readyState < 2 || !vid.src || vid.src.endsWith(window.location.pathname)) {
                     document.getElementById('alert-title').innerText = "Aviso Operativo";
                     document.getElementById('alert-message').innerText = "La cámara seleccionada no tiene señal de video válida para capturar.";
                     document.getElementById('alert-modal').classList.remove('hidden');
