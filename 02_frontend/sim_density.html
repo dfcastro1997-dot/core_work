@@ -98,11 +98,13 @@
         <!-- Viewport principal (NEGRO TÁCTICO) donde pasa la maleta -->
         <div id="xray-viewport" class="flex-1 relative overflow-hidden flex items-center shadow-inner" onclick="agregarMarcadorForense(event)">
             
-            <!-- SHADER MATEMÁTICO DE BORDES (AÑADIDO DENTRO DEL VIEWPORT CON XMLNS PARA QUE LA CAPTURA LO INCLUYA) -->
-            <svg xmlns="http://www.w3.org/2000/svg" style="width:0; height:0; position:absolute; z-index:-1;" aria-hidden="true" focusable="false">
-                <filter id="edge-shader">
-                    <feConvolveMatrix order="3 3" kernelMatrix="-1 -1 -1 -1 8 -1 -1 -1 -1" preserveAlpha="true" result="edges"/>
-                </filter>
+            <!-- SHADER MATEMÁTICO DE BORDES (Ajustado para asegurar su captura visual) -->
+            <svg xmlns="http://www.w3.org/2000/svg" style="width:1px; height:1px; position:absolute; opacity:0.01; pointer-events:none; z-index:1;" aria-hidden="true">
+                <defs>
+                    <filter id="edge-shader">
+                        <feConvolveMatrix order="3 3" kernelMatrix="-1 -1 -1 -1 8 -1 -1 -1 -1" preserveAlpha="true" result="edges"/>
+                    </filter>
+                </defs>
             </svg>
 
             <div class="conveyor-belt" id="belt-visual"></div>
@@ -1109,10 +1111,16 @@
             const viewport = document.getElementById('xray-viewport');
             const scaleFactor = window.devicePixelRatio || 2; 
             
-            // html-to-image usa foreignObject nativo, conservando el 100% de la fidelidad visual, filtros CSS y modos de fusión
+            // CORRECCIÓN: Evitar el error CORS de Google Fonts y forzar el renderizado de filtros
             htmlToImage.toCanvas(viewport, { 
                 backgroundColor: "#020202", 
-                pixelRatio: scaleFactor 
+                pixelRatio: scaleFactor,
+                skipFonts: true, // Ignora la carga de fuentes remotas que bloquean la captura por CORS
+                filter: (node) => {
+                    // Filtra explícitamente la llamada externa conflictiva de CSS
+                    if (node.tagName === 'LINK' && node.href && node.href.includes('fonts.googleapis.com')) return false;
+                    return true;
+                }
             }).then(canvas => {
                 const cropCanvas = document.createElement('canvas');
                 cropCanvas.width = width * scaleFactor;
@@ -1122,14 +1130,14 @@
                 // Recorte exacto aplicando el multiplicador de escala
                 ctx.drawImage(canvas, x * scaleFactor, y * scaleFactor, width * scaleFactor, height * scaleFactor, 0, 0, width * scaleFactor, height * scaleFactor);
                 
-                const imgData = cropCanvas.toDataURL('image/jpeg', 0.95); // Alta calidad JPG
+                const imgData = cropCanvas.toDataURL('image/jpeg', 0.95);
                 currentBagScreenshots.push(imgData);
                 addLog(`📸 Evidencia guardada exitosamente (${currentBagScreenshots.length} adjuntas).`);
                 
-                // Liberar el clic después de tomar la foto para no disparar el marcador forense
                 setTimeout(() => { isScreenshotMode = false; }, 150);
             }).catch(err => {
                 console.error("Error al capturar:", err);
+                addLog("⚠️ Fallo al guardar captura. Verifique consola.");
                 setTimeout(() => { isScreenshotMode = false; }, 150);
             });
         }
