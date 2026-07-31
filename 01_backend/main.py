@@ -25,7 +25,7 @@ try:
     with database.SessionLocal() as session:
         session.query(models.User).first() # Prueba si existen las columnas nuevas
 except (ProgrammingError, OperationalError):
-    # 2. Si da error (faltan columnas), borra todo y recrea las tablas automáticamente
+    # 2. Si da error en Render (faltan columnas), borra todo y recrea las tablas automáticamente
     models.Base.metadata.drop_all(bind=database.engine)
     models.Base.metadata.create_all(bind=database.engine)
 
@@ -308,39 +308,31 @@ class CertPDF(FPDF):
         self.cell(0, 10, f'Fecha: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")} | Plataforma: Density   Página {self.page_no()}', 0, 0, 'C')
 
 
-@app.get("/generate_pdf/{result_id}")
-def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
-    res = db.query(models.SimulationResult).filter_by(id=result_id).first()
-    if not res: raise HTTPException(404, "Resultado no encontrado")
-    user = db.query(models.User).filter_by(id=res.user_id).first()
-    
-    pdf = CertPDF()
-    pdf.add_page()
-    
-    # 1. EXTRACCIÓN DE DATOS JSON
-    details_data = {}
-    reports = []
-    try:
-        details_data = json.loads(res.details)
-        reports = details_data.get('reports', [])
-    except:
-        pass
-        
-    total_reales = sum([int(r.get('real_threats', 0)) for r in reports]) if reports else 0
-    total_marcas = sum([int(r.get('marked_threats', 0)) for r in reports]) if reports else 0
-    omisiones = max(0, total_reales - total_marcas)
-    efectividad = res.score
-    
+import requests
+
+def find_pdf_asset(filename):
+    # Busca en diferentes niveles para asegurar que encuentra la carpeta 04_Pdf en el servidor
+    paths = [
+        os.path.join("04_Pdf", filename),
+        os.path.join("..", "04_Pdf", filename),
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), "04_Pdf", filename)
+    ]
+    for p in paths:
+        if os.path.exists(p): return p
+    return None
+
+def build_pdf_report_logic(pdf, res, user, reports, total_reales, total_marcas, omisiones, efectividad, is_practice=False):
     # 2. ENCABEZADO Y PUNTUACIONES
     pdf.set_font("Arial", 'B', 11)
     pdf.set_text_color(0, 0, 0)
     
-    # Renderiza Nombre Completo (o username si está vacío) y Cédula
-    nombre_mostrar = user.full_name.upper() if user.full_name else user.username.upper()
-    cedula_mostrar = user.cedula if user.cedula else f"{user.id}000000"
+    nombre_mostrar = user.full_name.upper() if getattr(user, 'full_name', '') else user.username.upper()
+    cedula_mostrar = user.cedula if getattr(user, 'cedula', '') else f"{user.id}000000"
+    fecha_mostrar = datetime.now().strftime('%Y-%m-%d %H:%M:%S') if is_practice else res.date
     
-    pdf.cell(0, 6, f"OPERADOR: {nombre_mostrar} | CÉDULA: {cedula_mostrar} | FECHA: {res.date}", 0, 1)
-    pdf.cell(0, 6, f"PUNTUACIÓN TOTAL: {efectividad} / 100", 0, 1)
+    pdf.cell(0, 6, f"OPERADOR: {nombre_mostrar} | CÉDULA: {cedula_mostrar} | FECHA: {fecha_mostrar}", 0, 1)
+    modo_texto = " (MODO PRÁCTICA)" if is_practice else ""
+    pdf.cell(0, 6, f"PUNTUACIÓN TOTAL: {efectividad} / 100{modo_texto}", 0, 1)
     pdf.cell(0, 6, f"PRECISIÓN OPERACIONAL: {efectividad}%", 0, 1)
     pdf.ln(5)
     
@@ -351,7 +343,7 @@ def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
     pdf.cell(0, 5, "La tabla inferior documenta el historial de la sesión, volumen de amenazas infiltradas (TIP) y el dictamen final.", 0, 1)
     
     pdf.set_font("Arial", 'B', 8)
-    pdf.set_fill_color(178, 34, 34) # Rojo oscuro profesional
+    pdf.set_fill_color(178, 34, 34) 
     pdf.set_text_color(255, 255, 255)
     pdf.cell(10, 6, "#", 1, 0, 'C', True)
     pdf.cell(60, 6, "PROPIETARIO", 1, 0, 'C', True)
@@ -397,7 +389,7 @@ def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
     pdf.cell(0, 5, "Balance de efectividad: Las 'Omisiones' representan los objetos ilícitos que evadieron los controles de seguridad.", 0, 1)
     pdf.ln(6)
     
-    # 5. CHARTS (MATPLOTLIB)
+    # 5. CHARTS
     pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(0, 6, "ANÁLISIS ESTADÍSTICO DE DESEMPEÑO", 0, 1)
@@ -405,93 +397,141 @@ def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
     chart_path = tempfile.mktemp(suffix=".png")
     try:
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 3.5))
-        
-        # Pie Chart
         sizes = [efectividad, max(0, 100-efectividad)]
         if sum(sizes) == 0: sizes = [100, 0]
         ax1.pie(sizes, labels=[f'{sizes[0]}%', f'{sizes[1]}%'], labeldistance=0.4, colors=['#B22222', '#F08080'], textprops={'color':"w", 'weight':'bold', 'fontsize': 10})
         ax1.set_title('Efectividad y Tasa de Falsos Negativos', fontsize=10, pad=10)
-        
-        # Bar Chart
         ax2.bar(['Reales (Sistema)', 'Marcas (Operador)'], [total_reales, total_marcas], color=['black', '#B22222'])
         ax2.set_title('Volumen de Incidentes vs Detecciones', fontsize=10, pad=10)
-        
         plt.tight_layout()
         plt.savefig(chart_path, dpi=300)
         plt.close()
-        
         pdf.image(chart_path, x=15, w=180)
         os.unlink(chart_path)
     except Exception as e:
-        print("Error al generar gráficas:", e)
-    
-    # 6. REGISTRO VISUAL (IMÁGENES Y BITÁCORAS)
-    if reports:
-        pdf.add_page()
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 10, "REGISTRO VISUAL", 0, 1, 'C')
-        pdf.ln(5)
-        
-        for r in reports:
-            for idx, b64 in enumerate(r.get('screenshots', [])):
-                if "," in b64:
-                    _, data = b64.split(',', 1)
-                    img_data = base64.b64decode(data)
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_img:
-                        tmp_img.write(img_data)
-                        tmp_name = tmp_img.name
-                    
-                    if pdf.get_y() > 200:
-                        pdf.add_page()
-                        
-                    pdf.image(tmp_name, w=160, x=25)
-                    
-                    pdf.set_font("Arial", 'B', 9)
-                    pdf.set_text_color(0, 0, 0)
-                    pdf.cell(0, 6, f"Maleta: #{r.get('bag', '')} | Propietario: {r.get('subject', 'N/A')}", 0, 1, 'C')
-                    pdf.set_font("Arial", '', 9)
-                    pdf.set_text_color(80, 80, 80)
-                    pdf.multi_cell(0, 5, f"Bitácora: {r.get('details', '')}", align='C')
-                    pdf.ln(8)
-                    
-                    os.unlink(tmp_name)
+        pass
 
-    # Si hay comentarios del instructor
-    if res.feedback:
-        pdf.ln(5)
+    # DESCARGAR LOGO DENSITY PARA REPORTES VISUALES
+    logo_path = tempfile.mktemp(suffix=".png")
+    try:
+        logo_req = requests.get("https://i.ibb.co/mVh9kScZ/logofb.png", timeout=3)
+        with open(logo_path, 'wb') as f: f.write(logo_req.content)
+    except:
+        logo_path = None
+
+    # 6. REGISTRO VISUAL (NUEVO FORMATO GRID)
+    if reports:
+        for r in reports:
+            pdf.add_page()
+            
+            # Encabezado Logo
+            if logo_path and os.path.exists(logo_path):
+                pdf.image(logo_path, x=80, y=10, w=50)
+            
+            pdf.set_y(35)
+            pdf.set_font("Arial", 'B', 14)
+            pdf.set_text_color(220, 38, 38)
+            pdf.cell(0, 8, f"REGISTRO VISUAL - MALETA #{r.get('bag', '')}", 0, 1, 'C')
+            
+            pdf.set_font("Arial", '', 10)
+            pdf.set_text_color(0, 0, 0)
+            pdf.cell(0, 6, f"Propietario: {r.get('subject', 'N/A')} | Cédula: {r.get('subject_id', 'N/A')}", 0, 1, 'C')
+            pdf.ln(5)
+            
+            # Bitácora (General por Maleta)
+            pdf.set_font("Arial", 'B', 11)
+            pdf.cell(0, 6, "Bitácora Forense (Reporte Operador):", 0, 1, 'L')
+            pdf.set_font("Arial", '', 10)
+            pdf.set_fill_color(245, 245, 245)
+            pdf.multi_cell(0, 6, f"{r.get('details', 'Sin novedades documentadas.')}", fill=True, border=1)
+            pdf.ln(8)
+            
+            images = r.get('screenshots', [])
+            if images:
+                pdf.set_font("Arial", 'B', 11)
+                pdf.cell(0, 6, "Evidencias Fotográficas Adjuntas:", 0, 1, 'L')
+                pdf.ln(3)
+                
+                x_start = 15
+                y_pos = pdf.get_y()
+                img_w = 85
+                row_height = 65
+                
+                for idx, b64 in enumerate(images):
+                    if idx % 2 == 0 and idx > 0:
+                        y_pos += row_height
+                        if y_pos + row_height > 270:
+                            pdf.add_page()
+                            y_pos = 20
+                            
+                    if "," in b64:
+                        _, data = b64.split(',', 1)
+                        img_data = base64.b64decode(data)
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_img:
+                            tmp_img.write(img_data)
+                            tmp_name = tmp_img.name
+                        
+                        col = idx % 2
+                        x_pos = x_start + (col * 90)
+                        pdf.image(tmp_name, x=x_pos, y=y_pos, w=img_w)
+                        os.unlink(tmp_name)
+    
+    # Comentarios Instructor
+    if not is_practice and getattr(res, 'feedback', ''):
+        pdf.ln(10)
         pdf.set_font("Arial", 'B', 12); pdf.set_text_color(220, 38, 38); pdf.cell(0, 10, "Comentarios del Instructor:", 0, 1)
         pdf.set_font("Arial", 'I', 11); pdf.set_text_color(0, 0, 0); pdf.multi_cell(0, 8, f"{res.feedback}")
-                    
-    # Guardar reporte principal temporalmente
+        
+    return pdf
+
+def compile_final_pdf(pdf_generator, user):
     body_path = tempfile.mktemp(suffix=".pdf")
-    pdf.output(body_path)
+    pdf_generator.output(body_path)
     
-    # 7. UNIÓN DE ARCHIVOS: PORTADA + CUERPO + CONTRAPORTADA
     try:
         merger = PdfWriter()
+        portada_path = find_pdf_asset("Portada_density.pdf")
+        if portada_path: merger.append(portada_path)
         
-        # Adjuntar Portada (Si existe en la carpeta)
-        portada_path = os.path.join("04_Pdf", "Portada_density.pdf")
-        if os.path.exists(portada_path):
-            merger.append(portada_path)
-            
-        # Adjuntar Informe
         merger.append(body_path)
         
-        # Adjuntar Contraportada (Si existe)
-        contraportada_path = os.path.join("04_Pdf", "Contraportada_density.pdf")
-        if os.path.exists(contraportada_path):
-            merger.append(contraportada_path)
-            
+        contraportada_path = find_pdf_asset("Contraportada_density.pdf")
+        if contraportada_path: merger.append(contraportada_path)
+        
         final_pdf_path = tempfile.mktemp(suffix=".pdf")
         merger.write(final_pdf_path)
         merger.close()
         os.unlink(body_path)
     except Exception as e:
-        print("Error al unir PDFs:", e)
-        final_pdf_path = body_path # Si falla la portada, devuelve el informe puro
+        print("Error uniendo PDF:", e)
+        final_pdf_path = body_path
 
     return FileResponse(final_pdf_path, media_type='application/pdf', filename=f"Cert_{user.username}.pdf")
+
+
+@app.get("/generate_pdf/{result_id}")
+def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
+    res = db.query(models.SimulationResult).filter_by(id=result_id).first()
+    if not res: raise HTTPException(404, "Resultado no encontrado")
+    user = db.query(models.User).filter_by(id=res.user_id).first()
+    
+    pdf = CertPDF()
+    pdf.add_page()
+    
+    details_data = {}
+    reports = []
+    try:
+        details_data = json.loads(res.details)
+        reports = details_data.get('reports', [])
+    except: pass
+        
+    total_reales = sum([int(r.get('real_threats', 0)) for r in reports]) if reports else 0
+    total_marcas = sum([int(r.get('marked_threats', 0)) for r in reports]) if reports else 0
+    omisiones = max(0, total_reales - total_marcas)
+    efectividad = res.score
+    
+    pdf_ready = build_pdf_report_logic(pdf, res, user, reports, total_reales, total_marcas, omisiones, efectividad, False)
+    return compile_final_pdf(pdf_ready, user)
 
 
 @app.post("/generate_practice_pdf")
@@ -507,140 +547,15 @@ def generate_practice_pdf(payload: PracticePdfPayload, db: Session = Depends(dat
     try:
         details_data = json.loads(payload.details)
         reports = details_data.get('reports', [])
-    except:
-        pass
+    except: pass
         
     total_reales = sum([int(r.get('real_threats', 0)) for r in reports]) if reports else 0
     total_marcas = sum([int(r.get('marked_threats', 0)) for r in reports]) if reports else 0
     omisiones = max(0, total_reales - total_marcas)
     efectividad = payload.score
     
-    pdf.set_font("Arial", 'B', 11)
-    pdf.set_text_color(0, 0, 0)
-    
-    nombre_mostrar = user.full_name.upper() if getattr(user, 'full_name', '') else user.username.upper()
-    cedula_mostrar = user.cedula if getattr(user, 'cedula', '') else f"{user.id}000000"
-    
-    pdf.cell(0, 6, f"OPERADOR: {nombre_mostrar} | CÉDULA: {cedula_mostrar} | FECHA: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 0, 1)
-    pdf.cell(0, 6, f"PUNTUACIÓN TOTAL: {efectividad} / 100 (MODO PRÁCTICA)", 0, 1)
-    pdf.cell(0, 6, f"PRECISIÓN OPERACIONAL: {efectividad}%", 0, 1)
-    pdf.ln(5)
-    
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(0, 6, "CRONOLOGÍA DE EQUIPAJES AUDITADOS", 0, 1)
-    pdf.set_font("Arial", '', 8)
-    pdf.cell(0, 5, "La tabla inferior documenta el historial de la sesión, volumen de amenazas infiltradas (TIP) y el dictamen final.", 0, 1)
-    
-    pdf.set_font("Arial", 'B', 8)
-    pdf.set_fill_color(178, 34, 34)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(10, 6, "#", 1, 0, 'C', True)
-    pdf.cell(60, 6, "PROPIETARIO", 1, 0, 'C', True)
-    pdf.cell(30, 6, "OBJ. REALES", 1, 0, 'C', True)
-    pdf.cell(30, 6, "MARCAS OP.", 1, 0, 'C', True)
-    pdf.cell(30, 6, "PUNTAJE", 1, 0, 'C', True)
-    pdf.cell(30, 6, "DIAGNÓSTICO", 1, 1, 'C', True)
-    
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Arial", '', 8)
-    
-    for r in reports:
-        pdf.cell(10, 6, str(r.get('bag', '')), 1, 0, 'C')
-        pdf.cell(60, 6, str(r.get('subject', 'N/A'))[:25], 1, 0, 'C')
-        pdf.cell(30, 6, str(r.get('real_threats', 0)), 1, 0, 'C')
-        pdf.cell(30, 6, str(r.get('marked_threats', 0)), 1, 0, 'C')
-        pdf.cell(30, 6, str(r.get('score', 0)), 1, 0, 'C')
-        diag = "ACIERTO" if float(r.get('score', 0)) >= 80 else "FALLO"
-        pdf.cell(30, 6, diag, 1, 1, 'C')
-        
-    pdf.ln(8)
-    
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(0, 6, "CONSOLIDADO DE ACIERTOS Y FALLOS TÁCTICOS", 0, 1)
-    
-    pdf.set_font("Arial", 'B', 8)
-    pdf.set_fill_color(178, 34, 34)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(47, 6, "VOLUMEN TOTAL TIP", 1, 0, 'C', True)
-    pdf.cell(47, 6, "INTERCEPCIONES (ACIERTO)", 1, 0, 'C', True)
-    pdf.cell(47, 6, "OMISIONES (FALLO)", 1, 0, 'C', True)
-    pdf.cell(47, 6, "ÍNDICE EFECTIVIDAD", 1, 1, 'C', True)
-    
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Arial", '', 8)
-    pdf.cell(47, 6, str(total_reales), 1, 0, 'C')
-    pdf.cell(47, 6, str(total_marcas), 1, 0, 'C')
-    pdf.cell(47, 6, str(omisiones), 1, 0, 'C')
-    pdf.cell(47, 6, f"{efectividad}%", 1, 1, 'C')
-    pdf.ln(2)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(0, 5, "Balance de efectividad: Las 'Omisiones' representan los objetos ilícitos que evadieron los controles de seguridad.", 0, 1)
-    pdf.ln(6)
-    
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(0, 6, "ANÁLISIS ESTADÍSTICO DE DESEMPEÑO", 0, 1)
-    
-    chart_path = tempfile.mktemp(suffix=".png")
-    try:
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 3.5))
-        sizes = [efectividad, max(0, 100-efectividad)]
-        if sum(sizes) == 0: sizes = [100, 0]
-        ax1.pie(sizes, labels=[f'{sizes[0]}%', f'{sizes[1]}%'], labeldistance=0.4, colors=['#B22222', '#F08080'], textprops={'color':"w", 'weight':'bold', 'fontsize': 10})
-        ax1.set_title('Efectividad y Tasa de Falsos Negativos', fontsize=10, pad=10)
-        ax2.bar(['Reales (Sistema)', 'Marcas (Operador)'], [total_reales, total_marcas], color=['black', '#B22222'])
-        ax2.set_title('Volumen de Incidentes vs Detecciones', fontsize=10, pad=10)
-        plt.tight_layout()
-        plt.savefig(chart_path, dpi=300)
-        plt.close()
-        pdf.image(chart_path, x=15, w=180)
-        os.unlink(chart_path)
-    except Exception as e:
-        pass
-    
-    if reports:
-        pdf.add_page()
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 10, "REGISTRO VISUAL", 0, 1, 'C')
-        pdf.ln(5)
-        for r in reports:
-            for idx, b64 in enumerate(r.get('screenshots', [])):
-                if "," in b64:
-                    _, data = b64.split(',', 1)
-                    img_data = base64.b64decode(data)
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_img:
-                        tmp_img.write(img_data)
-                        tmp_name = tmp_img.name
-                    if pdf.get_y() > 200:
-                        pdf.add_page()
-                    pdf.image(tmp_name, w=160, x=25)
-                    pdf.set_font("Arial", 'B', 9)
-                    pdf.set_text_color(0, 0, 0)
-                    pdf.cell(0, 6, f"Maleta: #{r.get('bag', '')} | Propietario: {r.get('subject', 'N/A')}", 0, 1, 'C')
-                    pdf.set_font("Arial", '', 9)
-                    pdf.set_text_color(80, 80, 80)
-                    pdf.multi_cell(0, 5, f"Bitácora: {r.get('details', '')}", align='C')
-                    pdf.ln(8)
-                    os.unlink(tmp_name)
-
-    body_path = tempfile.mktemp(suffix=".pdf")
-    pdf.output(body_path)
-    
-    try:
-        merger = PdfWriter()
-        portada_path = os.path.join("04_Pdf", "Portada_density.pdf")
-        if os.path.exists(portada_path): merger.append(portada_path)
-        merger.append(body_path)
-        contraportada_path = os.path.join("04_Pdf", "Contraportada_density.pdf")
-        if os.path.exists(contraportada_path): merger.append(contraportada_path)
-        final_pdf_path = tempfile.mktemp(suffix=".pdf")
-        merger.write(final_pdf_path)
-        merger.close()
-        os.unlink(body_path)
-    except Exception as e:
-        final_pdf_path = body_path
-
-    return FileResponse(final_pdf_path, media_type='application/pdf', filename=f"Practica_{user.username}.pdf")
+    pdf_ready = build_pdf_report_logic(pdf, None, user, reports, total_reales, total_marcas, omisiones, efectividad, True)
+    return compile_final_pdf(pdf_ready, user)
 
 @app.get("/reset-db")
 def reset_database():
