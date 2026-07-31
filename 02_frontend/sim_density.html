@@ -121,6 +121,41 @@
             </div>
         </div>
 
+        <!-- PANEL LATERAL DERECHO (CCTV MULTIVISTA) -->
+        <div id="cctv-panel" class="w-80 bg-white border-l border-gray-200 flex flex-col shrink-0 z-20 shadow-[-10px_0_20px_-5px_rgba(0,0,0,0.1)]">
+            <div class="h-56 bg-gray-100 relative border-b border-gray-200 flex flex-col overflow-hidden">
+                <div class="absolute top-3 left-3 bg-red-600 text-white text-[9px] font-bold px-2 py-1 rounded tracking-widest z-10 shadow-sm flex items-center">
+                    <div class="w-1.5 h-1.5 bg-white rounded-full mr-1.5 animate-pulse"></div> REC
+                </div>
+                <div class="absolute top-3 right-3 text-black bg-white/80 px-2 py-1 rounded text-[10px] font-bold tracking-widest z-10 console-font backdrop-blur-sm border border-gray-300" id="cctv-time">00:00:00</div>
+                
+                <div class="flex-1 flex items-center justify-center relative bg-gradient-to-b from-gray-200 to-gray-300">
+                    <img id="cctv-avatar" src="" alt="Passenger" class="h-[90%] object-contain opacity-90 mix-blend-multiply">
+                    <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9InRyYW5zcGFyZW50Ii8+PGxpbmUgeDE9IjAiIHkxPSIyIiB4Mj0iNCIgeTI9IjIiIHN0cm9rZT0icmdiYSgwLDAsMCwwLjA1KSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9zdmc+')] pointer-events-none"></div> 
+                    <div class="absolute bottom-2 left-2 text-green-700 font-bold console-font text-[9px] opacity-80 bg-white/50 px-1 rounded">CAM-04 TERMINAL A</div>
+                </div>
+            </div>
+
+            <div class="p-5 border-b border-gray-200 bg-gray-50">
+                <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Identificación de Sujeto</h3>
+                <div class="space-y-3 text-xs">
+                    <p class="flex justify-between items-center"><span class="text-gray-500 font-bold uppercase text-[10px]">Nombre:</span> <span class="text-black font-extrabold" id="p-name">JOHN DOE</span></p>
+                    <p class="flex justify-between items-center"><span class="text-gray-500 font-bold uppercase text-[10px]">ID / Cédula:</span> <span class="text-black font-extrabold console-font bg-white px-2 py-1 border border-gray-200 rounded shadow-sm" id="p-cedula">000000000</span></p>
+                    <p class="flex justify-between items-center"><span class="text-gray-500 font-bold uppercase text-[10px]">Género:</span> <span class="text-black font-extrabold" id="p-gender">MASCULINO</span></p>
+                </div>
+            </div>
+
+            <div class="flex-1 p-5 flex flex-col min-h-0 bg-white">
+                <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Auditoría de Sistema</h3>
+                <div id="system-log" class="flex-1 overflow-y-auto console-font text-[10px] space-y-2 text-gray-700 pr-2 pb-2 bg-gray-50 border border-gray-100 rounded-lg p-3 shadow-inner">
+                    <p class="text-gray-400">> Iniciando motor Unity WebGL...</p>
+                    <p class="text-gray-400">> Calibrando sensores de densidad...</p>
+                    <p class="font-bold text-green-600">> SISTEMA PREPARADO.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ========================================== -->
     <!-- PANEL DE CONTROL INFERIOR                  -->
     <!-- ========================================== -->
@@ -1111,16 +1146,10 @@
             const viewport = document.getElementById('xray-viewport');
             const scaleFactor = window.devicePixelRatio || 2; 
             
-            // CORRECCIÓN: Evitar el error CORS de Google Fonts y forzar el renderizado de filtros
+            // html-to-image usa foreignObject nativo, conservando el 100% de la fidelidad visual, filtros CSS y modos de fusión
             htmlToImage.toCanvas(viewport, { 
                 backgroundColor: "#020202", 
-                pixelRatio: scaleFactor,
-                skipFonts: true, // Ignora la carga de fuentes remotas que bloquean la captura por CORS
-                filter: (node) => {
-                    // Filtra explícitamente la llamada externa conflictiva de CSS
-                    if (node.tagName === 'LINK' && node.href && node.href.includes('fonts.googleapis.com')) return false;
-                    return true;
-                }
+                pixelRatio: scaleFactor 
             }).then(canvas => {
                 const cropCanvas = document.createElement('canvas');
                 cropCanvas.width = width * scaleFactor;
@@ -1130,14 +1159,14 @@
                 // Recorte exacto aplicando el multiplicador de escala
                 ctx.drawImage(canvas, x * scaleFactor, y * scaleFactor, width * scaleFactor, height * scaleFactor, 0, 0, width * scaleFactor, height * scaleFactor);
                 
-                const imgData = cropCanvas.toDataURL('image/jpeg', 0.95);
+                const imgData = cropCanvas.toDataURL('image/jpeg', 0.95); // Alta calidad JPG
                 currentBagScreenshots.push(imgData);
                 addLog(`📸 Evidencia guardada exitosamente (${currentBagScreenshots.length} adjuntas).`);
                 
+                // Liberar el clic después de tomar la foto para no disparar el marcador forense
                 setTimeout(() => { isScreenshotMode = false; }, 150);
             }).catch(err => {
                 console.error("Error al capturar:", err);
-                addLog("⚠️ Fallo al guardar captura. Verifique consola.");
                 setTimeout(() => { isScreenshotMode = false; }, 150);
             });
         }
