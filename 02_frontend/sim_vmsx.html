@@ -639,23 +639,35 @@
         // ==========================================
         // REPRODUCCIÓN (INTEGRACIÓN NATIVA Y YOUTUBE)
         // ==========================================
+        function sendYtCmd(iframe, func, args = []) {
+            if (iframe && iframe.contentWindow) {
+                try {
+                    iframe.contentWindow.postMessage(JSON.stringify({
+                        "event": "command",
+                        "func": func,
+                        "args": args
+                    }), '*');
+                } catch(e) {}
+            }
+        }
+
         function syncTimeline() {
             if(isMasterPlaying) {
                 const vid1 = document.getElementById('vid1');
                 const iframe1 = document.getElementById('iframe1');
                 
-                // Sincronización precisa si es un video MP4
-                if(vid1 && !vid1.classList.contains('hidden') && vid1.src) {
+                // Sincronización precisa si es un video MP4 nativo
+                if(vid1 && !vid1.classList.contains('hidden') && vid1.src && !vid1.src.endsWith(window.location.pathname)) {
                     const t = vid1.currentTime;
                     document.getElementById('timeline').value = t;
                     document.getElementById('time-current').innerText = formatTime(t);
                 } 
-                // Avance virtual de la barra de tiempo si es YouTube
+                // Avance virtual de la barra de tiempo si es un iframe de YouTube
                 else if(iframe1 && !iframe1.classList.contains('hidden')) {
                     let currentVal = parseFloat(document.getElementById('timeline').value) || 0;
-                    let maxVal = parseFloat(document.getElementById('timeline').max) || 600;
+                    let maxVal = parseFloat(document.getElementById('timeline').max) || 600; // Límite virtual
                     if(currentVal < maxVal) {
-                        currentVal += 0.5; // Intervalo de la función (500ms)
+                        currentVal += 0.5; // Intervalo de 500ms
                         document.getElementById('timeline').value = currentVal;
                         document.getElementById('time-current').innerText = formatTime(currentVal);
                     }
@@ -681,11 +693,13 @@
                 const v = document.getElementById(`vid${index}`);
                 const iframe = document.getElementById(`iframe${index}`);
                 
-                if(v && v.src && !v.classList.contains('hidden')) v.play().catch(e=>{});
+                // Protección try-catch para evitar que un video vacío bloquee la ejecución
+                if(v && !v.classList.contains('hidden') && v.src) {
+                    try { v.play().catch(e=>{}); } catch(e){}
+                }
                 
-                // Formato JSON estricto para forzar a la API de YouTube a obedecer
-                if(iframe && !iframe.classList.contains('hidden')) {
-                    iframe.contentWindow.postMessage(JSON.stringify({"event": "command", "func": "playVideo", "args": []}), '*');
+                if(iframe && !iframe.classList.contains('hidden') && iframe.src) {
+                    sendYtCmd(iframe, "playVideo");
                 }
             });
             logTerminal("Reproducción global iniciada.");
@@ -697,10 +711,12 @@
                 const v = document.getElementById(`vid${index}`);
                 const iframe = document.getElementById(`iframe${index}`);
                 
-                if(v && !v.classList.contains('hidden')) v.pause();
+                if(v && !v.classList.contains('hidden') && v.src) {
+                    try { v.pause(); } catch(e){}
+                }
                 
-                if(iframe && !iframe.classList.contains('hidden')) {
-                    iframe.contentWindow.postMessage(JSON.stringify({"event": "command", "func": "pauseVideo", "args": []}), '*');
+                if(iframe && !iframe.classList.contains('hidden') && iframe.src) {
+                    sendYtCmd(iframe, "pauseVideo");
                 }
             });
             logTerminal("Reproducción global pausada.");
@@ -711,13 +727,12 @@
                 const v = document.getElementById(`vid${index}`);
                 const iframe = document.getElementById(`iframe${index}`);
                 
-                if(v && !v.classList.contains('hidden')) {
-                    v.currentTime = parseFloat(val);
+                if(v && !v.classList.contains('hidden') && v.src) {
+                    try { v.currentTime = parseFloat(val); } catch(e){}
                 }
                 
-                if(iframe && !iframe.classList.contains('hidden')) {
-                    // Desplazar tiempo en YouTube (Recibe parámetro en segundos)
-                    iframe.contentWindow.postMessage(JSON.stringify({"event": "command", "func": "seekTo", "args": [parseFloat(val), true]}), '*');
+                if(iframe && !iframe.classList.contains('hidden') && iframe.src) {
+                    sendYtCmd(iframe, "seekTo", [parseFloat(val), true]);
                 }
             });
             document.getElementById('time-current').innerText = formatTime(val);
@@ -728,10 +743,12 @@
                 const v = document.getElementById(`vid${index}`);
                 const iframe = document.getElementById(`iframe${index}`);
                 
-                if(v && !v.classList.contains('hidden')) v.playbackRate = parseFloat(val);
+                if(v && !v.classList.contains('hidden') && v.src) {
+                    try { v.playbackRate = parseFloat(val); } catch(e){}
+                }
                 
-                if(iframe && !iframe.classList.contains('hidden')) {
-                    iframe.contentWindow.postMessage(JSON.stringify({"event": "command", "func": "setPlaybackRate", "args": [parseFloat(val)]}), '*');
+                if(iframe && !iframe.classList.contains('hidden') && iframe.src) {
+                    sendYtCmd(iframe, "setPlaybackRate", [parseFloat(val)]);
                 }
             });
             logTerminal(`Velocidad de reproducción ajustada a ${val}x.`);
@@ -761,8 +778,8 @@
                 else if (url.includes("youtu.be/")) videoId = url.split("youtu.be/")[1].split("?")[0];
                 else if (url.includes("embed/")) videoId = url.split("embed/")[1].split("?")[0];
                 
-                // Configuración vital (enablejsapi=1) para que funcione play, pause y seek
-                url = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}`;
+                // INYECCIÓN CLAVE: enablejsapi=1 es lo que permite que JS controle a Youtube (Play, Pause, Seek)
+                url = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1`;
                 
                 vid.classList.add('hidden');
                 vid.src = "";
@@ -770,7 +787,7 @@
                 iframe.classList.remove('hidden');
                 iframe.src = url;
 
-                // Si es YouTube, fijamos un límite por defecto en la barra (ej. 10 minutos / 600 segundos)
+                // Setear límite de la barra virtual en 10 minutos (600s) si Youtube está en la Cam 1
                 if (boxNumber === 1) {
                     document.getElementById('timeline').max = 600; 
                     document.getElementById('time-total').innerText = formatTime(600);
@@ -783,8 +800,10 @@
                 vid.src = url;
                 
                 if (isMasterPlaying) {
-                    vid.currentTime = parseFloat(document.getElementById('timeline').value) || 0;
-                    vid.play().catch(e=>{});
+                    try {
+                        vid.currentTime = parseFloat(document.getElementById('timeline').value) || 0;
+                        vid.play().catch(e=>{});
+                    } catch(e){}
                 }
             }
             
