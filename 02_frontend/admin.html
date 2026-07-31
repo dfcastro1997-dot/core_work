@@ -198,6 +198,7 @@
     <div id="operator-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50">
         <div class="bg-white w-full max-w-md rounded-2xl p-8 shadow-2xl border border-gray-200">
             <h3 class="text-xl font-bold text-black mb-4 border-b border-gray-100 pb-3" id="op-modal-title">Gestión de Personal</h3>
+
             <form id="op-modal-form" onsubmit="saveOperator(event)" class="space-y-4">
                 <input type="hidden" id="op-id">
                 <div class="grid grid-cols-2 gap-4">
@@ -210,8 +211,18 @@
                         <select id="op-school-id" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm cursor-pointer"></select>
                     </div>
                 </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nombre Completo</label>
+                        <input type="text" id="op-fullname" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Cédula</label>
+                        <input type="text" id="op-cedula" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm outline-none">
+                    </div>
+                </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nombre Usuario / ID</label>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Usuario de Ingreso</label>
                     <input type="text" id="op-username" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm outline-none">
                 </div>
                 <div>
@@ -223,6 +234,7 @@
                     <button type="submit" class="px-5 py-2.5 bg-black text-white rounded-lg font-bold">Guardar</button>
                 </div>
             </form>
+            
         </div>
     </div>
 

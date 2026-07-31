@@ -19,6 +19,8 @@ class User(Base):
     password = Column(String)
     role = Column(String) 
     school_id = Column(Integer, ForeignKey("schools.id"), nullable=True)
+    full_name = Column(String, default="") 
+    cedula = Column(String, default="")
 
 class SimulationResult(Base):
     __tablename__ = "results"

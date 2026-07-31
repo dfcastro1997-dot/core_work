@@ -1350,12 +1350,15 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             const savedUser = localStorage.getItem('securityCloudUser');
-            if (savedUser) { const u = JSON.parse(savedUser); document.getElementById('op-name').innerText = u.username; }
+            if (savedUser) { 
+                const u = JSON.parse(savedUser); 
+                // Muestra el nombre completo si existe, de lo contrario usa el username
+                document.getElementById('op-name').innerText = u.full_name || u.username; 
+            }
             setInterval(() => { const now = new Date(); document.getElementById('cctv-time').innerText = now.toLocaleTimeString('en-US', {hour12: false}); }, 1000);
             setupAreaSelector();
 
             if (sessionStorage.getItem('evalMode') === 'true') {
-                // MODO EVALUACIÓN: Se salta los modales y extrae la cantidad del Examen Oficial
                 sessionTotalBags = parseInt(sessionStorage.getItem('evalBags'));
                 sessionCurrentBag = 0;
                 sessionAccumulatedScore = 0;
@@ -1363,7 +1366,6 @@
                 document.getElementById('start-training-modal').classList.add('hidden');
                 document.getElementById('bag-count-modal').classList.add('hidden');
                 
-                // Ocultar botón de Ajustes para evitar trampas en pleno Examen Oficial
                 const btnAjustes = document.getElementById('btn-ajustes');
                 if(btnAjustes) btnAjustes.style.display = 'none';
 
@@ -1371,7 +1373,6 @@
                 
                 setTimeout(() => { applySettingsToEngine(); toggleAutoBelt(); }, 1000);
             } else {
-                // MODO PRÁCTICA LIBRE: Mostrar el modal de bienvenida
                 addLog("Módulo conectado a Servidor Central. Esperando operador...");
                 document.getElementById('start-training-modal').classList.remove('hidden');
             }

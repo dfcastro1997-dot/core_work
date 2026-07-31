@@ -61,13 +61,18 @@
                                 <h2 class="text-lg font-bold text-black">Inscribir Personal</h2>
                             </div>
                         </div>
+
                         <form onsubmit="createPersonnel(event)" class="space-y-4">
                             <div class="grid grid-cols-2 gap-3">
                                 <select id="op-role" required class="w-full bg-gray-50 p-3.5 border border-gray-300 rounded-lg text-sm outline-none cursor-pointer">
                                     <option value="operator">Operador</option>
                                     <option value="instructor">Instructor</option>
                                 </select>
-                                <input type="text" id="op-username" placeholder="Identificador / ID" required class="w-full bg-gray-50 p-3.5 border border-gray-300 rounded-lg text-sm outline-none">
+                                <input type="text" id="op-username" placeholder="Usuario de Ingreso" required class="w-full bg-gray-50 p-3.5 border border-gray-300 rounded-lg text-sm outline-none">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <input type="text" id="op-fullname" placeholder="Nombre Completo" required class="w-full bg-gray-50 p-3.5 border border-gray-300 rounded-lg text-sm outline-none">
+                                <input type="text" id="op-cedula" placeholder="N° Cédula" required class="w-full bg-gray-50 p-3.5 border border-gray-300 rounded-lg text-sm outline-none">
                             </div>
                             <input type="password" id="op-password" placeholder="Contraseña Inicial" required class="w-full bg-gray-50 p-3.5 border border-gray-300 rounded-lg text-sm outline-none">
                             <button type="submit" class="w-full bg-black hover:bg-gray-800 text-white p-3.5 rounded-lg font-bold shadow-md mt-2">Generar Acceso</button>
@@ -123,16 +128,22 @@
     <div id="school-personnel-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50">
         <div class="bg-white w-full max-w-md rounded-2xl p-8 shadow-2xl border border-gray-200">
             <h3 class="text-xl font-bold text-black mb-4 border-b border-gray-100 pb-3" id="sp-modal-title">Editar Personal</h3>
+
             <form id="sp-modal-form" onsubmit="saveSchoolPersonnel(event)" class="space-y-4">
                 <input type="hidden" id="sp-id">
                 <select id="sp-role" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm cursor-pointer"><option value="operator">Operador</option><option value="instructor">Instructor</option></select>
-                <input type="text" id="sp-username" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm">
-                <input type="text" id="sp-password" placeholder="(Opcional para actualizar)" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm">
+                <div class="grid grid-cols-2 gap-3">
+                    <input type="text" id="sp-fullname" placeholder="Nombre Completo" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm">
+                    <input type="text" id="sp-cedula" placeholder="Cédula" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm">
+                </div>
+                <input type="text" id="sp-username" placeholder="Usuario de Ingreso" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm">
+                <input type="text" id="sp-password" placeholder="Contraseña (Opcional para actualizar)" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm">
                 <div class="flex justify-end space-x-3 pt-4 border-t border-gray-100">
                     <button type="button" onclick="closeSchoolPersonnelModal()" class="px-5 py-2.5 bg-gray-100 text-gray-800 rounded-lg font-bold">Cancelar</button>
                     <button type="submit" class="px-5 py-2.5 bg-black text-white rounded-lg font-bold hover:bg-red-600 transition-colors">Guardar Datos</button>
                 </div>
             </form>
+            
         </div>
     </div>
     

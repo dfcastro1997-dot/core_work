@@ -47,8 +47,10 @@ app.add_middleware(
 class LoginData(BaseModel): role: str; username: str; password: str
 class SchoolCreate(BaseModel): name: str; subscription_type: str; username: str; password: str; max_operators: int; max_instructors: int = 10; icon_url: str = ""; is_active: bool = True; allowed_sims: str = "DENSITY,VMS-X"
 class SchoolUpdate(BaseModel): name: str; subscription_type: str; max_operators: int; max_instructors: int = 10; icon_url: str = ""; is_active: bool = True; allowed_sims: str = "DENSITY,VMS-X"
-class UserCreate(BaseModel): username: str; password: str; role: str; school_id: int = None
-class UserUpdate(BaseModel): username: str; password: str; school_id: int; role: str
+
+class UserCreate(BaseModel): username: str; password: str; role: str; school_id: int = None; full_name: str = ""; cedula: str = ""
+class UserUpdate(BaseModel): username: str; password: str; school_id: int; role: str; full_name: str = ""; cedula: str = ""
+
 class ResultCreate(BaseModel): user_id: int; simulator_type: str; score: float; details: str
 class FeedbackUpdate(BaseModel): feedback: str
 
@@ -66,7 +68,7 @@ def login(data: LoginData, db: Session = Depends(database.get_db)):
     if user.school_id and user.role != "admin":
         school = db.query(models.School).filter_by(id=user.school_id).first()
         if school and not school.is_active: raise HTTPException(status_code=403, detail="Tu academia ha sido suspendida.")
-    return {"id": user.id, "role": user.role, "school_id": user.school_id, "username": user.username}
+    return {"id": user.id, "role": user.role, "school_id": user.school_id, "username": user.username, "full_name": user.full_name, "cedula": user.cedula}
 
 @app.get("/schools")
 def get_schools(db: Session = Depends(database.get_db)):
@@ -133,6 +135,7 @@ def update_user(user_id: int, u: UserUpdate, db: Session = Depends(database.get_
     exist = db.query(models.User).filter_by(username=u.username).first()
     if exist and exist.id != user_id: raise HTTPException(status_code=400, detail="Username ya en uso")
     db_u.username = u.username; db_u.password = u.password if u.password else db_u.password; db_u.school_id = u.school_id; db_u.role = u.role
+    db_u.full_name = u.full_name; db_u.cedula = u.cedula
     db.commit()
     return db_u
 
@@ -318,7 +321,12 @@ def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
     # 2. ENCABEZADO Y PUNTUACIONES
     pdf.set_font("Arial", 'B', 11)
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 6, f"OPERADOR: {user.username.upper()} | CÉDULA: {user.id}000000 | FECHA: {res.date}", 0, 1)
+    
+    # Renderiza Nombre Completo (o username si está vacío) y Cédula
+    nombre_mostrar = user.full_name.upper() if user.full_name else user.username.upper()
+    cedula_mostrar = user.cedula if user.cedula else f"{user.id}000000"
+    
+    pdf.cell(0, 6, f"OPERADOR: {nombre_mostrar} | CÉDULA: {cedula_mostrar} | FECHA: {res.date}", 0, 1)
     pdf.cell(0, 6, f"PUNTUACIÓN TOTAL: {efectividad} / 100", 0, 1)
     pdf.cell(0, 6, f"PRECISIÓN OPERACIONAL: {efectividad}%", 0, 1)
     pdf.ln(5)

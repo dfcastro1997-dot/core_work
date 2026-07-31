@@ -372,41 +372,10 @@ function renderOperatorsTable() {
     }).join('');
 }
 
-function openOperatorModal(id = null) {
-    const form = document.getElementById('op-modal-form');
-    if(form) form.reset();
-    document.getElementById('op-id').value = id || '';
-    if(id) {
-        const op = allUsers.find(u => u.id === id);
-        if(op) {
-            document.getElementById('op-username').value = op.username;
-            document.getElementById('op-school-id').value = op.school_id;
-            document.getElementById('op-role').value = op.role;
-        }
-    }
-    document.getElementById('operator-modal').classList.remove('hidden');
-}
+
 function closeOperatorModal() { document.getElementById('operator-modal').classList.add('hidden'); }
 
-async function saveOperator(e) {
-    e.preventDefault();
-    const payload = {
-        username: document.getElementById('op-username').value,
-        password: document.getElementById('op-password').value,
-        school_id: parseInt(document.getElementById('op-school-id').value),
-        role: document.getElementById('op-role').value
-    };
-    const id = document.getElementById('op-id').value;
 
-    try {
-        const method = id ? 'PUT' : 'POST';
-        const url = id ? `${API_URL}/users/${id}` : `${API_URL}/users`;
-        if(!id && !payload.password) return customAlert('Error', 'Contraseña obligatoria', 'error');
-        const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-        if(res.ok) { closeOperatorModal(); fetchAndRenderOperators(); } 
-        else { const data = await res.json(); customAlert('Error', data.detail, 'error'); }
-    } catch(err) {}
-}
 
 function deleteOperator(id) {
     customConfirm('Borrar', '¿Borrar usuario permanentemente?', async () => {
@@ -445,10 +414,52 @@ async function loadSchoolDashboard() {
     loadSchoolQuizGrades(); 
 }
 
+
+function openOperatorModal(id = null) {
+    const form = document.getElementById('op-modal-form');
+    if(form) form.reset();
+    document.getElementById('op-id').value = id || '';
+    if(id) {
+        const op = allUsers.find(u => u.id === id);
+        if(op) {
+            document.getElementById('op-username').value = op.username;
+            document.getElementById('op-school-id').value = op.school_id;
+            document.getElementById('op-role').value = op.role;
+            if(document.getElementById('op-fullname')) document.getElementById('op-fullname').value = op.full_name || '';
+            if(document.getElementById('op-cedula')) document.getElementById('op-cedula').value = op.cedula || '';
+        }
+    }
+    document.getElementById('operator-modal').classList.remove('hidden');
+}
+
+async function saveOperator(e) {
+    e.preventDefault();
+    const payload = {
+        username: document.getElementById('op-username').value,
+        password: document.getElementById('op-password').value,
+        school_id: parseInt(document.getElementById('op-school-id').value),
+        role: document.getElementById('op-role').value,
+        full_name: document.getElementById('op-fullname') ? document.getElementById('op-fullname').value : '',
+        cedula: document.getElementById('op-cedula') ? document.getElementById('op-cedula').value : ''
+    };
+    const id = document.getElementById('op-id').value;
+
+    try {
+        const method = id ? 'PUT' : 'POST';
+        const url = id ? `${API_URL}/users/${id}` : `${API_URL}/users`;
+        if(!id && !payload.password) return customAlert('Error', 'Contraseña obligatoria', 'error');
+        const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        if(res.ok) { closeOperatorModal(); fetchAndRenderOperators(); } 
+        else { const data = await res.json(); customAlert('Error', data.detail, 'error'); }
+    } catch(err) {}
+}
+
 async function createPersonnel(e) {
     e.preventDefault();
     const payload = {
         username: document.getElementById('op-username').value,
+        full_name: document.getElementById('op-fullname').value,
+        cedula: document.getElementById('op-cedula').value,
         password: document.getElementById('op-password').value,
         role: document.getElementById('op-role').value,
         school_id: currentUser.school_id
@@ -470,16 +481,19 @@ function openSchoolPersonnelModal(id) {
         document.getElementById('sp-id').value = p.id;
         document.getElementById('sp-username').value = p.username;
         document.getElementById('sp-role').value = p.role;
+        document.getElementById('sp-fullname').value = p.full_name || '';
+        document.getElementById('sp-cedula').value = p.cedula || '';
         document.getElementById('school-personnel-modal').classList.remove('hidden');
     }
 }
-function closeSchoolPersonnelModal() { document.getElementById('school-personnel-modal').classList.add('hidden'); }
 
 async function saveSchoolPersonnel(e) {
     e.preventDefault();
     const id = document.getElementById('sp-id').value;
     const payload = {
         username: document.getElementById('sp-username').value,
+        full_name: document.getElementById('sp-fullname').value,
+        cedula: document.getElementById('sp-cedula').value,
         password: document.getElementById('sp-password').value,
         school_id: currentUser.school_id,
         role: document.getElementById('sp-role').value
@@ -488,6 +502,11 @@ async function saveSchoolPersonnel(e) {
     if(res.ok) { closeSchoolPersonnelModal(); loadSchoolDashboard(); }
     else { const data = await res.json(); customAlert('Error', data.detail, 'error'); }
 }
+
+
+function closeSchoolPersonnelModal() { document.getElementById('school-personnel-modal').classList.add('hidden'); }
+
+
 
 function deleteSchoolPersonnel(id) {
     customConfirm('Borrar Personal', '¿Borrar usuario permanentemente?', async () => {
