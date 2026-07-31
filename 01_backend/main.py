@@ -11,7 +11,6 @@ from PyPDF2 import PdfWriter
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from PIL import Image
 
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -286,11 +285,7 @@ def get_quiz_grades(school_id: int, db: Session = Depends(database.get_db)):
 
 class CertPDF(FPDF):
     def header(self):
-        # Insertar marca de agua semitransparente centrada en el fondo
-        wm = getattr(self, 'watermark_path', None)
-        if wm and os.path.exists(wm):
-            self.image(wm, x=45, y=90, w=120)
-
+        # Sin marca de agua en ninguna página
         self.set_font('Arial', 'B', 12)
         self.set_text_color(120, 120, 120)
         self.cell(0, 10, 'INFORME TÁCTICO DE INSPECCIÓN FORENSE', 0, 1, 'R')
@@ -304,13 +299,6 @@ class CertPDF(FPDF):
         self.set_font('Arial', 'I', 8)
         self.set_text_color(120, 120, 120)
         self.cell(0, 10, f'Fecha de Emisión: {datetime.now().strftime("%d/%m/%Y %H:%M")} | Plataforma: Density   Página {self.page_no()}', 0, 0, 'C')
-
-def make_image_transparent(image_path, opacity, output_path):
-    # Función para generar la marca de agua con transparencia
-    img = Image.open(image_path).convert("RGBA")
-    bg = Image.new("RGBA", img.size, (255, 255, 255, 255))
-    blended = Image.blend(bg, img, alpha=opacity)
-    blended.convert("RGB").save(output_path, "JPEG")
 
 def find_pdf_asset(filename):
     paths = [
@@ -335,29 +323,39 @@ def build_pdf_report_logic(pdf, res, user, reports, total_reales, total_marcas, 
     cedula_mostrar = user.cedula if getattr(user, 'cedula', '') else f"{user.id}000000"
     fecha_mostrar = datetime.now().strftime('%Y-%m-%d %H:%M:%S') if is_practice else res.date
     
+    # Ajuste dinámico de fuente según longitud del nombre para evitar truncamiento
+    name_font_size = 9
+    if len(nombre_mostrar) > 35:
+        name_font_size = 7.5
+    elif len(nombre_mostrar) > 26:
+        name_font_size = 8
+
     pdf.set_font("Arial", 'B', 9)
     pdf.set_fill_color(245, 245, 245)
     pdf.set_text_color(50, 50, 50)
     
-    pdf.cell(40, 7, "  OPERADOR:", border=1, align='L', fill=True)
-    pdf.set_font("Arial", '', 9)
-    pdf.cell(60, 7, f"  {nombre_mostrar}", border=1, align='L')
+    # Fila 1: OPERADOR (Ancho de 155mm garantizado para que NUNCA se recorte)
+    pdf.cell(35, 7, "  OPERADOR:", border=1, align='L', fill=True)
+    pdf.set_font("Arial", 'B', name_font_size)
+    pdf.cell(155, 7, f"  {nombre_mostrar}", border=1, align='L', ln=1)
     
+    # Fila 2: CÉDULA / ID y FECHA / HORA
     pdf.set_font("Arial", 'B', 9)
-    pdf.cell(40, 7, "  CÉDULA / ID:", border=1, align='L', fill=True)
+    pdf.cell(35, 7, "  CÉDULA / ID:", border=1, align='L', fill=True)
     pdf.set_font("Arial", '', 9)
-    pdf.cell(50, 7, f"  {cedula_mostrar}", border=1, align='L', ln=1)
+    pdf.cell(60, 7, f"  {cedula_mostrar}", border=1, align='L')
 
     pdf.set_font("Arial", 'B', 9)
-    pdf.cell(40, 7, "  FECHA / HORA:", border=1, align='L', fill=True)
+    pdf.cell(35, 7, "  FECHA / HORA:", border=1, align='L', fill=True)
     pdf.set_font("Arial", '', 9)
-    pdf.cell(60, 7, f"  {fecha_mostrar}", border=1, align='L')
+    pdf.cell(60, 7, f"  {fecha_mostrar}", border=1, align='L', ln=1)
     
+    # Fila 3: MODO SESIÓN
     pdf.set_font("Arial", 'B', 9)
-    pdf.cell(40, 7, "  MODO SESIÓN:", border=1, align='L', fill=True)
+    pdf.cell(35, 7, "  MODO SESIÓN:", border=1, align='L', fill=True)
     pdf.set_font("Arial", 'B', 9)
     pdf.set_text_color(220, 38, 38)
-    pdf.cell(50, 7, "  PRÁCTICA LIBRE" if is_practice else "  EVALUACIÓN OFICIAL", border=1, align='L', ln=1)
+    pdf.cell(155, 7, "  PRÁCTICA LIBRE" if is_practice else "  EVALUACIÓN OFICIAL", border=1, align='L', ln=1)
     pdf.ln(8)
     
     # 3. MÉTRICAS TÁCTICAS
@@ -541,19 +539,6 @@ def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
     user = db.query(models.User).filter_by(id=res.user_id).first()
     
     pdf = CertPDF()
-    
-    # Descargar logo para la marca de agua y hacerlo transparente
-    logo_path = tempfile.mktemp(suffix=".png")
-    try:
-        logo_req = requests.get("https://i.ibb.co/mVh9kScZ/logofb.png", timeout=3)
-        with open(logo_path, 'wb') as f: f.write(logo_req.content)
-        
-        transparent_logo_path = tempfile.mktemp(suffix=".jpg")
-        make_image_transparent(logo_path, 0.15, transparent_logo_path)
-        pdf.watermark_path = transparent_logo_path
-    except:
-        pass
-
     pdf.add_page()
     
     details_data = {}
@@ -578,19 +563,6 @@ def generate_practice_pdf(payload: PracticePdfPayload, db: Session = Depends(dat
     if not user: raise HTTPException(404, "Usuario no encontrado")
     
     pdf = CertPDF()
-
-    # Descargar logo para la marca de agua y hacerlo transparente
-    logo_path = tempfile.mktemp(suffix=".png")
-    try:
-        logo_req = requests.get("https://i.ibb.co/mVh9kScZ/logofb.png", timeout=3)
-        with open(logo_path, 'wb') as f: f.write(logo_req.content)
-        
-        transparent_logo_path = tempfile.mktemp(suffix=".jpg")
-        make_image_transparent(logo_path, 0.15, transparent_logo_path)
-        pdf.watermark_path = transparent_logo_path
-    except:
-        pass
-        
     pdf.add_page()
     
     details_data = {}
