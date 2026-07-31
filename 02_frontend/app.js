@@ -1020,27 +1020,38 @@ function startSim(type) {
     const simView = document.getElementById('sim-view');
     simView.classList.remove('hidden');
     
-    document.getElementById('sim-iframe').src = "sim_density.html"; 
+    if (type === 'DENSITY') {
+        document.getElementById('sim-iframe').src = "sim_density.html"; 
+    } else if (type === 'VMS-X') {
+        document.getElementById('sim-iframe').src = "sim_vmsx.html"; 
+    }
 }
 
-/* === AGREGAR JUNTO A LAS FUNCIONES DE QUIZZES === */
 function toggleQuizType() {
     const type = document.getElementById('quiz-type').value;
     if(type === 'practico') {
         document.getElementById('questions-container').style.display = 'none';
         document.getElementById('btn-add-question-container').style.display = 'none';
         document.getElementById('practical-config').classList.remove('hidden');
+        if(document.getElementById('vmsx-config')) document.getElementById('vmsx-config').classList.add('hidden');
+        document.getElementById('quiz-total-weight').innerText = '100%';
+        document.getElementById('quiz-total-weight').className = "text-green-600 text-lg font-extrabold ml-2";
+    } else if(type === 'vmsx') {
+        document.getElementById('questions-container').style.display = 'none';
+        document.getElementById('btn-add-question-container').style.display = 'none';
+        document.getElementById('practical-config').classList.add('hidden');
+        if(document.getElementById('vmsx-config')) document.getElementById('vmsx-config').classList.remove('hidden');
         document.getElementById('quiz-total-weight').innerText = '100%';
         document.getElementById('quiz-total-weight').className = "text-green-600 text-lg font-extrabold ml-2";
     } else {
         document.getElementById('questions-container').style.display = 'block';
         document.getElementById('btn-add-question-container').style.display = 'flex';
         document.getElementById('practical-config').classList.add('hidden');
+        if(document.getElementById('vmsx-config')) document.getElementById('vmsx-config').classList.add('hidden');
         updateTotalWeight();
     }
 }
 
-/* === REEMPLAZAR LA FUNCIÓN ACTUAL saveQuiz() === */
 async function saveQuiz() {
     const title = document.getElementById('quiz-title').value.trim();
     const time = document.getElementById('quiz-time').value;
@@ -1066,10 +1077,18 @@ async function saveQuiz() {
             if(!text || opts.some(o => !o)) return customAlert('Campos Vacíos', 'Llena todos los enunciados.', 'error');
             questionsArray.push({ q: text, opts: opts, correct: correct, weight: weight });
         }
-    } else {
+    } else if (type === 'practico') {
         // Formato interno para saber que es una prueba DENSITY práctica
         const isElecIllegal = document.getElementById('quiz-elec-illegal') ? document.getElementById('quiz-elec-illegal').checked : true;
         questionsArray = [{"type": "practical_density", "bags": parseInt(time), "elec_illegal": isElecIllegal}];
+    } else if (type === 'vmsx') {
+        const vTitle = document.getElementById('vmsx-title').value.trim();
+        const vDate = document.getElementById('vmsx-date').value;
+        const vTime = document.getElementById('vmsx-time').value;
+        const vDesc = document.getElementById('vmsx-desc').value.trim();
+        
+        if (!vTitle || !vDesc) return customAlert('Aviso', 'Debe escribir el título y la descripción táctica para el VMS-X.', 'error');
+        questionsArray = [{"type": "practical_vmsx", "title": vTitle, "date": vDate, "time": vTime, "desc": vDesc}];
     }
 
     const checkboxes = document.querySelectorAll('.chk-assign:checked');
@@ -1098,7 +1117,6 @@ async function saveQuiz() {
     } catch(e) { clearInterval(progInterval); savingModal.classList.add('hidden'); customAlert('Error', 'Fallo de conexión.', 'error'); }
 }
 
-/* === REEMPLAZAR LA FUNCIÓN ACTUAL takeQuiz() === */
 function takeQuiz(quizObj) {
     const questions = JSON.parse(quizObj.questions);
     
@@ -1106,7 +1124,7 @@ function takeQuiz(quizObj) {
     if (questions[0] && questions[0].type === 'practical_density') {
         const isInstructorPreview = currentUser.role === 'instructor';
         const msg = isInstructorPreview 
-            ? `Autoprueba Práctica: Consta de ${questions[0].bags} maleta(s). Al ser instructor, la nota no se guardará en la base de datos oficial.` 
+            ? `Autoprueba Práctica DENSITY: Consta de ${questions[0].bags} maleta(s). Al ser instructor, la nota no se guardará en la base de datos oficial.` 
             : `Evaluación Práctica DENSITY: Inspeccionarás ${questions[0].bags} maleta(s) continuas. Tienes solo UN intento, la nota será enviada a la academia. ¿Estás listo?`;
 
         customConfirm('Iniciar Evaluación DENSITY', msg, () => {
@@ -1115,6 +1133,27 @@ function takeQuiz(quizObj) {
             sessionStorage.setItem('evalElecIllegal', questions[0].elec_illegal !== false);
             sessionStorage.setItem('evalQuizId', quizObj.id);
             startSim('DENSITY');
+        });
+        return;
+    } else if (questions[0] && questions[0].type === 'practical_vmsx') {
+        const isInstructorPreview = currentUser.role === 'instructor';
+        const mTitle = questions[0].title || "Misión VMS-X";
+        const mDate = questions[0].date || "--/--/----";
+        const mTime = questions[0].time || "--:--";
+        const mDesc = questions[0].desc || "Búsqueda de rutina.";
+
+        const msg = isInstructorPreview 
+            ? `Autoprueba Práctica VMS-X:\n\nObjetivo: ${mTitle}\nNo se registrará en la base de datos.` 
+            : `Evaluación Práctica VMS-X:\n\nObjetivo a cumplir:\n"${mTitle}"\n\nAl terminar de generar el reporte de incidentes, tu evaluación concluirá. ¿Estás listo?`;
+
+        customConfirm('Iniciar Evaluación VMS-X', msg, () => {
+            sessionStorage.setItem('evalMode', 'true');
+            sessionStorage.setItem('evalVmsxTitle', mTitle);
+            sessionStorage.setItem('evalVmsxDate', mDate);
+            sessionStorage.setItem('evalVmsxTime', mTime);
+            sessionStorage.setItem('evalVmsxDesc', mDesc);
+            sessionStorage.setItem('evalQuizId', quizObj.id);
+            startSim('VMS-X');
         });
         return;
     }
@@ -1153,21 +1192,22 @@ function takeQuiz(quizObj) {
     });
 }
 
-/* === REEMPLAZAR LA FUNCIÓN ACTUAL window.finishSim === */
-window.finishSim = async function(score, amenazas, reportsData, generatePdf) {
+window.finishSim = async function(score, amenazas, reportsData, generatePdf, simType = "DENSITY") {
     const isEval = sessionStorage.getItem('evalMode') === 'true';
     const quizId = sessionStorage.getItem('evalQuizId');
     const finalScore = score !== undefined ? score : 0;
     const itemsMarcados = amenazas !== undefined ? amenazas : 0;
     
+    const vmsxMission = sessionStorage.getItem('evalVmsxMission');
+    const missionText = vmsxMission ? `Misión Asignada: ${vmsxMission}\n` : '';
+    
     const payloadDetails = JSON.stringify({
         header: isEval 
-            ? `[EVALUACIÓN DENSITY OFICIAL]\nInspección completada. Amenazas marcadas globalmente: ${itemsMarcados}.\nTasa de Efectividad Total: ${finalScore}%.`
-            : `[PRÁCTICA LIBRE DENSITY]\nInspección completada. Amenazas marcadas globalmente: ${itemsMarcados}.\nTasa de Efectividad Total: ${finalScore}%.`,
+            ? `[EVALUACIÓN ${simType} OFICIAL]\n${missionText}Inspección completada. Objetivos/Hallazgos documentados: ${itemsMarcados}.\nTasa de Efectividad: ${finalScore}%.`
+            : `[PRÁCTICA LIBRE ${simType}]\nInspección completada. Objetivos/Hallazgos documentados: ${itemsMarcados}.\nTasa de Efectividad: ${finalScore}%.`,
         reports: Array.isArray(reportsData) ? reportsData : []
     });
 
-    // CREAR OVERLAY DE CARGA BLOQUEANTE SI NO EXISTE
     let loader = document.getElementById('pdf-loader-overlay');
     if(!loader) {
         loader = document.createElement('div');
@@ -1207,7 +1247,7 @@ window.finishSim = async function(score, amenazas, reportsData, generatePdf) {
     };
 
     if (isEval) {
-        showLoading(); // Iniciar loader
+        showLoading(); 
         if (currentUser.role !== 'instructor') {
             await fetch(`${API_URL}/quizzes/submit_practical`, {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -1218,17 +1258,16 @@ window.finishSim = async function(score, amenazas, reportsData, generatePdf) {
         }
         hideLoading();
         customAlert('Evaluación Oficial Finalizada', `Tu examen práctico ha concluido y fue enviado.\nCalificación final: ${finalScore}%.`, 'success');
-        sessionStorage.removeItem('evalMode'); sessionStorage.removeItem('evalBags'); sessionStorage.removeItem('evalQuizId');
+        sessionStorage.removeItem('evalMode'); sessionStorage.removeItem('evalBags'); sessionStorage.removeItem('evalQuizId'); sessionStorage.removeItem('evalVmsxMission');
     } else {
-        // MODO PRÁCTICA
         if (generatePdf) {
-            showLoading(); // Iniciar loader bloqueante
+            showLoading(); 
             try {
                 const res = await fetch(`${API_URL}/generate_practice_pdf`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         user_id: currentUser.id,
-                        simulator_type: "DENSITY (Práctica Libre)",
+                        simulator_type: `${simType} (Práctica Libre)`,
                         score: finalScore,
                         details: payloadDetails
                     })
@@ -1239,7 +1278,7 @@ window.finishSim = async function(score, amenazas, reportsData, generatePdf) {
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `Practica_Libre_${currentUser.username}.pdf`;
+                    a.download = `Practica_Libre_${simType}_${currentUser.username}.pdf`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);

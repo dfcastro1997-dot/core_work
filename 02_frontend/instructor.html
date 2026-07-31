@@ -91,6 +91,7 @@
                             <select id="quiz-type" onchange="toggleQuizType()" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-600 outline-none cursor-pointer">
                                 <option value="teorico">Teórico</option>
                                 <option value="practico">Práctico (DENSITY)</option>
+                                <option value="vmsx">Práctico (VMS-X)</option>
                             </select>
                         </div>
                         <div class="col-span-1">
@@ -99,15 +100,41 @@
                         </div>
                     </div>
 
-                    <!-- Mensaje para cuando es modo práctico -->
+                    <!-- Mensaje para cuando es modo práctico DENSITY -->
                     <div id="practical-config" class="hidden bg-red-50 p-4 rounded-lg border border-red-200 mb-6">
-                        <p class="text-sm text-red-700 font-bold mb-2">Modo Evaluación Práctica Activo</p>
+                        <p class="text-sm text-red-700 font-bold mb-2">Modo Evaluación Práctica (DENSITY)</p>
                         <p class="text-xs text-red-600 mb-4">El valor ingresado en "Tiempo/Maletas" definirá la cantidad de equipajes que el operador deberá inspeccionar de forma continua.</p>
                         
                         <label class="flex items-center space-x-3 cursor-pointer bg-white p-3 rounded-lg border border-red-100 shadow-sm w-fit">
                             <input type="checkbox" id="quiz-elec-illegal" class="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-600" checked>
                             <span class="text-xs font-bold text-red-900">Sancionar extracción de "Componentes Electrónicos" <br><span class="font-normal">(Se evaluarán como amenaza / objeto no autorizado)</span></span>
                         </label>
+                    </div>
+
+                    <!-- Mensaje para cuando es modo práctico VMS-X -->
+                    <div id="vmsx-config" class="hidden bg-blue-50 p-4 rounded-lg border border-blue-200 mb-6 shadow-sm">
+                        <p class="text-sm text-blue-700 font-bold mb-4">Configuración de Misión Práctica (VMS-X)</p>
+                        
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Título del Evento</label>
+                                <input type="text" id="vmsx-title" class="w-full bg-white border border-gray-300 rounded p-2 text-sm outline-none" placeholder="Ej: Paquete Sospechoso">
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Fecha Aprox.</label>
+                                    <input type="date" id="vmsx-date" class="w-full bg-white border border-gray-300 rounded p-2 text-sm outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Hora Aprox.</label>
+                                    <input type="time" id="vmsx-time" class="w-full bg-white border border-gray-300 rounded p-2 text-sm outline-none">
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Descripción del Acontecimiento (Órdenes)</label>
+                            <textarea id="vmsx-desc" rows="3" class="w-full bg-white border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-600 outline-none" placeholder="Ej: Revisar la CAM 01 e identificar al sujeto sospechoso realizando hurto..."></textarea>
+                        </div>
                     </div>
 
                     <div id="questions-container" class="space-y-6 border-t border-gray-100 pt-6"></div>
