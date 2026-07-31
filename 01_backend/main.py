@@ -10,15 +10,26 @@ from PyPDF2 import PdfWriter
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import ProgrammingError, OperationalError
 from fpdf import FPDF
 
 import database
 import models
 
-models.Base.metadata.create_all(bind=database.engine)
+# 1. Intentamos crear las tablas y hacer una consulta de prueba
+try:
+    models.Base.metadata.create_all(bind=database.engine)
+    with database.SessionLocal() as session:
+        session.query(models.User).first() # Prueba si existen las columnas nuevas
+except (ProgrammingError, OperationalError):
+    # 2. Si da error (faltan columnas), borra todo y recrea las tablas automáticamente
+    models.Base.metadata.drop_all(bind=database.engine)
+    models.Base.metadata.create_all(bind=database.engine)
 
+# 3. Poblamos los datos por defecto si está vacía
 with database.SessionLocal() as session:
     if session.query(models.User).count() == 0:
         school_test = models.School(name="Academia Central Guardias", subscription_type="Mensual", max_operators=100, max_instructors=20, is_active=True, allowed_sims="DENSITY,VMS-X")
