@@ -427,19 +427,22 @@
     </div>
 
     <script>
+        // FORZAR LIMPIEZA DE CACHÉ PARA EVITAR LOS ERRORES 403 DE LOS VIDEOS VIEJOS
+        localStorage.removeItem('vmsxCamsConfig');
+
         // ==========================================
         // BD DE CÁMARAS Y LÓGICA CORE
         // ==========================================
         let cameraDB = {
-            'cam1': { name: 'Cam 01 - Recepción', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4' },
-            'cam2': { name: 'Cam 02 - Perímetro', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4' },
-            'cam3': { name: 'Cam 03 - Pasillo', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4' },
-            'cam4': { name: 'Cam 04 - Bodega', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' },
-            'cam5': { name: 'Cam 05 - Parking', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4' },
-            'cam6': { name: 'Cam 06 - Servidores', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4' },
-            'cam7': { name: 'Cam 07 - Casino', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/VolkswagenGTIReview.mp4' },
-            'cam8': { name: 'Cam 08 - Puerta N', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4' },
-            'cam9': { name: 'Cam 09 - Puerta S', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WhatCarCanYouGetForAGrand.mp4' }
+            'cam1': { name: 'Cam 01 - Recepción', src: 'https://www.w3schools.com/html/mov_bbb.mp4' },
+            'cam2': { name: 'Cam 02 - Perímetro', src: 'https://www.w3schools.com/html/mov_bbb.mp4' },
+            'cam3': { name: 'Cam 03 - Pasillo', src: 'https://www.w3schools.com/html/mov_bbb.mp4' },
+            'cam4': { name: 'Cam 04 - Bodega', src: 'https://www.w3schools.com/html/mov_bbb.mp4' },
+            'cam5': { name: 'Cam 05 - Parking', src: 'https://www.w3schools.com/html/mov_bbb.mp4' },
+            'cam6': { name: 'Cam 06 - Servidores', src: 'https://www.w3schools.com/html/mov_bbb.mp4' },
+            'cam7': { name: 'Cam 07 - Casino', src: 'https://www.w3schools.com/html/mov_bbb.mp4' },
+            'cam8': { name: 'Cam 08 - Puerta N', src: 'https://www.w3schools.com/html/mov_bbb.mp4' },
+            'cam9': { name: 'Cam 09 - Puerta S', src: 'https://www.w3schools.com/html/mov_bbb.mp4' }
         };
 
         // Cargar configuraciones de URL guardadas por el admin
@@ -587,39 +590,23 @@
             if(cameraDB[camId]) cargarCamaraEnCuadrante(camId, boxNumber);
         }
 
-
-
-        // ==========================================
-        // REPRODUCCIÓN
-        // ==========================================
-        function formatTime(sec) {
-            if(isNaN(sec)) return "00:00:00";
-            let h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
-            return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-        }
-
         // ==========================================
         // CONTROL PTZ (ZOOM Y MOVIMIENTO)
         // ==========================================
-        let ptzState = {
-            1: { zoom: 1, x: 0, y: 0 },
-            2: { zoom: 1, x: 0, y: 0 },
-            3: { zoom: 1, x: 0, y: 0 },
-            4: { zoom: 1, x: 0, y: 0 }
-        };
+        let ptzState = { 1: { zoom: 1, x: 0, y: 0 }, 2: { zoom: 1, x: 0, y: 0 }, 3: { zoom: 1, x: 0, y: 0 }, 4: { zoom: 1, x: 0, y: 0 } };
 
         function zoomCam(delta) {
             let s = ptzState[activeCam];
             s.zoom += delta;
-            if(s.zoom < 1) { s.zoom = 1; s.x = 0; s.y = 0; } // Resetea si quitas todo el zoom
-            if(s.zoom > 5) s.zoom = 5; // Zoom máximo de 5x
+            if(s.zoom < 1) { s.zoom = 1; s.x = 0; s.y = 0; } 
+            if(s.zoom > 5) s.zoom = 5; 
             applyPTZ();
             logTerminal(`Zoom aplicado a cámara ${activeCam}. Nivel: ${s.zoom.toFixed(1)}x`);
         }
 
         function panCam(dx, dy) {
             let s = ptzState[activeCam];
-            if(s.zoom <= 1) return; // Solo permite paneo si hay zoom
+            if(s.zoom <= 1) return; 
             s.x += dx;
             s.y += dy;
             applyPTZ();
@@ -631,7 +618,6 @@
             const vid = document.getElementById(`vid${activeCam}`);
             const iframe = document.getElementById(`iframe${activeCam}`);
             const transformStr = `scale(${s.zoom}) translate(${s.x}px, ${s.y}px)`;
-            
             if(vid) { vid.style.transform = transformStr; vid.style.transition = "transform 0.2s ease-out"; }
             if(iframe) { iframe.style.transform = transformStr; iframe.style.transition = "transform 0.2s ease-out"; }
         }
@@ -651,11 +637,9 @@
             }
         }
 
-        // Listener global para capturar el tiempo real y duración de los videos de YouTube
         window.addEventListener('message', function(event) {
             try {
                 let data = JSON.parse(event.data);
-                // YouTube envía 'infoDelivery' cuando le enviamos el comando 'listening'
                 if (data.event === 'infoDelivery' && data.info && data.id === 'iframe1') {
                     if (data.info.duration) {
                         document.getElementById('timeline').max = data.info.duration;
@@ -669,20 +653,23 @@
             } catch(e) {}
         });
 
+        function formatTime(sec) {
+            if(isNaN(sec)) return "00:00:00";
+            let h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
+            return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+        }
+
         function syncTimeline() {
             if(isMasterPlaying) {
                 const vid1 = document.getElementById('vid1');
                 const iframe1 = document.getElementById('iframe1');
                 
-                // Sincronización precisa si es un video MP4 nativo
                 if(vid1 && !vid1.classList.contains('hidden') && vid1.src && !vid1.src.endsWith(window.location.pathname)) {
                     const t = vid1.currentTime;
                     document.getElementById('timeline').value = t;
                     document.getElementById('time-current').innerText = formatTime(t);
                 } 
-                // Sincronización exacta si es un iframe de YouTube
                 else if(iframe1 && !iframe1.classList.contains('hidden')) {
-                    // Enviamos un "ping" a la API de YouTube para que responda con la duración y el tiempo exacto
                     try {
                         iframe1.contentWindow.postMessage(JSON.stringify({
                             "event": "listening",
@@ -714,6 +701,7 @@
                 if(v && !v.classList.contains('hidden') && v.src) {
                     try { v.play().catch(e=>{}); } catch(e){}
                 }
+                
                 if(iframe && !iframe.classList.contains('hidden') && iframe.src) {
                     sendYtCmd(iframe, "playVideo");
                 }
@@ -730,6 +718,7 @@
                 if(v && !v.classList.contains('hidden') && v.src) {
                     try { v.pause(); } catch(e){}
                 }
+                
                 if(iframe && !iframe.classList.contains('hidden') && iframe.src) {
                     sendYtCmd(iframe, "pauseVideo");
                 }
@@ -745,6 +734,7 @@
                 if(v && !v.classList.contains('hidden') && v.src) {
                     try { v.currentTime = parseFloat(val); } catch(e){}
                 }
+                
                 if(iframe && !iframe.classList.contains('hidden') && iframe.src) {
                     sendYtCmd(iframe, "seekTo", [parseFloat(val), true]);
                 }
@@ -760,11 +750,27 @@
                 if(v && !v.classList.contains('hidden') && v.src) {
                     try { v.playbackRate = parseFloat(val); } catch(e){}
                 }
+                
                 if(iframe && !iframe.classList.contains('hidden') && iframe.src) {
                     sendYtCmd(iframe, "setPlaybackRate", [parseFloat(val)]);
                 }
             });
             logTerminal(`Velocidad de reproducción ajustada a ${val}x.`);
+        }
+
+        function clearGrid() {
+            pauseAll();
+            [1,2,3,4].forEach(i => {
+                document.getElementById(`vid${i}`).src = "";
+                document.getElementById(`vid${i}`).classList.remove('hidden');
+                const iframe = document.getElementById(`iframe${i}`);
+                if (iframe) {
+                    iframe.src = "";
+                    iframe.classList.add('hidden');
+                }
+                document.getElementById(`title-${i}`).innerText = "Sin Señal";
+            });
+            logTerminal("Grilla limpiada.");
         }
 
         function extractSrc(input) {
@@ -795,8 +801,7 @@
                     videoId = url.split("embed/")[1].split("?")[0];
                 }
                 
-                // INYECCIÓN CLAVE: enablejsapi=1 permite que JS controle a Youtube (Play, Pause, Seek)
-                url = `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&origin=http://localhost`;
+                url = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&origin=http://localhost`;
                 
                 vid.classList.add('hidden');
                 vid.src = "";
@@ -818,7 +823,6 @@
                 }
             }
             
-            // Resetea el PTZ al cambiar de cámara
             ptzState[boxNumber] = { zoom: 1, x: 0, y: 0 };
             activeCam = boxNumber;
             applyPTZ();
@@ -826,24 +830,6 @@
             selectCam(boxNumber);
             logTerminal(`Señal de ${data.name} asignada al canal ${boxNumber}.`);
         }
-
-        function clearGrid() {
-            pauseAll();
-            [1,2,3,4].forEach(i => {
-                document.getElementById(`vid${i}`).src = "";
-                document.getElementById(`vid${i}`).classList.remove('hidden');
-                const iframe = document.getElementById(`iframe${i}`);
-                if (iframe) {
-                    iframe.src = "";
-                    iframe.classList.add('hidden');
-                }
-                document.getElementById(`title-${i}`).innerText = "Sin Señal";
-            });
-            logTerminal("Grilla limpiada.");
-        }
-
-
-
 
         // ==========================================
         // CÁMARA FORENSE (PINCEL Y CAPTURAS)
@@ -857,7 +843,6 @@
             const iframe = document.getElementById(`iframe${activeCam}`);
             
             if (!vid.classList.contains('hidden')) {
-                // Lógica original de video MP4
                 if(!vid || vid.readyState < 2 || !vid.src || vid.src === window.location.href) {
                     document.getElementById('alert-title').innerText = "Aviso Operativo";
                     document.getElementById('alert-message').innerText = "La cámara seleccionada no tiene señal de video válida para capturar.";
@@ -868,7 +853,6 @@
                 canvas.height = vid.videoHeight;
                 ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
             } else if (!iframe.classList.contains('hidden') && iframe.src) {
-                // Placa forense generada automáticamente para videos embed (Youtube)
                 canvas.width = 800;
                 canvas.height = 450;
                 ctx.fillStyle = "#111111";
