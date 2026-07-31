@@ -651,6 +651,24 @@
             }
         }
 
+        // Listener global para capturar el tiempo real y duración de los videos de YouTube
+        window.addEventListener('message', function(event) {
+            try {
+                let data = JSON.parse(event.data);
+                // YouTube envía 'infoDelivery' cuando le enviamos el comando 'listening'
+                if (data.event === 'infoDelivery' && data.info && data.id === 'iframe1') {
+                    if (data.info.duration) {
+                        document.getElementById('timeline').max = data.info.duration;
+                        document.getElementById('time-total').innerText = formatTime(data.info.duration);
+                    }
+                    if (data.info.currentTime !== undefined && isMasterPlaying) {
+                        document.getElementById('timeline').value = data.info.currentTime;
+                        document.getElementById('time-current').innerText = formatTime(data.info.currentTime);
+                    }
+                }
+            } catch(e) {}
+        });
+
         function syncTimeline() {
             if(isMasterPlaying) {
                 const vid1 = document.getElementById('vid1');
@@ -662,15 +680,15 @@
                     document.getElementById('timeline').value = t;
                     document.getElementById('time-current').innerText = formatTime(t);
                 } 
-                // Avance virtual de la barra de tiempo si es un iframe de YouTube
+                // Sincronización exacta si es un iframe de YouTube
                 else if(iframe1 && !iframe1.classList.contains('hidden')) {
-                    let currentVal = parseFloat(document.getElementById('timeline').value) || 0;
-                    let maxVal = parseFloat(document.getElementById('timeline').max) || 600; // Límite virtual
-                    if(currentVal < maxVal) {
-                        currentVal += 0.5; // Intervalo de 500ms
-                        document.getElementById('timeline').value = currentVal;
-                        document.getElementById('time-current').innerText = formatTime(currentVal);
-                    }
+                    // Enviamos un "ping" a la API de YouTube para que responda con la duración y el tiempo exacto
+                    try {
+                        iframe1.contentWindow.postMessage(JSON.stringify({
+                            "event": "listening",
+                            "id": "iframe1"
+                        }), '*');
+                    } catch(e) {}
                 }
             }
         }
@@ -693,11 +711,9 @@
                 const v = document.getElementById(`vid${index}`);
                 const iframe = document.getElementById(`iframe${index}`);
                 
-                // Protección try-catch para evitar que un video vacío bloquee la ejecución
                 if(v && !v.classList.contains('hidden') && v.src) {
                     try { v.play().catch(e=>{}); } catch(e){}
                 }
-                
                 if(iframe && !iframe.classList.contains('hidden') && iframe.src) {
                     sendYtCmd(iframe, "playVideo");
                 }
@@ -714,7 +730,6 @@
                 if(v && !v.classList.contains('hidden') && v.src) {
                     try { v.pause(); } catch(e){}
                 }
-                
                 if(iframe && !iframe.classList.contains('hidden') && iframe.src) {
                     sendYtCmd(iframe, "pauseVideo");
                 }
@@ -730,7 +745,6 @@
                 if(v && !v.classList.contains('hidden') && v.src) {
                     try { v.currentTime = parseFloat(val); } catch(e){}
                 }
-                
                 if(iframe && !iframe.classList.contains('hidden') && iframe.src) {
                     sendYtCmd(iframe, "seekTo", [parseFloat(val), true]);
                 }
@@ -746,7 +760,6 @@
                 if(v && !v.classList.contains('hidden') && v.src) {
                     try { v.playbackRate = parseFloat(val); } catch(e){}
                 }
-                
                 if(iframe && !iframe.classList.contains('hidden') && iframe.src) {
                     sendYtCmd(iframe, "setPlaybackRate", [parseFloat(val)]);
                 }
@@ -772,26 +785,24 @@
             let url = extractSrc(data.src);
             title.innerText = data.name;
             
-            if (url && (url.includes("youtube.com") || url.includes("youtu.be"))) {
+            if (url && (url.includes("youtube.com") || url.includes("youtu.be") || url.includes("youtube-nocookie.com"))) {
                 let videoId = "";
-                if (url.includes("watch?v=")) videoId = url.split("watch?v=")[1].split("&")[0];
-                else if (url.includes("youtu.be/")) videoId = url.split("youtu.be/")[1].split("?")[0];
-                else if (url.includes("embed/")) videoId = url.split("embed/")[1].split("?")[0];
+                if (url.includes("watch?v=")) {
+                    videoId = url.split("watch?v=")[1].split("&")[0];
+                } else if (url.includes("youtu.be/")) {
+                    videoId = url.split("youtu.be/")[1].split("?")[0];
+                } else if (url.includes("embed/")) {
+                    videoId = url.split("embed/")[1].split("?")[0];
+                }
                 
-                // INYECCIÓN CLAVE: enablejsapi=1 es lo que permite que JS controle a Youtube (Play, Pause, Seek)
-                url = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1`;
+                // INYECCIÓN CLAVE: enablejsapi=1 permite que JS controle a Youtube (Play, Pause, Seek)
+                url = `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&origin=http://localhost`;
                 
                 vid.classList.add('hidden');
                 vid.src = "";
                 
                 iframe.classList.remove('hidden');
                 iframe.src = url;
-
-                // Setear límite de la barra virtual en 10 minutos (600s) si Youtube está en la Cam 1
-                if (boxNumber === 1) {
-                    document.getElementById('timeline').max = 600; 
-                    document.getElementById('time-total').innerText = formatTime(600);
-                }
             } else {
                 iframe.classList.add('hidden');
                 iframe.src = "";
