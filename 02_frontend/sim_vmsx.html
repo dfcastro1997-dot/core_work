@@ -644,18 +644,18 @@
                 const vid1 = document.getElementById('vid1');
                 const iframe1 = document.getElementById('iframe1');
                 
-                // Si la Cam 1 es nativa, sincroniza exacto
+                // Sincronización precisa si es un video MP4
                 if(vid1 && !vid1.classList.contains('hidden') && vid1.src) {
                     const t = vid1.currentTime;
                     document.getElementById('timeline').value = t;
                     document.getElementById('time-current').innerText = formatTime(t);
                 } 
-                // Si la Cam 1 es YouTube, incrementamos la barra virtualmente para simular el paso del tiempo
+                // Avance virtual de la barra de tiempo si es YouTube
                 else if(iframe1 && !iframe1.classList.contains('hidden')) {
-                    let currentVal = parseFloat(document.getElementById('timeline').value);
-                    let maxVal = parseFloat(document.getElementById('timeline').max) || 100;
+                    let currentVal = parseFloat(document.getElementById('timeline').value) || 0;
+                    let maxVal = parseFloat(document.getElementById('timeline').max) || 600;
                     if(currentVal < maxVal) {
-                        currentVal += 0.5; // El intervalo es de 500ms
+                        currentVal += 0.5; // Intervalo de la función (500ms)
                         document.getElementById('timeline').value = currentVal;
                         document.getElementById('time-current').innerText = formatTime(currentVal);
                     }
@@ -680,11 +680,12 @@
             [1,2,3,4].forEach(index => {
                 const v = document.getElementById(`vid${index}`);
                 const iframe = document.getElementById(`iframe${index}`);
-                // Activar nativos
+                
                 if(v && v.src && !v.classList.contains('hidden')) v.play().catch(e=>{});
-                // Activar Youtube enviando señal al API oculta del reproductor
+                
+                // Formato JSON estricto para forzar a la API de YouTube a obedecer
                 if(iframe && !iframe.classList.contains('hidden')) {
-                    iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+                    iframe.contentWindow.postMessage(JSON.stringify({"event": "command", "func": "playVideo", "args": []}), '*');
                 }
             });
             logTerminal("Reproducción global iniciada.");
@@ -695,10 +696,11 @@
             [1,2,3,4].forEach(index => {
                 const v = document.getElementById(`vid${index}`);
                 const iframe = document.getElementById(`iframe${index}`);
+                
                 if(v && !v.classList.contains('hidden')) v.pause();
-                // Detener YouTube enviando comando API
+                
                 if(iframe && !iframe.classList.contains('hidden')) {
-                    iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+                    iframe.contentWindow.postMessage(JSON.stringify({"event": "command", "func": "pauseVideo", "args": []}), '*');
                 }
             });
             logTerminal("Reproducción global pausada.");
@@ -709,13 +711,13 @@
                 const v = document.getElementById(`vid${index}`);
                 const iframe = document.getElementById(`iframe${index}`);
                 
-                // Mover tiempo nativo
                 if(v && !v.classList.contains('hidden')) {
                     v.currentTime = parseFloat(val);
                 }
-                // Mover tiempo YouTube (seekTo)
+                
                 if(iframe && !iframe.classList.contains('hidden')) {
-                    iframe.contentWindow.postMessage(JSON.stringify({event: "command", func: "seekTo", args: [parseFloat(val), true]}), '*');
+                    // Desplazar tiempo en YouTube (Recibe parámetro en segundos)
+                    iframe.contentWindow.postMessage(JSON.stringify({"event": "command", "func": "seekTo", "args": [parseFloat(val), true]}), '*');
                 }
             });
             document.getElementById('time-current').innerText = formatTime(val);
@@ -724,7 +726,13 @@
         function setSpeed(val) {
             [1,2,3,4].forEach(index => {
                 const v = document.getElementById(`vid${index}`);
+                const iframe = document.getElementById(`iframe${index}`);
+                
                 if(v && !v.classList.contains('hidden')) v.playbackRate = parseFloat(val);
+                
+                if(iframe && !iframe.classList.contains('hidden')) {
+                    iframe.contentWindow.postMessage(JSON.stringify({"event": "command", "func": "setPlaybackRate", "args": [parseFloat(val)]}), '*');
+                }
             });
             logTerminal(`Velocidad de reproducción ajustada a ${val}x.`);
         }
@@ -753,14 +761,20 @@
                 else if (url.includes("youtu.be/")) videoId = url.split("youtu.be/")[1].split("?")[0];
                 else if (url.includes("embed/")) videoId = url.split("embed/")[1].split("?")[0];
                 
-                // Se agrega &enablejsapi=1 para permitir que postMessage funcione y controle Play/Pause/Seek
-                url = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&origin=http://localhost&enablejsapi=1`;
+                // Configuración vital (enablejsapi=1) para que funcione play, pause y seek
+                url = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}`;
                 
                 vid.classList.add('hidden');
                 vid.src = "";
                 
                 iframe.classList.remove('hidden');
                 iframe.src = url;
+
+                // Si es YouTube, fijamos un límite por defecto en la barra (ej. 10 minutos / 600 segundos)
+                if (boxNumber === 1) {
+                    document.getElementById('timeline').max = 600; 
+                    document.getElementById('time-total').innerText = formatTime(600);
+                }
             } else {
                 iframe.classList.add('hidden');
                 iframe.src = "";
