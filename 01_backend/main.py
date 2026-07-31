@@ -288,14 +288,49 @@ def generate_pdf(result_id: int, db: Session = Depends(database.get_db)):
     else: pdf.set_text_color(220, 38, 38)
     pdf.cell(0, 10, f"EFECTIVIDAD TACTICA (SCORE): {res.score}%", 0, 1); pdf.ln(5)
     pdf.set_font("Arial", 'B', 12); pdf.set_text_color(0, 0, 0); pdf.cell(0, 10, "Auditoria Forense (Log):", 0, 1)
-    pdf.set_font("Arial", '', 11); pdf.set_fill_color(245, 245, 245); pdf.multi_cell(0, 8, f"{res.details}", fill=True, border=1); pdf.ln(5)
+    
+    import json
+    import base64
+    import tempfile
+    import os
+    
+    try:
+        details_data = json.loads(res.details)
+        pdf.set_font("Arial", '', 10)
+        pdf.multi_cell(0, 6, details_data.get('header', ''), border=0)
+        pdf.ln(5)
+        
+        for r in details_data.get('reports', []):
+            txt = f"MALETA {r.get('bag', '?')}\nSujeto: {r.get('subject', 'N/A')} (ID: {r.get('subject_id', 'N/A')})\nOperador: {r.get('operator', '')}\nFecha: {r.get('date', '')}\nAmenazas Reales: {r.get('real_threats', 0)} | Marcadas: {r.get('marked_threats', 0)} | Score Parcial: {r.get('score', 0)}%\n\nInforme de Novedades:\n{r.get('details', '')}"
+            pdf.set_fill_color(245, 245, 245)
+            pdf.multi_cell(0, 6, txt, fill=True, border=1)
+            pdf.ln(2)
+            
+            images = r.get('screenshots', [])
+            for b64 in images:
+                if "," in b64:
+                    header, data = b64.split(',', 1)
+                    img_data = base64.b64decode(data)
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_img:
+                        tmp_img.write(img_data)
+                        tmp_name = tmp_img.name
+                    
+                    if pdf.get_y() > 220:
+                        pdf.add_page()
+                    pdf.image(tmp_name, w=140) # Ajustado tamaño para PDF
+                    pdf.ln(5)
+                    os.unlink(tmp_name)
+            pdf.ln(5)
+    except Exception as e:
+        pdf.set_font("Arial", '', 11); pdf.set_fill_color(245, 245, 245); pdf.multi_cell(0, 8, f"{res.details}", fill=True, border=1); pdf.ln(5)
+
     if res.feedback:
         pdf.set_font("Arial", 'B', 12); pdf.set_text_color(220, 38, 38); pdf.cell(0, 10, "Comentarios del Instructor:", 0, 1)
         pdf.set_font("Arial", 'I', 11); pdf.set_text_color(0, 0, 0); pdf.multi_cell(0, 8, f"{res.feedback}")
+    
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     pdf.output(temp_file.name)
     return FileResponse(temp_file.name, media_type='application/pdf', filename=f"Cert_{user.username}.pdf")
-
 @app.get("/reset-db")
 def reset_database():
     models.Base.metadata.drop_all(bind=database.engine)

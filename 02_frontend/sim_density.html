@@ -5,115 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DENSITY | X-RAY Web Simulator</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Consolas&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #F9FAFB; overflow: hidden; }
         .console-font { font-family: 'Consolas', monospace; }
         
-        /* FILTRO BASE RAYOS X: Contraste extremo para dar volumen 3D a imágenes planas */
-        .base-xray { 
-            filter: grayscale(100%) contrast(200%) brightness(1.2) drop-shadow(0 0 8px rgba(255,255,255,0.15)); 
-            mix-blend-mode: screen; 
-        }
-
-        /* ESPECTROMETRÍA DE COLOR: Colores suavizados al 50% (Saturación y contraste reducidos) */
-        .filter-organic { 
-            filter: sepia(100%) hue-rotate(5deg) saturate(250%) brightness(0.95) contrast(150%) drop-shadow(0 0 8px rgba(217, 119, 6, 0.3)); 
-            mix-blend-mode: screen; 
-        }
-        .filter-metals { 
-            filter: sepia(100%) hue-rotate(200deg) saturate(300%) brightness(0.9) contrast(180%) drop-shadow(0 0 8px rgba(37, 99, 235, 0.35)); 
-            mix-blend-mode: screen; 
-        }
-        .filter-mixed { 
-            filter: sepia(100%) hue-rotate(90deg) saturate(200%) brightness(1.0) contrast(140%) drop-shadow(0 0 8px rgba(22, 163, 74, 0.3)); 
-            mix-blend-mode: screen; 
-        }
-        .filter-bw { 
-            filter: grayscale(100%) contrast(180%) brightness(1.2) drop-shadow(0 0 8px rgba(255, 255, 255, 0.3)); 
-            mix-blend-mode: screen; 
-        }
-        .filter-normal { 
-            filter: grayscale(100%) contrast(150%) brightness(1.1); 
-            mix-blend-mode: screen; 
-        }
+        .base-xray { filter: grayscale(100%) contrast(200%) brightness(1.2) drop-shadow(0 0 8px rgba(255,255,255,0.15)); mix-blend-mode: screen; }
+        .filter-organic { filter: sepia(100%) hue-rotate(5deg) saturate(250%) brightness(0.95) contrast(150%) drop-shadow(0 0 8px rgba(217, 119, 6, 0.3)); mix-blend-mode: screen; }
+        .filter-metals { filter: sepia(100%) hue-rotate(200deg) saturate(300%) brightness(0.9) contrast(180%) drop-shadow(0 0 8px rgba(37, 99, 235, 0.35)); mix-blend-mode: screen; }
+        .filter-mixed { filter: sepia(100%) hue-rotate(90deg) saturate(200%) brightness(1.0) contrast(140%) drop-shadow(0 0 8px rgba(22, 163, 74, 0.3)); mix-blend-mode: screen; }
+        .filter-bw { filter: grayscale(100%) contrast(180%) brightness(1.2) drop-shadow(0 0 8px rgba(255, 255, 255, 0.3)); mix-blend-mode: screen; }
+        .filter-normal { filter: grayscale(100%) contrast(150%) brightness(1.1); mix-blend-mode: screen; }
         
-        /* OCULTAMIENTO FÍSICO DE MATERIALES (Ajustado para la nueva suavidad) */
-        .mat-hidden-metal { 
-            filter: brightness(0.2) grayscale(100%) contrast(200%); 
-            opacity: 0.9 !important; 
-            mix-blend-mode: multiply !important; 
-        }
-        .mat-hidden-organic { 
-            opacity: 0.2 !important; 
-            filter: blur(1.5px) contrast(120%); 
-        }
+        .mat-hidden-metal { filter: brightness(0.2) grayscale(100%) contrast(200%); opacity: 0.9 !important; mix-blend-mode: multiply !important; }
+        .mat-hidden-organic { opacity: 0.2 !important; filter: blur(1.5px) contrast(120%); }
 
         .z-scan-layer { transition: opacity 0.1s linear; }
+        #xray-viewport { background-color: #020202; background-image: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.015) 2px, rgba(255,255,255,0.015) 4px); position: relative; }
+        #xray-viewport::after { content: ""; position: absolute; inset: 0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.12'/%3E%3C/svg%3E"); pointer-events: none; z-index: 40; mix-blend-mode: screen; }
+        
+        .conveyor-belt { position: absolute; bottom: 5%; width: 100%; height: 50px; background: repeating-linear-gradient(90deg, #0a0a0a, #0a0a0a 30px, #111 30px, #111 60px); border-top: 2px solid #222; border-bottom: 8px solid #000; box-shadow: 0 -10px 30px rgba(0,0,0,0.9); z-index: 5; }
+        .luggage-item { position: absolute; cursor: crosshair; z-index: 10; }
+        .forensic-marker { position: absolute; border: 2px solid #DC2626; border-radius: 50%; pointer-events: none; transform: translate(-50%, -50%); box-shadow: 0 0 10px rgba(220, 38, 38, 0.8), inset 0 0 5px rgba(220, 38, 38, 0.5); z-index: 50; }
+        .forensic-label { position: absolute; background: rgba(255,255,255,0.95); color: #DC2626; font-size: 10px; font-weight: bold; padding: 2px 5px; border-radius: 3px; border: 1px solid #DC2626; pointer-events: none; z-index: 50; white-space: nowrap; }
 
-        /* Contenedor del Canvas de Rayos X (Banda Oscura con leves scanlines) */
-        #xray-viewport {
-            background-color: #020202;
-            background-image: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.015) 2px, rgba(255,255,255,0.015) 4px);
-            position: relative;
-        }
-
-        /* EFECTO DE GRANULADO (RUIDO FRACTAL) PARA REALISMO DE ESCÁNER */
-        #xray-viewport::after {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.12'/%3E%3C/svg%3E");
-            pointer-events: none;
-            z-index: 40;
-            mix-blend-mode: screen;
-        }
-
-        /* Cinta transportadora oscura en el fondo */
-        .conveyor-belt {
-            position: absolute;
-            bottom: 5%;
-            width: 100%;
-            height: 50px;
-            background: repeating-linear-gradient(90deg, #0a0a0a, #0a0a0a 30px, #111 30px, #111 60px);
-            border-top: 2px solid #222;
-            border-bottom: 8px solid #000;
-            box-shadow: 0 -10px 30px rgba(0,0,0,0.9);
-            z-index: 5;
-        }
-
-        /* Objeto simulado moviéndose por la banda */
-        .luggage-item {
-            position: absolute;
-            cursor: crosshair;
-            z-index: 10;
-        }
-
-        /* Marcador Forense Anclado */
-        .forensic-marker {
-            position: absolute;
-            border: 2px solid #DC2626;
-            border-radius: 50%;
-            pointer-events: none;
-            transform: translate(-50%, -50%);
-            box-shadow: 0 0 10px rgba(220, 38, 38, 0.8), inset 0 0 5px rgba(220, 38, 38, 0.5);
-            z-index: 50;
-        }
-        .forensic-label {
-            position: absolute;
-            background: rgba(255,255,255,0.95);
-            color: #DC2626;
-            font-size: 10px;
-            font-weight: bold;
-            padding: 2px 5px;
-            border-radius: 3px;
-            border: 1px solid #DC2626;
-            pointer-events: none;
-            z-index: 50;
-            white-space: nowrap;
-        }
-
-        /* UI Estilos */
         .settings-tab-active { background-color: #fef2f2; color: #DC2626; border-left-width: 4px; border-color: #DC2626; }
         .settings-tab-inactive { color: #4B5563; border-left-width: 4px; border-color: transparent; }
         .settings-tab-inactive:hover { background-color: #f3f4f6; color: #111827; }
@@ -126,9 +42,6 @@
 </head>
 <body class="text-gray-900 flex flex-col h-screen">
 
-    <!-- ========================================== -->
-    <!-- TOP BAR (TELEMETRÍA)                       -->
-    <!-- ========================================== -->
     <header class="h-16 bg-white border-b border-gray-200 flex justify-between items-center px-6 shrink-0 relative z-40 shadow-sm">
         <div class="flex items-center space-x-6">
             <img src="https://i.ibb.co/mVh9kScZ/logofb.png" alt="DENSITY Logo" class="h-10 object-contain">
@@ -140,19 +53,22 @@
         </div>
         
         <div class="flex items-center space-x-6">
-            <button onclick="openAdminAuthModal()" class="text-gray-600 hover:text-red-600 font-bold text-xs uppercase tracking-wider flex items-center transition-colors px-4 py-2.5 rounded-lg hover:bg-red-50 border border-transparent hover:border-red-100 shadow-sm bg-white">
+            <button id="btn-ajustes" onclick="openAdminAuthModal()" class="text-gray-600 hover:text-red-600 font-bold text-xs uppercase tracking-wider flex items-center transition-colors px-4 py-2.5 rounded-lg hover:bg-red-50 border border-transparent hover:border-red-100 shadow-sm bg-white">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                 Ajustes
             </button>
-            
             <div class="border-l border-gray-200 h-8"></div>
-
             <div class="text-right">
                 <p class="text-[9px] text-gray-500 font-bold uppercase tracking-widest">Operador Activo</p>
                 <p class="text-sm font-black text-black uppercase tracking-wide" id="op-name">CARGANDO...</p>
             </div>
             
-            <button onclick="cerrarSimulador()" class="bg-red-600 hover:bg-black text-white text-xs font-bold px-8 py-3 rounded-lg shadow-md uppercase tracking-widest transition-colors border border-transparent">
+            <button onclick="tomarCaptura()" class="bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold px-4 py-3 rounded-lg shadow-sm uppercase tracking-widest transition-colors border border-gray-300 ml-4 flex items-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                Capturar
+            </button>
+
+            <button onclick="cerrarSimulador()" class="bg-red-600 hover:bg-black text-white text-xs font-bold px-6 py-3 rounded-lg shadow-md uppercase tracking-widest transition-colors border border-transparent">
                 Finalizar Práctica
             </button>
         </div>
@@ -540,41 +456,51 @@
     <!-- ========================================== -->
     <!-- MODAL DE INFORME DE HALLAZGOS (POR MALETA) -->
     <!-- ========================================== -->
-    <div id="report-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center z-[250]">
-        <div class="bg-white w-full max-w-lg rounded-2xl p-8 shadow-2xl border border-gray-200">
-            <h3 class="text-xl font-extrabold text-black mb-2 uppercase tracking-wide border-b border-gray-100 pb-3">Informe de Hallazgos</h3>
-            <p class="text-xs text-gray-500 mb-4">Redacte el informe forense de la maleta recién inspeccionada.</p>
-            <form id="report-form" onsubmit="guardarInforme(event)" class="space-y-4">
-                
-                <!-- Datos del Sujeto (Extraídos automáticamente) -->
-                <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 mb-2">
-                    <h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Identificación de Sujeto</h4>
-                    <div class="grid grid-cols-2 gap-2 text-xs">
-                        <div><span class="font-bold text-gray-600">Nombre:</span> <span id="rep-subj-name" class="font-black text-black"></span></div>
-                        <div><span class="font-bold text-gray-600">ID / Cédula:</span> <span id="rep-subj-id" class="font-black text-black"></span></div>
-                        <div><span class="font-bold text-gray-600">Género:</span> <span id="rep-subj-gender" class="font-black text-black"></span></div>
+    <div id="report-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md hidden flex items-center justify-center z-[250] p-4">
+        <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-gray-200">
+            <div class="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                <h3 class="text-xl font-black text-black uppercase tracking-wide">Informe de Hallazgos Operativos</h3>
+                <span class="bg-red-100 text-red-800 text-[10px] font-bold px-3 py-1 rounded uppercase tracking-widest border border-red-200">CONFIDENCIAL</span>
+            </div>
+            
+            <form id="report-form" onsubmit="guardarInforme(event)" class="p-6 overflow-y-auto flex-1 space-y-5">
+                <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                    <h4 class="text-[10px] font-bold text-blue-800 uppercase tracking-widest mb-3">Identificación de Sujeto</h4>
+                    <div class="grid grid-cols-3 gap-4 text-sm">
+                        <div><span class="block text-[10px] text-blue-600 font-bold uppercase">Nombre</span> <span id="rep-subj-name" class="font-black text-gray-900"></span></div>
+                        <div><span class="block text-[10px] text-blue-600 font-bold uppercase">ID / Cédula</span> <span id="rep-subj-id" class="font-black text-gray-900"></span></div>
+                        <div><span class="block text-[10px] text-blue-600 font-bold uppercase">Género</span> <span id="rep-subj-gender" class="font-black text-gray-900"></span></div>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-2 gap-5">
                     <div>
-                        <label class="block text-[10px] font-bold text-gray-700 uppercase mb-1">Nombre del Operador</label>
-                        <input type="text" id="rep-name" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-red-600">
+                        <label class="block text-[10px] font-bold text-gray-700 uppercase mb-1.5">Nombre del Operador</label>
+                        <input type="text" id="rep-name" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-red-600 font-semibold shadow-inner">
                     </div>
                     <div>
-                        <label class="block text-[10px] font-bold text-gray-700 uppercase mb-1">Fecha y Hora</label>
-                        <!-- Campo editable sin readonly para que el alumno lo diligencie -->
-                        <input type="text" id="rep-date" required placeholder="Ej: 14/08/2026 15:30" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-red-600">
+                        <label class="block text-[10px] font-bold text-gray-700 uppercase mb-1.5">Fecha y Hora</label>
+                        <input type="text" id="rep-date" required placeholder="DD/MM/AAAA HH:MM" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-red-600 font-semibold shadow-inner">
                     </div>
                 </div>
+                
                 <div>
-                    <label class="block text-[10px] font-bold text-gray-700 uppercase mb-1">Descripción de Novedades</label>
-                    <textarea id="rep-details" rows="4" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-red-600" placeholder="Ej: Se detectó un arma de fuego camuflada junto a material orgánico..."></textarea>
+                    <label class="block text-[10px] font-bold text-gray-700 uppercase mb-1.5">Descripción Forense de Novedades</label>
+                    <textarea id="rep-details" rows="3" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-red-600 resize-none font-medium shadow-inner" placeholder="Ej: Se detectó objeto cortopunzante..."></textarea>
                 </div>
-                <div class="flex justify-end pt-4 border-t border-gray-100">
-                    <button type="submit" class="bg-red-600 hover:bg-black text-white font-bold py-3 px-6 rounded-lg text-xs uppercase tracking-wider transition-colors shadow-md">Firmar y Continuar</button>
+
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-700 uppercase mb-2">Evidencias Fotográficas (Capturas)</label>
+                    <div id="rep-gallery" class="flex gap-3 overflow-x-auto p-3 bg-gray-100 rounded-xl border border-gray-200 min-h-[100px] items-center">
+                        <!-- Galeria inyectada via JS -->
+                    </div>
+                    <p class="text-[10px] text-gray-500 mt-1.5 italic">* Seleccione las imágenes que desea adjuntar al informe final.</p>
                 </div>
             </form>
+            
+            <div class="p-5 border-t border-gray-100 bg-white flex justify-end">
+                <button type="submit" form="report-form" class="bg-red-600 hover:bg-black text-white font-bold py-3.5 px-8 rounded-xl text-xs uppercase tracking-widest transition-colors shadow-lg">Firmar Evidencias y Continuar</button>
+            </div>
         </div>
     </div>
 
@@ -916,89 +842,6 @@
             `).join('');
         }
 
-        // ==========================================
-        // MOTOR DE SIMULACIÓN Y CONSTRUCCIÓN DE ESCENA
-        // ==========================================
-        let activeThreatsData = []; // NUEVO: Array para manejar múltiples objetos
-
-        function applySettingsToEngine() {
-            const saved = getSafeSettings();
-            
-            beltPos = -800; // Empieza afuera de la banda izquierda
-            beltProgress = 0;
-            // Limpia los marcadores y los objetos inyectados de la maleta anterior
-            document.querySelectorAll('.forensic-marker, .forensic-label, .dynamic-threat').forEach(e => e.remove());
-            totalAmenazasMarcadas = 0;
-            activeThreatsData = [];
-            
-            // Ocultamos la imagen estática antigua que ya no usaremos
-            const oldThreat = document.getElementById('luggage-threat');
-            if(oldThreat) oldThreat.style.display = 'none'; 
-
-            const beltBar = document.getElementById('belt-bar');
-            if(beltBar) beltBar.style.width = `0%`;
-            
-            const beltProg = document.getElementById('belt-progress');
-            if(beltProg) beltProg.innerText = `0%`;
-            
-            currentFilter = 'normal'; 
-            zScanValue = 0.5; // Resetea profundidad escáner
-
-            if(saved.bags.length > 0) {
-                // 1. Escoger Maleta Base Aleatoria
-                const idx = Math.floor(Math.random() * saved.bags.length);
-                const selectedBag = saved.bags[idx];
-                
-                luggageGroup.style.width = selectedBag.w + 'px';
-                luggageGroup.style.height = selectedBag.h + 'px';
-                
-                imgBase.src = selectedBag.url;
-
-                const possibleThreats = saved.threats.filter(t => t.bagIdx === idx);
-                
-                // Probabilidad de inyectar objetos (70% de probabilidad de que contenga elementos)
-                if(possibleThreats.length > 0 && Math.random() > 0.3) {
-                    // Genera aleatoriamente entre 4 y 8 objetos
-                    let numObjects = Math.floor(Math.random() * 5) + 4; 
-                    
-                    for(let i = 0; i < numObjects; i++) {
-                        const t = possibleThreats[Math.floor(Math.random() * possibleThreats.length)];
-                        
-                        // Creación dinámica de la imagen
-                        let tImg = document.createElement('img');
-                        tImg.src = t.url;
-                        tImg.className = `dynamic-threat absolute object-contain transition-all duration-300`;
-                        
-                        tImg.style.width = `${(t.w / selectedBag.w) * 100}%`;
-                        tImg.style.height = `${(t.h / selectedBag.h) * 100}%`;
-                        
-                        // Posición aleatoria dentro del área permitida
-                        const randX = t.aX + (Math.random() * t.aW);
-                        const randY = t.aY + (Math.random() * t.aH);
-                        
-                        tImg.style.left = `calc(${randX * 100}% - ${(t.w/2)/selectedBag.w * 100}%)`;
-                        tImg.style.top = `calc(${randY * 100}% - ${(t.h/2)/selectedBag.h * 100}%)`;
-                        
-                        // Rotación y Profundidad Z independiente para cada objeto
-                        const rot = Math.floor(Math.random() * 360);
-                        tImg.style.transform = `rotate(${rot}deg)`;
-                        let tZ = Math.random(); 
-                        
-                        // Guardar referencia
-                        activeThreatsData.push({ data: t, element: tImg, z: tZ });
-                        luggageGroup.appendChild(tImg);
-                        
-                        addLog(`Sistema inyectó objeto [${t.type}] (Profundidad Z: ${tZ.toFixed(2)}).`);
-                    }
-                } else {
-                    addLog(`Equipaje evaluado como aparentemente limpio por el sistema.`);
-                }
-            }
-            
-            applyFiltersToImages();
-            generarPasajeroAleatorio(saved);
-        }
-
         function generarPasajeroAleatorio(savedCfg) {
             const isMale = Math.random() > 0.5;
             const nomArray = isMale ? nombresM : nombresF;
@@ -1225,6 +1068,168 @@
 
 
 
+        let activeThreatsData = []; 
+        let currentBagScreenshots = []; // Almacena capturas temporales por maleta
+
+        function tomarCaptura() {
+            if(typeof html2canvas === 'undefined') return customAlert("Error", "Librería de capturas no cargada.", "error");
+            const viewport = document.getElementById('xray-viewport');
+            html2canvas(viewport, {backgroundColor: "#020202", scale: 1}).then(canvas => {
+                const imgData = canvas.toDataURL('image/jpeg', 0.6);
+                currentBagScreenshots.push(imgData);
+                addLog(`📸 Captura de rayos X guardada exitosamente (${currentBagScreenshots.length}).`);
+            });
+        }
+
+        function applySettingsToEngine() {
+            const saved = getSafeSettings();
+            beltPos = -800; 
+            beltProgress = 0;
+            document.querySelectorAll('.forensic-marker, .forensic-label, .dynamic-threat').forEach(e => e.remove());
+            totalAmenazasMarcadas = 0;
+            activeThreatsData = [];
+            currentBagScreenshots = []; // Se borran las capturas de la maleta anterior
+            
+            const oldThreat = document.getElementById('luggage-threat');
+            if(oldThreat) oldThreat.style.display = 'none'; 
+
+            const beltBar = document.getElementById('belt-bar');
+            if(beltBar) beltBar.style.width = `0%`;
+            
+            const beltProg = document.getElementById('belt-progress');
+            if(beltProg) beltProg.innerText = `0%`;
+            
+            currentFilter = 'normal'; zScanValue = 0.5;
+
+            if(saved.bags.length > 0) {
+                const idx = Math.floor(Math.random() * saved.bags.length);
+                const selectedBag = saved.bags[idx];
+                luggageGroup.style.width = selectedBag.w + 'px';
+                luggageGroup.style.height = selectedBag.h + 'px';
+                imgBase.src = selectedBag.url;
+
+                const possibleThreats = saved.threats.filter(t => t.bagIdx === idx);
+                
+                // YA NO HAY RANDOM > 0.3. Siempre inyecta objetos para no dejarla vacía.
+                if(possibleThreats.length > 0) {
+                    let numObjects = Math.floor(Math.random() * 5) + 4; 
+                    for(let i = 0; i < numObjects; i++) {
+                        const t = possibleThreats[Math.floor(Math.random() * possibleThreats.length)];
+                        let tImg = document.createElement('img');
+                        tImg.src = t.url;
+                        tImg.className = `dynamic-threat absolute object-contain transition-all duration-300`;
+                        tImg.style.width = `${(t.w / selectedBag.w) * 100}%`;
+                        tImg.style.height = `${(t.h / selectedBag.h) * 100}%`;
+                        const randX = t.aX + (Math.random() * t.aW);
+                        const randY = t.aY + (Math.random() * t.aH);
+                        tImg.style.left = `calc(${randX * 100}% - ${(t.w/2)/selectedBag.w * 100}%)`;
+                        tImg.style.top = `calc(${randY * 100}% - ${(t.h/2)/selectedBag.h * 100}%)`;
+                        const rot = Math.floor(Math.random() * 360);
+                        tImg.style.transform = `rotate(${rot}deg)`;
+                        let tZ = Math.random(); 
+                        activeThreatsData.push({ data: t, element: tImg, z: tZ });
+                        luggageGroup.appendChild(tImg);
+                        addLog(`Sistema inyectó objeto [${t.type}] (Z: ${tZ.toFixed(2)}).`);
+                    }
+                }
+            }
+            applyFiltersToImages(); generarPasajeroAleatorio(saved);
+        }
+
+        let sessionReports = [];
+
+        function finalizarMaletaAuto() {
+            if(beltInterval) { clearInterval(beltInterval); beltInterval = null; }
+            
+            document.getElementById('rep-subj-name').innerText = document.getElementById('p-name').innerText;
+            document.getElementById('rep-subj-id').innerText = document.getElementById('p-cedula').innerText;
+            document.getElementById('rep-subj-gender').innerText = document.getElementById('p-gender').innerText;
+
+            document.getElementById('rep-date').value = ''; 
+            document.getElementById('rep-name').value = document.getElementById('op-name').innerText;
+            document.getElementById('rep-details').value = '';
+            
+            const galeria = document.getElementById('rep-gallery');
+            galeria.innerHTML = '';
+            if(currentBagScreenshots.length === 0) {
+                galeria.innerHTML = '<p class="text-xs text-gray-400 italic font-bold">No se realizaron capturas en esta maleta.</p>';
+            } else {
+                currentBagScreenshots.forEach((img, idx) => {
+                    galeria.innerHTML += `
+                        <label class="relative cursor-pointer border-2 border-transparent hover:border-red-500 rounded-lg overflow-hidden shrink-0">
+                            <input type="checkbox" value="${idx}" class="chk-screenshot absolute top-1 left-1 z-10 w-4 h-4 text-red-600 rounded focus:ring-red-600" checked>
+                            <img src="${img}" class="h-20 w-auto object-cover opacity-90 hover:opacity-100 transition-opacity">
+                        </label>`;
+                });
+            }
+            
+            document.getElementById('report-modal').classList.remove('hidden');
+        }
+
+        function guardarInforme(e) {
+            e.preventDefault();
+            sessionCurrentBag++;
+            
+            const repName = document.getElementById('rep-name').value;
+            const repDate = document.getElementById('rep-date').value;
+            const repDetails = document.getElementById('rep-details').value;
+            const subjName = document.getElementById('rep-subj-name').innerText;
+            const subjId = document.getElementById('rep-subj-id').innerText;
+            
+            const checkboxes = document.querySelectorAll('.chk-screenshot:checked');
+            const selectedImages = Array.from(checkboxes).map(c => currentBagScreenshots[parseInt(c.value)]);
+
+            document.getElementById('report-modal').classList.add('hidden');
+
+            const isEval = sessionStorage.getItem('evalMode') === 'true';
+            const amenazasReales = activeThreatsData.filter(th => th.data.type !== "INOFENSIVO");
+            let totalInyectadas = amenazasReales.length;
+            
+            let bagScore = 100;
+            if(totalInyectadas > 0 && totalAmenazasMarcadas >= totalInyectadas) bagScore = 100;
+            else if(totalInyectadas > 0 && totalAmenazasMarcadas > 0) bagScore = 50; 
+            else if(totalInyectadas > 0 && totalAmenazasMarcadas === 0) bagScore = 0;
+            else if(totalInyectadas === 0 && totalAmenazasMarcadas > 0) bagScore = 50; 
+            else if(totalInyectadas === 0 && totalAmenazasMarcadas === 0) bagScore = 100; 
+
+            sessionAccumulatedScore += bagScore;
+            
+            // Push ESTRUCTURADO COMO JSON
+            sessionReports.push({
+                bag: sessionCurrentBag, subject: subjName, subject_id: subjId,
+                operator: repName, date: repDate, real_threats: totalInyectadas,
+                marked_threats: totalAmenazasMarcadas, score: bagScore,
+                details: repDetails, screenshots: selectedImages
+            });
+
+            addLog(`📦 Maleta ${sessionCurrentBag}/${sessionTotalBags} procesada y reporte firmado. Score Parcial: ${bagScore}%`);
+
+            if (sessionCurrentBag < sessionTotalBags) {
+                beltPos = -900; applySettingsToEngine(); if (beltAutoMode) startBeltLoop();
+            } else {
+                beltAutoMode = false;
+                const btn = document.getElementById('btn-auto-belt');
+                if (btn) { btn.innerText = "SESIÓN TERMINADA"; btn.className = "flex-[2.5] bg-gray-200 text-gray-500 font-bold rounded-xl cursor-not-allowed"; }
+                
+                let globalScore = Math.round(sessionAccumulatedScore / sessionTotalBags);
+                addLog(isEval ? "🚨 EVALUACIÓN OFICIAL FINALIZADA." : "🚨 PRÁCTICA FINALIZADA.");
+                customAlert(isEval ? `🚨 EVALUACIÓN FINALIZADA` : `🚨 PRÁCTICA FINALIZADA`, `Inspección completada (${sessionTotalBags} maletas).\n\nCalculando porcentaje global y cerrando...`, 'success');
+                setTimeout(() => cerrarSimulador(globalScore), 2500);
+            }
+        }
+
+        function cerrarSimulador(overrideScore = null) {
+            let scoreToSend = overrideScore !== null ? overrideScore : 0;
+            if (window.parent && typeof window.parent.finishSim === "function") {
+                // Pasamos sessionReports como ARRAY
+                window.parent.finishSim(scoreToSend, totalAmenazasMarcadas, sessionReports);
+            } else {
+                sessionStorage.setItem('tempSimScore', scoreToSend);
+                window.location.href = "operator.html"; 
+            }
+        }
+
+
         let sessionTotalBags = 1;
         let sessionCurrentBag = 0;
         let sessionAccumulatedScore = 0; // NUEVO: Sumatoria de puntuación por maleta
@@ -1268,97 +1273,6 @@
             document.getElementById('bag-count-modal').classList.add('hidden');
             addLog(`Inicio de práctica configurado para ${sessionTotalBags} maleta(s).`);
             applySettingsToEngine(); toggleAutoBelt(); 
-        }
-
-        // ==========================================
-        // CÁLCULO, INFORMES FORENSES Y CIERRE
-        // ==========================================
-        let sessionReports = []; // Almacena todos los informes redactados
-
-        function finalizarMaletaAuto() {
-            // Detener cinta temporalmente para que escriba el informe
-            if(beltInterval) {
-                clearInterval(beltInterval);
-                beltInterval = null;
-            }
-            
-            // Llenar datos del sujeto desde el panel lateral CCTV
-            document.getElementById('rep-subj-name').innerText = document.getElementById('p-name').innerText;
-            document.getElementById('rep-subj-id').innerText = document.getElementById('p-cedula').innerText;
-            document.getElementById('rep-subj-gender').innerText = document.getElementById('p-gender').innerText;
-
-            // Pre-llenar el modal del informe (dejando fecha vacía para que el operador la llene)
-            document.getElementById('rep-date').value = ''; 
-            document.getElementById('rep-name').value = document.getElementById('op-name').innerText;
-            document.getElementById('rep-details').value = '';
-            
-            document.getElementById('report-modal').classList.remove('hidden');
-        }
-
-        function guardarInforme(e) {
-            e.preventDefault();
-            sessionCurrentBag++;
-            
-            const repName = document.getElementById('rep-name').value;
-            const repDate = document.getElementById('rep-date').value;
-            const repDetails = document.getElementById('rep-details').value;
-            
-            const subjName = document.getElementById('rep-subj-name').innerText;
-            const subjId = document.getElementById('rep-subj-id').innerText;
-
-            document.getElementById('report-modal').classList.add('hidden');
-
-            const isEval = sessionStorage.getItem('evalMode') === 'true';
-            const amenazasReales = activeThreatsData.filter(th => th.data.type !== "INOFENSIVO");
-            let totalInyectadas = amenazasReales.length;
-            
-            // Score individual de ESTA maleta
-            let bagScore = 100;
-            if(totalInyectadas > 0 && totalAmenazasMarcadas >= totalInyectadas) bagScore = 100;
-            else if(totalInyectadas > 0 && totalAmenazasMarcadas > 0) bagScore = 50; 
-            else if(totalInyectadas > 0 && totalAmenazasMarcadas === 0) bagScore = 0;
-            else if(totalInyectadas === 0 && totalAmenazasMarcadas > 0) bagScore = 50; 
-            else if(totalInyectadas === 0 && totalAmenazasMarcadas === 0) bagScore = 100; 
-
-            sessionAccumulatedScore += bagScore;
-            
-            // Almacenar el informe redactado junto con los datos duros de esta maleta y el sujeto
-            sessionReports.push(`[MALETA ${sessionCurrentBag}/${sessionTotalBags}]\nSujeto: ${subjName} (ID: ${subjId})\nOperador: ${repName}\nFecha Ingresada: ${repDate}\nAmenazas Reales: ${totalInyectadas} | Marcadas: ${totalAmenazasMarcadas} | Score: ${bagScore}%\nInforme: ${repDetails}\n`);
-
-            addLog(`📦 Maleta ${sessionCurrentBag}/${sessionTotalBags} procesada y reporte firmado. Score Parcial: ${bagScore}%`);
-
-            if (sessionCurrentBag < sessionTotalBags) {
-                beltPos = -900; 
-                applySettingsToEngine(); 
-                if (beltAutoMode) startBeltLoop(); // Reanudar cinta
-            } else {
-                beltAutoMode = false;
-                const btn = document.getElementById('btn-auto-belt');
-                if (btn) { btn.innerText = "SESIÓN TERMINADA"; btn.className = "flex-[2.5] bg-gray-200 text-gray-500 font-bold rounded-xl cursor-not-allowed"; }
-                
-                let globalScore = Math.round(sessionAccumulatedScore / sessionTotalBags);
-                addLog(isEval ? "🚨 EVALUACIÓN OFICIAL FINALIZADA." : "🚨 PRÁCTICA FINALIZADA.");
-                
-                customAlert(
-                    isEval ? `🚨 EVALUACIÓN FINALIZADA` : `🚨 PRÁCTICA FINALIZADA`, 
-                    `Inspección completada (${sessionTotalBags} maletas).\n\nCalculando porcentaje global y cerrando...`, 
-                    'success'
-                );
-                
-                setTimeout(() => cerrarSimulador(globalScore), 2500);
-            }
-        }
-
-        function cerrarSimulador(overrideScore = null) {
-            let scoreToSend = overrideScore !== null ? overrideScore : 0;
-            let reportsData = sessionReports.length > 0 ? sessionReports.join("\n") : "Sin informes redactados.";
-            
-            if (window.parent && typeof window.parent.finishSim === "function") {
-                window.parent.finishSim(scoreToSend, totalAmenazasMarcadas, reportsData);
-            } else {
-                sessionStorage.setItem('tempSimScore', scoreToSend);
-                window.location.href = "operator.html"; 
-            }
         }
 
         function addLog(msg) {
